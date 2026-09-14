@@ -28174,6 +28174,9 @@
 	"FRSETTING_DUMMIESTRAFEDURATION_060" "0.60s"
 	"FRSETTING_DUMMIESTRAFEDURATION_075" "0.75s"
 	"FRSETTING_DUMMIESTRAFEDURATION_090" "0.90s"
+	"FRSETTING_DUMMIEINVINCIBLE" "Invincible Dummies"
+	"FRSETTING_DUMMIEINVINCIBLE_DESC" "Dummies take hits but cannot die. Health and shields refill after a few seconds without damage."
+	"FRSETTING_DUMMIEINVINCIBLE_CHANGED" "Invincible Dummies"
 	"HUD_DAMAGE_CLOSES_MENU" "Taking Damage Closes Deathbox or Menu"
 	"HUD_DAMAGE_CLOSES_MENU_DESC" "Determines if taking damage while looting a deathbox or in a menu or ability will close the menu."
 	"HUD_SHOW_HEALTHBARS" "Show Healthbars"
@@ -28914,7 +28917,7 @@
 	"GEAR_STOCK_SNIPER_L4_DESC" "Fast handling, large aim drift reduction, fastest reload time. \nNo movement penalty while weapon is drawn."
 	"GEAR_STOCK_SNIPER_L4_NAME" "Sniper Stock"
 	"MAINMENU_CONNECT_LOCALHOST" "Connect Localhost"
-	"MANTLE_BOOST_TEXT" "Press %s1 to Mantle Boost"
+	"MANTLE_BOOST_TEXT" "%s1 BOOST"
 	"MEDIC_PASSIVE_CANCEL_REVIVE_HINT" "%scriptCommand5% Cancel Revive"
 	"MOD_PRO_SCREEN_DESC" "Digital threat display."
 	"MOD_PRO_SCREEN_NAME" "Pro Screen"
@@ -28991,4 +28994,7 @@
 	"WPN_VINSON_MYTHIC_S26_DESC" "Can fire Explosive Rounds.\nKnocked enemies will have a bomb attached."
 	"WPN_VINSON_MYTHIC_S26_DESC_SHORT" "Lots of fire!"
 	"Y_BUTTON_MODS" "%[Y_BUTTON|MOUSE1]% Mods"
+
+	// OTHER CUSTOM
+	"REASON_WEAPON_CORRUPTED" "This weapon already has a Corrupted attachment"
 }

@@ -169,7 +169,12 @@ void function AimTrainer_DevMenuCmd( entity player, array<string> args )
 			printt( format( "[AimTrainer] dev_aimtrainer strafe_speed: missing tenth from %s", player.GetPlayerName() ) )
 			return
 		}
-		DEV_AimTrainer_SetStrafeSpeed( player, float( int( args[1] ) ) / 10.0 )
+		int tenth = int( args[1] )
+		if ( tenth < 5 )
+			tenth = 5
+		if ( tenth > 20 )
+			tenth = 20
+		DEV_AimTrainer_SetStrafeSpeed( player, float( tenth ) / 10.0 )
 		return
 	}
 	if ( action == "bot_health" )
@@ -806,7 +811,12 @@ int function AimTrainer_GetStrafeSpeedTenth( entity player )
 	float mult = AIMTRAINER_STRAFE_SPEED_DEFAULT
 	if ( IsValid( player ) && player.IsPlayer() )
 		mult = player.p.aimTrainerStrafeSpeedMult
-	return int( mult * 10.0 + 0.5 )
+	int tenth = int( mult * 10.0 + 0.5 )
+	if ( tenth < 5 )
+		tenth = 5
+	if ( tenth > 20 )
+		tenth = 20
+	return tenth
 }
 
 void function DEV_AimTrainer_SyncDevMenuState( entity player )
@@ -1125,7 +1135,16 @@ void function DEV_AimTrainer_SetStrafeSpeed( entity player, float mult )
 	player.p.aimTrainerStrafeSpeedMult = mult
 
 	foreach ( entity npc in AimTrainer_GetPlayerDummies( player ) )
-		FlowstateDummy_SetSpeedMult( npc, mult )
+	{
+		try
+		{
+			FlowstateDummy_SetSpeedMult( npc, mult )
+		}
+		catch ( eSpeed )
+		{
+			printt( format( "[AimTrainer] SetSpeedMult failed: %s", string( eSpeed ) ) )
+		}
+	}
 
 	printt( format( "[AimTrainer] Strafe speed = %.1fx for %s", mult, player.GetPlayerName() ) )
 	AimTrainer_SyncDevMenuState( player )
@@ -1141,7 +1160,16 @@ void function DEV_AimTrainer_SetStraferInfiniteHealth( entity player, bool on )
 	player.p.aimTrainerStraferInfiniteHealth = on
 
 	foreach ( entity npc in AimTrainer_GetPlayerDummies( player ) )
-		AimTrainerStrafer_SetGod( npc, on )
+	{
+		try
+		{
+			AimTrainerStrafer_SetGod( npc, on )
+		}
+		catch ( eGod )
+		{
+			printt( format( "[AimTrainer] SetGod failed: %s", string( eGod ) ) )
+		}
+	}
 
 	printt( format( "[AimTrainer] Strafer infinite health = %s for %s", string( on ), player.GetPlayerName() ) )
 	LocalEventMsg( player, on ? "#FS_STRAFER_GOD_ON" : "#FS_STRAFER_GOD_OFF" )

@@ -690,7 +690,7 @@
     "FS_ChalNotAccepting": "不接受挑戰",
     "FS_ChalOffer": "%s 向你發起挑戰",
     "FS_ChalPending": "挑戰已發送",
-    "MANTLE_BOOST_TEXT": "按 %s1 攀爬助推",
+    "MANTLE_BOOST_TEXT": "%s1 加速",
     "SETTING_MANTLE_BOOST_TOO_EARLY": "太早了",
     "LAB_TAB_PLAYER": "玩家",
     "LAB_TAB_ARMORY": "軍械庫",
@@ -908,6 +908,10 @@
     "FRSETTING_DUMMIESTRAFEDURATION_050": "0.50秒",
     "FRSETTING_DUMMIESTRAFEDURATION_060": "0.60秒",
     "FRSETTING_DUMMIESTRAFEDURATION_075": "0.75秒",
-    "FRSETTING_DUMMIESTRAFEDURATION_090": "0.90秒"
+    "FRSETTING_DUMMIESTRAFEDURATION_090": "0.90秒",
+    "FRSETTING_DUMMIEINVINCIBLE": "假人無敵",
+    "FRSETTING_DUMMIEINVINCIBLE_DESC": "假人會受擊但不會死亡。幾秒不受傷後生命和護盾會恢復。",
+    "FRSETTING_DUMMIEINVINCIBLE_CHANGED": "假人無敵",
+    "REASON_WEAPON_CORRUPTED": "此武器已裝有腐蝕配件"
   }
 }

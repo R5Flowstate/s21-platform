@@ -46,6 +46,8 @@ global function ValidateSpawns
 global function _CreateMatchFromPair
 global function _SendMatchRecaps
 global function FS1v1_RemoteStats_SubmitSession
+global function FS1v1_RemoteStats_RecordWeaponDamage
+global function FS1v1_RemoteStats_ResetWeapon
 global function FS1v1_Elo_RecordKill
 global function FS1v1_Elo_ResetLog
 global function FS_1v1_ApplyLobbyLoadout
@@ -856,20 +858,111 @@ string function FS1v1_RemoteStats_JsonEscape( string s )
 	return out
 }
 
+string function FS1v1_RemoteStats_SanitizeWeapon( string raw )
+{
+	string out = ""
+	int n = raw.len()
+	if ( n > 80 )
+		n = 80
+	for ( int i = 0; i < n; i++ )
+	{
+		int code = expect int( raw[i] ) & 0xFF
+		bool ok = ( code >= 48 && code <= 57 ) || ( code >= 65 && code <= 90 ) || ( code >= 97 && code <= 122 ) || code == 95
+		if ( !ok )
+		{
+			if ( out.len() > 0 )
+				break
+			continue
+		}
+		out += raw.slice( i, i + 1 )
+		if ( out.len() >= 64 )
+			break
+	}
+	if ( out.len() < 3 )
+		return ""
+	if ( out == "unknown" || out == "Unknown" || out == "NA" || out == "na" )
+		return ""
+	if ( out.find( "melee" ) >= 0 )
+		return ""
+	if ( out.find( "mp_ability_" ) == 0 )
+		return ""
+	return out
+}
+
+string function FS1v1_RemoteStats_HeldWeapon( entity player )
+{
+	if ( !IsValid( player ) )
+		return ""
+	entity weap = player.GetActiveWeapon( eActiveInventorySlot.mainHand )
+	if ( IsValid( weap ) && !weap.IsWeaponOffhand() )
+	{
+		string w = FS1v1_RemoteStats_SanitizeWeapon( weap.GetWeaponClassName() )
+		if ( w != "" )
+			return w
+	}
+	weap = player.GetNormalWeapon( WEAPON_INVENTORY_SLOT_PRIMARY_0 )
+	if ( IsValid( weap ) )
+	{
+		string w = FS1v1_RemoteStats_SanitizeWeapon( weap.GetWeaponClassName() )
+		if ( w != "" )
+			return w
+	}
+	weap = player.GetNormalWeapon( WEAPON_INVENTORY_SLOT_PRIMARY_1 )
+	if ( IsValid( weap ) )
+		return FS1v1_RemoteStats_SanitizeWeapon( weap.GetWeaponClassName() )
+	return ""
+}
+
+void function FS1v1_RemoteStats_ResetWeapon( entity player )
+{
+	if ( !IsValid( player ) )
+		return
+	player.p.fs_stats_weapon = ""
+	player.p.fs_stats_weapon_damage = 0
+	player.p.fs_stats_weapon_dmg = {}
+}
+
+void function FS1v1_RemoteStats_RecordWeaponDamage( entity attacker, var damageInfo, float dmg )
+{
+	if ( !IsValid( attacker ) || !attacker.IsPlayer() )
+		return
+	int add = int( dmg )
+	if ( add < 1 )
+		return
+	string ornull clsOrNull = GetWeaponClassNameFromDamageInfo( damageInfo )
+	if ( clsOrNull == null )
+		return
+	string cls = FS1v1_RemoteStats_SanitizeWeapon( expect string( clsOrNull ) )
+	if ( cls == "" )
+		return
+	if ( !( cls in attacker.p.fs_stats_weapon_dmg ) )
+		attacker.p.fs_stats_weapon_dmg[cls] <- 0
+	attacker.p.fs_stats_weapon_dmg[cls] += add
+	int total = attacker.p.fs_stats_weapon_dmg[cls]
+	if ( total > attacker.p.fs_stats_weapon_damage )
+	{
+		attacker.p.fs_stats_weapon_damage = total
+		attacker.p.fs_stats_weapon = cls
+	}
+}
+
 string function FS1v1_RemoteStats_WeaponToken( entity player )
 {
 	if ( !IsValid( player ) )
 		return ""
+	string w = FS1v1_RemoteStats_SanitizeWeapon( player.p.fs_stats_weapon )
+	if ( w != "" )
+		return w
+	w = FS1v1_RemoteStats_HeldWeapon( player )
+	if ( w != "" )
+		return w
 	string loadout = player.p.weapon_loadout
 	if ( loadout == "" || loadout == "NA" )
 		return ""
 	array<string> parts = split( strip( loadout ), " " )
 	if ( parts.len() < 1 )
 		return ""
-	string w = parts[0]
-	if ( w.len() > 64 )
-		w = w.slice( 0, 64 )
-	return w
+	return FS1v1_RemoteStats_SanitizeWeapon( parts[0] )
 }
 
 string function FS1v1_RemoteStats_Input( entity player )
@@ -944,12 +1037,15 @@ void function FS1v1_RemoteStats_SubmitSession()
 
 	entity champion = GetBestPlayer()
 	string winnerId = ""
-	if ( IsValid( champion ) )
+	if ( IsValid( champion ) && champion.GetPlayerNetInt( "kills" ) > 0 )
 	{
 		string cuid = champion.GetPlatformUID()
 		if ( FS1v1_RemoteStats_IsDigits( cuid ) && cuid != "9990000" && cuid != "9999000" )
 			winnerId = cuid
 	}
+
+	if ( file.duelLog.len() < 1 )
+		return
 
 	string playersJson = ""
 	int added = 0
@@ -964,6 +1060,11 @@ void function FS1v1_RemoteStats_SubmitSession()
 			continue
 		if ( FS1v1_RemoteStats_JsonEscape( player.GetPlayerName() ) == "" )
 			continue
+		int kills = player.GetPlayerNetInt( "kills" )
+		int deaths = player.GetPlayerNetInt( "deaths" )
+		int damage = player.GetPlayerNetInt( "damage" )
+		if ( kills < 1 && deaths < 1 && damage < 1 )
+			continue
 		if ( added > 0 )
 			playersJson += ","
 		playersJson += FS1v1_RemoteStats_PlayerJson( player )
@@ -972,7 +1073,7 @@ void function FS1v1_RemoteStats_SubmitSession()
 			break
 	}
 
-	if ( added < 1 )
+	if ( added < 2 )
 		return
 
 	string body = "{"

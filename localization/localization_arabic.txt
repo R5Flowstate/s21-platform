@@ -28174,6 +28174,9 @@
 	"FRSETTING_DUMMIESTRAFEDURATION_060" "0.60 ث"
 	"FRSETTING_DUMMIESTRAFEDURATION_075" "0.75 ث"
 	"FRSETTING_DUMMIESTRAFEDURATION_090" "0.90 ث"
+	"FRSETTING_DUMMIEINVINCIBLE" "دمى لا تُقهر"
+	"FRSETTING_DUMMIEINVINCIBLE_DESC" "تتلقى الدمى الإصابات لكنها لا تموت. تُعاد تعبئة الصحة والدرع بعد ثوانٍ دون ضرر."
+	"FRSETTING_DUMMIEINVINCIBLE_CHANGED" "دمى لا تُقهر"
 	"HUD_DAMAGE_CLOSES_MENU" "تلقي الضرر يغلق صندوق الموت أو القائمة"
 	"HUD_DAMAGE_CLOSES_MENU_DESC" "يحدد ما إذا كان تلقي الضرر أثناء نهب صندوق موت أو في قائمة أو قدرة سيغلق القائمة."
 	"HUD_SHOW_HEALTHBARS" "إظهار أشرطة الصحة"
@@ -28914,7 +28917,7 @@
 	"GEAR_STOCK_SNIPER_L4_DESC" "استخدام سريع، وتقليل انحراف التصويب بصورة كبيرة، وأسرع وقت لإعادة تعبئة الذخيرة. \nلا توجد عقوبة للحركة أثناء سحب السلاح."
 	"GEAR_STOCK_SNIPER_L4_NAME" "أخمص قناصة"
 	"MAINMENU_CONNECT_LOCALHOST" "الاتصال بـ Localhost"
-	"MANTLE_BOOST_TEXT" "%s1 لدفع التسلق"
+	"MANTLE_BOOST_TEXT" "%s1 تعزيز"
 	"MEDIC_PASSIVE_CANCEL_REVIVE_HINT" "%scriptCommand5% إلغاء الإنعاش"
 	"MOD_PRO_SCREEN_DESC" "Digital threat display."
 	"MOD_PRO_SCREEN_NAME" "Pro Screen"
@@ -28991,4 +28994,7 @@
 	"WPN_VINSON_MYTHIC_S26_DESC" "يمكن إطلاق الطلقات المنفجرة.\nسيتم إرفاق قنبلة بالأعداء الذين تم إسقاطهم."
 	"WPN_VINSON_MYTHIC_S26_DESC_SHORT" "الكثير من النيران!"
 	"Y_BUTTON_MODS" "%[Y_BUTTON|MOUSE1]% المودات"
+
+	// OTHER CUSTOM
+	"REASON_WEAPON_CORRUPTED" "هذا السلاح يحتوي بالفعل على ملحق فاسد"
 }

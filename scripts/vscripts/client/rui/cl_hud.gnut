@@ -372,6 +372,8 @@ void function DamageFlyout( float damageAmount, vector damagePosition, entity vi
 		return
 
 	bool showHitIndicator = GetConVarInt( "hud_setting_damageIndicatorStyle" ) > 0
+	if ( showHitIndicator && !victim.IsPlayer() && IsSurvivalFiringRange() && !ShouldShowTrainingHitIndicators() )
+		showHitIndicator = false
 
 	const int DAMAGE_TEXT_STYLE_NONE = 0
 	const int DAMAGE_TEXT_STYLE_STACKING_ONLY = 1
@@ -626,6 +628,9 @@ void function DamageFlyout( float damageAmount, vector damagePosition, entity vi
 
 	}
 
+	if ( ShouldShowTrainingHitIndicators() && !victim.IsPlayer() )
+		CreateTrainingHitDot( damagePosition, victim, isHeadShot || isCritShot, false )
+
 	if ( ShouldShowProjectileHitDot( damageType, weapon ) )
 	{
 		var hitDotRui = RuiCreate( $"ui/projectile_hit_dot.rpak", clGlobal.topoFullScreen, RUI_DRAW_HUD, 0 )
@@ -835,7 +840,7 @@ bool function ShouldShowProjectileHitDot( int damageType, entity weapon )
 		return false
 
 
-	if ( ShouldShowTrainingHitIndicators() )
+	if ( IsSurvivalFiringRange() )
 		return false
 
 
@@ -849,9 +854,17 @@ bool function ShouldShowProjectileHitDot( int damageType, entity weapon )
 }
 
 
+bool function IsSurvivalFiringRange()
+{
+	if ( GameModeVariant_IsActive( eGameModeVariants.SURVIVAL_FIRING_RANGE ) )
+		return true
+
+	return GetCurrentPlaylistVarBool( "survival_firingrange", false )
+}
+
 bool function ShouldShowTrainingHitIndicators ()
 {
-	if ( !GameModeVariant_IsActive( eGameModeVariants.SURVIVAL_FIRING_RANGE ) )
+	if ( !IsSurvivalFiringRange() )
 		return false
 
 	if (!showTrainingHitIndicators)

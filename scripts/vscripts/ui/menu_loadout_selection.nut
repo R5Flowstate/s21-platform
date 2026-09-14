@@ -458,8 +458,17 @@ void function LoadoutSelectionMenu_RequestOpenLoadoutMenu( var button )
 
 void function LoadoutSelectionMenu_OpenLoadoutMenu( bool isBrowseMode )
 {
-    if ( !LoadoutSelectionMenu_IsLoadoutSelectionAvailable() )
-        return
+	if ( IsLobby() )
+		return
+
+	if ( !IsFullyConnected() )
+	{
+		thread LoadoutSelectionMenu_OpenWhenConnected_THREAD( isBrowseMode )
+		return
+	}
+
+	if ( !LoadoutSelectionMenu_IsLoadoutSelectionAvailable() )
+		return
 
 	if ( GetActiveMenu() != file.menu && MenuStack_GetLength() != 0 && !isBrowseMode )
 		CloseActiveMenu()
@@ -469,10 +478,16 @@ void function LoadoutSelectionMenu_OpenLoadoutMenu( bool isBrowseMode )
 		AdvanceMenu( file.menu )
 		file.menuOpenTime = UITime()
 	}
+}
 
-
-
-
+void function LoadoutSelectionMenu_OpenWhenConnected_THREAD( bool isBrowseMode )
+{
+	float deadline = UITime() + 10.0
+	while ( UITime() < deadline && !IsFullyConnected() )
+		WaitFrame()
+	if ( !IsFullyConnected() || IsLobby() )
+		return
+	LoadoutSelectionMenu_OpenLoadoutMenu( isBrowseMode )
 }
 
 

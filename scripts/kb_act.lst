@@ -9,6 +9,7 @@
 "+jump"     			  				"#JUMP"
 "+toggle_duck"			  				"#CROUCH_TOGGLE_PC"
 "+duck"					  				"#CROUCH_HOLD_PC"
+"+dodge"				  				"#SETTING_MANTLE_BOOST_ABILITY"
 "blank"					  				"=========================="
 "blank"					  				"#BINDINGS_HEADER_WEAPONS_AND_ABILITIES"
 "blank"					  				"=========================="

@@ -289,6 +289,7 @@ void function RestoreHUDDefaults()
 	SetConVarToDefault( "hud_setting_showObituary" )
 	SetConVarToDefault( "hud_setting_healthbar_style" )
 	SetConVarToDefault( "hud_setting_chat" )
+	SetConVarToDefault( "cl_visual_clutter" )
 	SetConVarToDefault( "hud_setting_minimapRotate" )
 	SetConVarToDefault( "damage_indicator_style_pilot" )
 

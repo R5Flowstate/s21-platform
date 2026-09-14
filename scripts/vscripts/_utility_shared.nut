@@ -227,6 +227,7 @@ void function InitWeaponScripts()
 
 
 		HopupGoldenHorse_Init()
+		DormantHopups_Init()
 
 
 
@@ -5832,7 +5833,7 @@ array<string> function GetValidLootModsInstalled( entity weapon )
 
 	foreach ( mod in mods )
 	{
-		if ( SURVIVAL_Loot_IsRefValid( mod ) )
+		if ( SURVIVAL_Loot_IsRefValid( mod ) && !SURVIVAL_Loot_IsDormantHopup( mod ) && !SURVIVAL_Loot_GetLootDataByRef( mod ).lootTags.contains( "LockedHopup" ) )
 			validMods.append( mod )
 	}
 
@@ -5854,7 +5855,7 @@ array<string> function GetValidModsInstalled( entity weapon )
 
 	foreach ( mod in mods )
 	{
-		if ( SURVIVAL_Loot_IsRefValid( mod ) ) //CanAttachToWeapon( mod, weaponName ) )
+		if ( SURVIVAL_Loot_IsRefValid( mod ) && !SURVIVAL_Loot_IsDormantHopup( mod ) && !SURVIVAL_Loot_GetLootDataByRef( mod ).lootTags.contains( "LockedHopup" ) )
 			validMods.append(mod)
 	}
 

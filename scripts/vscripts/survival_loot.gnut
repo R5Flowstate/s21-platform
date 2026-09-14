@@ -4044,6 +4044,9 @@ void function AddValidModsFromExistingWeapon( entity player, entity weapon, stri
 			string attachPoint = GetAttachPointForAttachmentOnWeapon( weaponName, item )
 			if ( CanAttachToWeapon( item, weaponName ) && !filledInAttachmentSlots.contains( attachPoint ) )
 			{
+				if ( SURVIVAL_ExclusiveCorruptedBlocksMods( mods, item ) )
+					continue
+
 				filledInAttachmentSlots.append( attachPoint )
 				usedMods.append( item )
 				mods.append( item )
@@ -4114,6 +4117,9 @@ void function SURVIVAL_TransferBetterModsToOtherWeapon( entity player, entity we
 
 		if ( CanAttachToWeapon( item, otherWeapon.GetWeaponClassName() ) )
 		{
+			if ( SURVIVAL_ExclusiveCorruptedBlocksMods( otherWeaponMods, item ) )
+				continue
+
 			string otherWeaponItem = GetInstalledWeaponAttachmentForPoint( otherWeapon, attachPoint )
 
 			if ( otherWeaponItem != "" && attachPoint == "sight" )    //don't swap sights unless swapping into an empty slot
@@ -4269,6 +4275,9 @@ array<string> function __AddModsFromSortedList( string weaponName, array<string>
 		string attachPoint = GetAttachPointForAttachmentOnWeapon( weaponName, item )
 		if ( CanAttachToWeapon( item, weaponName ) && !filledInAttachmentSlots.contains( attachPoint ) )
 		{
+			if ( SURVIVAL_ExclusiveCorruptedBlocksMods( mods, item ) )
+				continue
+
 			filledInAttachmentSlots.append( attachPoint )
 			usedMods.append( item )
 			mods.append( item )
@@ -6800,6 +6809,9 @@ void function SURVIVAL_TransferAttachmentToOtherWeapon( entity player, string it
 	if ( !CanAttachToWeapon( item, otherWeaponData.ref ) )
 		return
 
+	if ( SURVIVAL_ExclusiveCorruptedBlocksAttach( otherWeapon, item ) )
+		return
+
 	string attachmentPoint = GetAttachPointForAttachmentOnWeapon( otherWeaponData.ref, item )
 	string otherItem       = GetInstalledWeaponAttachmentForPoint( otherWeapon, attachmentPoint )
 
@@ -6894,6 +6906,9 @@ void function SURVIVAL_RemoveAllAttachmentsFromWeapon( entity player, int slot, 
 void function EquipAttachments_Internal( entity player, entity weapon, string modToAdd, string modToRemove, bool takeFromInventory, bool returnToInventory, bool forceActive = false, bool forceDontThrow = false, entity deathBox = null, bool shouldPlayPickupSound = true, bool attachRemovedModToStowedIfBetter = false )
 {
 	if ( modToAdd == modToRemove )
+		return
+
+	if ( SURVIVAL_ExclusiveCorruptedBlocksAttach( weapon, modToAdd ) )
 		return
 
 	int weaponSlotIndex 	= ( weapon == player.GetNormalWeapon( WEAPON_INVENTORY_SLOT_PRIMARY_0 ) ? WEAPON_INVENTORY_SLOT_PRIMARY_0 : WEAPON_INVENTORY_SLOT_PRIMARY_1 )

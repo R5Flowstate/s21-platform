@@ -690,7 +690,7 @@
     "FS_ChalNotAccepting": "NAO ACEITA DESAFIOS",
     "FS_ChalOffer": "%s te desafiou",
     "FS_ChalPending": "DESAFIO JA ENVIADO",
-    "MANTLE_BOOST_TEXT": "%s1 para impulso de escalada",
+    "MANTLE_BOOST_TEXT": "%s1 IMPULSO",
     "SETTING_MANTLE_BOOST_TOO_EARLY": "Cedo demais",
     "LAB_TAB_PLAYER": "Jogador",
     "LAB_TAB_ARMORY": "Arsenal",
@@ -908,6 +908,10 @@
     "FRSETTING_DUMMIESTRAFEDURATION_050": "0.50 s",
     "FRSETTING_DUMMIESTRAFEDURATION_060": "0.60 s",
     "FRSETTING_DUMMIESTRAFEDURATION_075": "0.75 s",
-    "FRSETTING_DUMMIESTRAFEDURATION_090": "0.90 s"
+    "FRSETTING_DUMMIESTRAFEDURATION_090": "0.90 s",
+    "FRSETTING_DUMMIEINVINCIBLE": "Bonecos invencíveis",
+    "FRSETTING_DUMMIEINVINCIBLE_DESC": "Os bonecos sofrem acertos, mas não morrem. Vida e escudos recarregam após alguns segundos sem dano.",
+    "FRSETTING_DUMMIEINVINCIBLE_CHANGED": "Bonecos invencíveis",
+    "REASON_WEAPON_CORRUPTED": "Esta arma já tem um acessório Corrompido"
   }
 }

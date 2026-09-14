@@ -1,3 +1,6 @@
+global function FRDummie_ApplyInvincible
+global function FRDummie_ApplyInvincibleInRealm
+
 global function Dummie_Init
 global function GetShieldFlagsForTrainingDummyDamage
 global function SetRandomFireForAnimatedNPC
@@ -108,6 +111,30 @@ const asset WEAPON_NPC_COMBATDUMMIE_SHOTGUN = $"npc_weapon_energy_shotgun"
 const asset WEAPON_NPC_COMBATDUMMIE_ENERGY = $"npc_weapon_lstar"
 
 // Shooting
+
+void function FRDummie_ApplyInvincible( entity npc, bool on )
+{
+	if ( !IsValid( npc ) || !npc.IsNPC() || !IsAlive( npc ) )
+		return
+
+	try
+	{
+		AimTrainerStrafer_SetGod( npc, on )
+	}
+	catch ( eGod )
+	{
+		printt( format( "[FR] ApplyInvincible failed: %s", string( eGod ) ) )
+	}
+}
+
+void function FRDummie_ApplyInvincibleInRealm( int realm )
+{
+	bool on = FRSetting_DummieInvincible_Get( realm )
+	foreach ( entity npc in FRDummies_Get( realm ) )
+		FRDummie_ApplyInvincible( npc, on )
+	foreach ( entity npc in CRDummies_Get( realm ) )
+		FRDummie_ApplyInvincible( npc, on )
+}
 
 void function Dummie_Init()
 {

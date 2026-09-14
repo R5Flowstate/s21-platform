@@ -1,5 +1,5 @@
 {
-  "count": 908,
+  "count": 912,
   "order": [
     "DEV_MENU",
     "DEV_ONLY",
@@ -786,6 +786,7 @@
     "CORRUPTED_SNIPER_STOCK_DESC",
     "CORRUPTED_TACTICAL_STOCK",
     "CORRUPTED_TACTICAL_STOCK_DESC",
+    "REASON_WEAPON_CORRUPTED",
     "DisabledTDMWeps",
     "GEAR_BARREL_HEMLOK_ELITE_DESC",
     "GEAR_BARREL_HEMLOK_ELITE_NAME",
@@ -902,6 +903,9 @@
     "FRSETTING_DUMMIESTRAFEDURATION_060",
     "FRSETTING_DUMMIESTRAFEDURATION_075",
     "FRSETTING_DUMMIESTRAFEDURATION_090",
+    "FRSETTING_DUMMIEINVINCIBLE",
+    "FRSETTING_DUMMIEINVINCIBLE_DESC",
+    "FRSETTING_DUMMIEINVINCIBLE_CHANGED",
     "SETTING_OBSERVER_HEADER",
     "SETTING_OBSERVER_SLOW",
     "SETTING_OBSERVER_SLOW_DESC",
@@ -1704,7 +1708,7 @@
     "GEAR_STOCK_SNIPER_L4_DESC": "Fast handling, large aim drift reduction, fastest reload time. \nNo movement penalty while weapon is drawn.",
     "GEAR_STOCK_SNIPER_L4_NAME": "Sniper Stock",
     "MAINMENU_CONNECT_LOCALHOST": "Connect Localhost",
-    "MANTLE_BOOST_TEXT": "Press %s1 to Mantle Boost",
+    "MANTLE_BOOST_TEXT": "%s1 BOOST",
     "MEDIC_PASSIVE_CANCEL_REVIVE_HINT": "%scriptCommand5% Cancel Revive",
     "MOD_PRO_SCREEN_DESC": "Digital threat display.",
     "MOD_PRO_SCREEN_NAME": "Pro Screen",
@@ -1818,7 +1822,11 @@
     "SETTING_OBSERVER_BASE": "Observer Base Speed",
     "SETTING_OBSERVER_BASE_DESC": "Sets the base movement speed of the observer camera.",
     "SETTING_OBSERVER_FAST": "Observer Fast Speed",
-    "SETTING_OBSERVER_FAST_DESC": "Sets the fastest speed of the observer camera."
+    "SETTING_OBSERVER_FAST_DESC": "Sets the fastest speed of the observer camera.",
+    "FRSETTING_DUMMIEINVINCIBLE": "Invincible Dummies",
+    "FRSETTING_DUMMIEINVINCIBLE_DESC": "Dummies take hits but cannot die. Health and shields refill after a few seconds without damage.",
+    "FRSETTING_DUMMIEINVINCIBLE_CHANGED": "Invincible Dummies",
+    "REASON_WEAPON_CORRUPTED": "This weapon already has a Corrupted attachment"
   },
   "sections": {
     "DEV": [
@@ -1935,6 +1943,9 @@
       "FRSETTING_DUMMIESTRAFEDURATION_060",
       "FRSETTING_DUMMIESTRAFEDURATION_075",
       "FRSETTING_DUMMIESTRAFEDURATION_090",
+      "FRSETTING_DUMMIEINVINCIBLE",
+      "FRSETTING_DUMMIEINVINCIBLE_DESC",
+      "FRSETTING_DUMMIEINVINCIBLE_CHANGED",
       "HUD_DAMAGE_CLOSES_MENU",
       "HUD_DAMAGE_CLOSES_MENU_DESC",
       "HUD_SHOW_HEALTHBARS",

@@ -967,7 +967,6 @@
 			"blast_pattern_zero_distance" "512.000000"
 			"blast_pattern_default_scale" "1.400000"
 			"activitymodifier1p" "double_tap_alt_anim"
-			"rui_crosshair_index" "1"
 			"alt_fire_anim_count" "0"
 			"fx_muzzle_flash_view" "P_wpn_muzzleflash_alternator_dtap_FP"
 			"fx_muzzle_flash_world" "P_wpn_muzzleflash_alternator_dtap_3p"
@@ -1029,6 +1028,19 @@
 		}
 
 		"Crosshair_1"
+		{
+			"ui" "ui/crosshair_alternator"
+			"base_spread" "0.000000"
+
+			"Args"
+			{
+				"isFiring" "weapon_is_firing"
+				"playerFov" "player_fov"
+
+			}
+		}
+
+		"Crosshair_2"
 		{
 			"ui" "ui/crosshair_alternator"
 			"base_spread" "0.000000"

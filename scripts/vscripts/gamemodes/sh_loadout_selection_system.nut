@@ -1725,18 +1725,16 @@ void function LoadoutSelection_GivePlayerInventoryAndLoadout( entity player, boo
 	CharacterLoadouts_GiveConsumableLoadoutToPlayer( player, LoadoutSelection_GetConsumableLoadoutByLoadoutSlotIndex( loadoutIndex ) )
 
 
-	// In case the player already has weapons, destroy them first or exit out
+	// Melee lives in slot 2. Only primary 0/1 count as loadout guns.
 	int activeWeaponSlot = SURVIVAL_GetActiveWeaponSlot( player )
-	int secondaryWeaponSlot =  SURVIVAL_GetStowedWeaponSlot( player )
+	int secondaryWeaponSlot = SURVIVAL_GetStowedWeaponSlot( player )
 
-	// both slots are -1 when the player is holding nothing, which is the normal
-	// path on respawn; the native rejects a negative slot
 	entity activePrimaryWeapon
-	if ( activeWeaponSlot >= 0 )
+	if ( activeWeaponSlot == WEAPON_INVENTORY_SLOT_PRIMARY_0 || activeWeaponSlot == WEAPON_INVENTORY_SLOT_PRIMARY_1 )
 		activePrimaryWeapon = player.GetNormalWeapon( activeWeaponSlot )
 
 	entity activeSecondaryWeapon
-	if ( secondaryWeaponSlot >= 0 )
+	if ( secondaryWeaponSlot == WEAPON_INVENTORY_SLOT_PRIMARY_0 || secondaryWeaponSlot == WEAPON_INVENTORY_SLOT_PRIMARY_1 )
 		activeSecondaryWeapon = player.GetNormalWeapon( secondaryWeaponSlot )
 
 	if ( IsValid( activePrimaryWeapon ) )

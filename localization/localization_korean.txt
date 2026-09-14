@@ -28174,6 +28174,9 @@
 	"FRSETTING_DUMMIESTRAFEDURATION_060" "0.60초"
 	"FRSETTING_DUMMIESTRAFEDURATION_075" "0.75초"
 	"FRSETTING_DUMMIESTRAFEDURATION_090" "0.90초"
+	"FRSETTING_DUMMIEINVINCIBLE" "더미 무적"
+	"FRSETTING_DUMMIEINVINCIBLE_DESC" "더미는 피격되어도 죽지 않습니다. 몇 초 동안 피해가 없으면 체력과 실드가 회복됩니다."
+	"FRSETTING_DUMMIEINVINCIBLE_CHANGED" "더미 무적"
 	"HUD_DAMAGE_CLOSES_MENU" "피해를 입으면 데스박스나 메뉴가 닫힙니다"
 	"HUD_DAMAGE_CLOSES_MENU_DESC" "피해를 입을 때, 데스박스를 약탈하거나 메뉴 또는 능력을 사용하는 중에 메뉴가 닫히는지 여부를 결정합니다."
 	"HUD_SHOW_HEALTHBARS" "체력바 표시"
@@ -28914,7 +28917,7 @@
 	"GEAR_STOCK_SNIPER_L4_DESC" "핸들링 빠르고, 조준 시 흔들림이 크게 감소하며, 장전 속도가 가장 빠릅니다.\n무기를 꺼낸 상태에서도 이동 페널티가 없습니다."
 	"GEAR_STOCK_SNIPER_L4_NAME" "저격용 개머리판"
 	"MAINMENU_CONNECT_LOCALHOST" "로컬호스트 연결"
-	"MANTLE_BOOST_TEXT" "%s1로 맨틀 부스트"
+	"MANTLE_BOOST_TEXT" "%s1 부스트"
 	"MEDIC_PASSIVE_CANCEL_REVIVE_HINT" "%scriptCommand5% 부활 취소"
 	"MOD_PRO_SCREEN_DESC" "Digital threat display."
 	"MOD_PRO_SCREEN_NAME" "Pro Screen"
@@ -28991,4 +28994,7 @@
 	"WPN_VINSON_MYTHIC_S26_DESC" "폭발탄을 발사할 수 있습니다.\n녹다운 된 적은 폭탄이 부착됩니다."
 	"WPN_VINSON_MYTHIC_S26_DESC_SHORT" "불바다를 일으킵니다!"
 	"Y_BUTTON_MODS" "%[Y_BUTTON|MOUSE1]% 모드"
+
+	// OTHER CUSTOM
+	"REASON_WEAPON_CORRUPTED" "이 무기에 이미 타락한 부착물이 있습니다"
 }

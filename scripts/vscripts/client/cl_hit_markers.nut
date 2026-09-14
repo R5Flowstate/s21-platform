@@ -1,5 +1,6 @@
 
 global function ClientCodeCallback_ProjectileCollision
+global function CreateTrainingHitDot
 
 const float NO_HIT_NPC_TIMEOUT = 2
 const float POST_SHOOT_NPC_MAKE_HITS_MISSES_DURATION = 0.5
@@ -93,20 +94,26 @@ void function ClientCodeCallback_ProjectileCollision( entity projectile, vector 
 				float distToTarget = Distance(playerEyes, targetPos)
 				pos = eyesToHitPosNormalized * distToTarget + playerEyes
 			}
-		}
-		var hitDotRui = RuiCreate( $"ui/training_target_hit_dot.rpak", clGlobal.topoFullScreen, RUI_DRAW_HUD, 0 )
-		RuiSetResolutionToScreenSize( hitDotRui )
-		RuiSetGameTime( hitDotRui, "startTime", Time() )
-		RuiSetFloat3( hitDotRui, "pos", pos )
-		RuiSetBool ( hitDotRui, "drawInWorldSpace", true )
-		RuiSetBool( hitDotRui, "isCrit", isCritical )
-		RuiSetBool( hitDotRui, "isMiss", isMiss )
-
-		if ( GetCurrentPlaylistVarBool( "firing_range_hitmarker_pos_update_enabled", true ) )
-		{
-			thread UpdateHitMarkerPos( hitDotRui, pos, hitEnt )
+			CreateTrainingHitDot( pos, hitEnt, isCritical, true )
 		}
 	}
+}
+
+void function CreateTrainingHitDot( vector pos, entity hitEnt, bool isCritical, bool isMiss )
+{
+	if ( !ShouldShowTrainingHitIndicators() )
+		return
+
+	var hitDotRui = RuiCreate( $"ui/training_target_hit_dot.rpak", clGlobal.topoFullScreen, RUI_DRAW_HUD, 0 )
+	RuiSetResolutionToScreenSize( hitDotRui )
+	RuiSetGameTime( hitDotRui, "startTime", Time() )
+	RuiSetFloat3( hitDotRui, "pos", pos )
+	RuiSetBool( hitDotRui, "drawInWorldSpace", true )
+	RuiSetBool( hitDotRui, "isCrit", isCritical )
+	RuiSetBool( hitDotRui, "isMiss", isMiss )
+
+	if ( IsValid( hitEnt ) && GetCurrentPlaylistVarBool( "firing_range_hitmarker_pos_update_enabled", true ) )
+		thread UpdateHitMarkerPos( hitDotRui, pos, hitEnt )
 }
 
 void function UpdateHitMarkerPos( var rui, vector damagePos, entity target )

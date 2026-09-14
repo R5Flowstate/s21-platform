@@ -28174,6 +28174,9 @@
 	"FRSETTING_DUMMIESTRAFEDURATION_060" "0.60 s"
 	"FRSETTING_DUMMIESTRAFEDURATION_075" "0.75 s"
 	"FRSETTING_DUMMIESTRAFEDURATION_090" "0.90 s"
+	"FRSETTING_DUMMIEINVINCIBLE" "Mannequins invincibles"
+	"FRSETTING_DUMMIEINVINCIBLE_DESC" "Les mannequins encaissent les tirs mais ne meurent pas. Santé et boucliers se régénèrent après quelques secondes sans dégâts."
+	"FRSETTING_DUMMIEINVINCIBLE_CHANGED" "Mannequins invincibles"
 	"HUD_DAMAGE_CLOSES_MENU" "Subir des dégâts ferme le menu ou la boîte de butin"
 	"HUD_DAMAGE_CLOSES_MENU_DESC" "Détermine si subir des dégâts en récupérant dans une boîte de butin ou dans un menu ou une capacité ferme le menu."
 	"HUD_SHOW_HEALTHBARS" "Afficher les barres de vie"
@@ -28914,7 +28917,7 @@
 	"GEAR_STOCK_SNIPER_L4_DESC" "Maniement rapide avec importante réduction des mouvements du viseur et rechargement accéléré. \nAucune pénalité de déplacement quand l'arme est dégainée."
 	"GEAR_STOCK_SNIPER_L4_NAME" "Crosse de précision"
 	"MAINMENU_CONNECT_LOCALHOST" "Connexion Localhost"
-	"MANTLE_BOOST_TEXT" "%s1 pour le boost d'escalade"
+	"MANTLE_BOOST_TEXT" "%s1 PROPULSION"
 	"MEDIC_PASSIVE_CANCEL_REVIVE_HINT" "%scriptCommand5% Annuler la réanimation"
 	"MOD_PRO_SCREEN_DESC" "Digital threat display."
 	"MOD_PRO_SCREEN_NAME" "Pro Screen"
@@ -28991,4 +28994,7 @@
 	"WPN_VINSON_MYTHIC_S26_DESC" "Peut tirer des balles explosives.\nUne bombe est fixée aux ennemis KO."
 	"WPN_VINSON_MYTHIC_S26_DESC_SHORT" "Grande puissance de feu !"
 	"Y_BUTTON_MODS" "%[Y_BUTTON|MOUSE1]% Mods"
+
+	// OTHER CUSTOM
+	"REASON_WEAPON_CORRUPTED" "Cette arme a déjà un accessoire Corrompu"
 }

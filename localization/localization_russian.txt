@@ -28174,6 +28174,9 @@
 	"FRSETTING_DUMMIESTRAFEDURATION_060" "0.60 с"
 	"FRSETTING_DUMMIESTRAFEDURATION_075" "0.75 с"
 	"FRSETTING_DUMMIESTRAFEDURATION_090" "0.90 с"
+	"FRSETTING_DUMMIEINVINCIBLE" "Бессмертные манекены"
+	"FRSETTING_DUMMIEINVINCIBLE_DESC" "Манекены получают попадания, но не умирают. Здоровье и щиты восстанавливаются через несколько секунд без урона."
+	"FRSETTING_DUMMIEINVINCIBLE_CHANGED" "Бессмертные манекены"
 	"HUD_DAMAGE_CLOSES_MENU" "Получение урона закрывает ящик смерти или меню"
 	"HUD_DAMAGE_CLOSES_MENU_DESC" "Определяет, будет ли закрыто меню, если вы получите урон во время лута или использования способности."
 	"HUD_SHOW_HEALTHBARS" "Показывать полоски здоровья"
@@ -28914,7 +28917,7 @@
 	"GEAR_STOCK_SNIPER_L4_DESC" "Ускоряет управляемость, серьёзно уменьшает отклонение при прицеливании, максимально ускоряет перезарядку. \nНет штрафа при передвижении, если в руках оружие."
 	"GEAR_STOCK_SNIPER_L4_NAME" "Приклад для снайперской винтовки"
 	"MAINMENU_CONNECT_LOCALHOST" "Подключиться к Localhost"
-	"MANTLE_BOOST_TEXT" "%s1 для усиления с уступа"
+	"MANTLE_BOOST_TEXT" "%s1 СУПЕРПРЫЖОК"
 	"MEDIC_PASSIVE_CANCEL_REVIVE_HINT" "%scriptCommand5% Отменить возрождение"
 	"MOD_PRO_SCREEN_DESC" "Digital threat display."
 	"MOD_PRO_SCREEN_NAME" "Pro Screen"
@@ -28991,4 +28994,7 @@
 	"WPN_VINSON_MYTHIC_S26_DESC" "Может стрелять разрывными пулями.\nК нокаутированным врагам крепится бомба."
 	"WPN_VINSON_MYTHIC_S26_DESC_SHORT" "Много огня!"
 	"Y_BUTTON_MODS" "%[Y_BUTTON|MOUSE1]% Моды"
+
+	// OTHER CUSTOM
+	"REASON_WEAPON_CORRUPTED" "На этом оружии уже есть испорченный модуль"
 }

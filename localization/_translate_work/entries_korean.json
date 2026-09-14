@@ -690,7 +690,7 @@
     "FS_ChalNotAccepting": "도전을 받지 않음",
     "FS_ChalOffer": "%s 님이 도전했습니다",
     "FS_ChalPending": "이미 보낸 도전",
-    "MANTLE_BOOST_TEXT": "%s1로 맨틀 부스트",
+    "MANTLE_BOOST_TEXT": "%s1 부스트",
     "SETTING_MANTLE_BOOST_TOO_EARLY": "너무 빠름",
     "LAB_TAB_PLAYER": "플레이어",
     "LAB_TAB_ARMORY": "무기고",
@@ -908,6 +908,10 @@
     "FRSETTING_DUMMIESTRAFEDURATION_050": "0.50초",
     "FRSETTING_DUMMIESTRAFEDURATION_060": "0.60초",
     "FRSETTING_DUMMIESTRAFEDURATION_075": "0.75초",
-    "FRSETTING_DUMMIESTRAFEDURATION_090": "0.90초"
+    "FRSETTING_DUMMIESTRAFEDURATION_090": "0.90초",
+    "FRSETTING_DUMMIEINVINCIBLE": "더미 무적",
+    "FRSETTING_DUMMIEINVINCIBLE_DESC": "더미는 피격되어도 죽지 않습니다. 몇 초 동안 피해가 없으면 체력과 실드가 회복됩니다.",
+    "FRSETTING_DUMMIEINVINCIBLE_CHANGED": "더미 무적",
+    "REASON_WEAPON_CORRUPTED": "이 무기에 이미 타락한 부착물이 있습니다"
   }
 }

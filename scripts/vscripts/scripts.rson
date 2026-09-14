@@ -378,6 +378,7 @@ Scripts:
 	weapons/mp_ability_holopilot.nut
 	weapons/_lifesteal.nut
 	weapons/hopup_golden_horse.nut
+	weapons/sh_dormant_hopups.nut
 	weapons/mp_ability_item_spawner.nut
 	weapons/mp_ability_panic_button.nut
 	weapons/mp_ability_octane_stim.nut
@@ -2173,6 +2174,7 @@ Scripts:
 	weapons/mp_ability_holopilot.nut
 	weapons/_lifesteal.nut
 	weapons/hopup_golden_horse.nut
+	weapons/sh_dormant_hopups.nut
 	weapons/mp_ability_item_spawner.nut
 	weapons/mp_ability_panic_button.nut
 	weapons/mp_ability_octane_stim.nut

@@ -139,23 +139,30 @@
                 maxValue				2.0
                 stepSize				0.1
                 showLabel               3
+                navUp                   ButtonFakeEnemy
+                navDown                 SwitchBotHealth
                 pin_to_sibling			ButtonFakeEnemy
                 pin_corner_to_sibling	TOP_LEFT
                 pin_to_sibling_corner	BOTTOM_LEFT
             }
 
-            SldBotHealth
+            SwitchBotHealth
             {
-                ControlName				SliderControl
-                InheritProperties		SliderControl
+                ControlName				RuiButton
+                InheritProperties		SwitchButton
                 className               "SettingScrollSizer"
-                minValue				0
-                maxValue				1
-                stepSize				1
-                showLabel               0
+                style					DialogListButton
+                list
+                {
+                    "#SETTING_OFF"	0
+                    "#SETTING_ON"	1
+                }
+                navUp                   SldStrafeSpeed
+                navDown                 SwitchAimMode
                 pin_to_sibling			SldStrafeSpeed
                 pin_corner_to_sibling	TOP_LEFT
                 pin_to_sibling_corner	BOTTOM_LEFT
+                childGroupAlways        ChoiceButtonAlways
             }
 
             ChallengeHeader
@@ -165,7 +172,7 @@
                 className               "SettingScrollSizer"
                 xpos					0
                 ypos					6
-                pin_to_sibling			SldBotHealth
+                pin_to_sibling			SwitchBotHealth
                 pin_corner_to_sibling	TOP_LEFT
                 pin_to_sibling_corner	BOTTOM_LEFT
             }

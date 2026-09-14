@@ -1212,6 +1212,8 @@ void function FreeDM_FFA_OnConnected_THREAD( entity player )
 	}
 
 	player.UnfreezeControlsOnServer()
+	player.p.respawnPodLanded = true
+	player.p.survivalLandedOnGround = true
 	if ( !IsAlive( player ) )
 		thread SpawnConnectedPlayer_thread( player )
 
@@ -1350,18 +1352,43 @@ bool function FreeDM_FFA_PickRoundChampion()
 	return true
 }
 
+void function FreeDM_FFA_SetChampionHudFlags( bool showing )
+{
+	foreach ( entity player in GetPlayerArray() )
+	{
+		if ( !IsValid( player ) || player.GetTeam() == TEAM_SPECTATOR )
+			continue
+		if ( showing )
+		{
+			AddCinematicFlag( player, CE_FLAG_HIDE_PERMANENT_HUD )
+			continue
+		}
+		RemoveCinematicFlag( player, CE_FLAG_HIDE_PERMANENT_HUD )
+		RemoveCinematicFlag( player, CE_FLAG_HIDE_MAIN_HUD_INSTANT )
+	}
+}
+
 void function FreeDM_FFA_EndChampionPodium()
 {
 	SetChampionShowingState( false )
 	SetGlobalNetTime( "championDisplayEndTime", Time() - 1.0 )
 	SetGlobalNetTime( "pickLoadoutGamestateEndTime", Time() - 1.0 )
+	FreeDM_FFA_SetChampionHudFlags( false )
 
 	foreach ( entity player in GetPlayerArray() )
 	{
 		if ( !IsValid( player ) )
 			continue
 		if ( FS_1v1_PlayerHasClient( player ) )
-			Remote_CallFunction_NonReplay( player, "ServerCallback_FSDM_ChampionScreenHandle", false, 0, 0, 0, 0, -1, -1 )
+		{
+			try
+			{
+				Remote_CallFunction_NonReplay( player, "ServerCallback_FSDM_ChampionScreenHandle", false, 0, 0, 0, 0, -1, -1 )
+			}
+			catch ( endChampErr )
+			{
+			}
+		}
 		player.Show()
 	}
 }
@@ -1373,6 +1400,7 @@ void function FreeDM_FFA_PresentChampionPodium()
 		SetGlobalNetTime( "championDisplayEndTime", Time() - 1.0 )
 		SetGlobalNetTime( "pickLoadoutGamestateEndTime", Time() - 1.0 )
 		SetChampionShowingState( false )
+		FreeDM_FFA_SetChampionHudFlags( false )
 		return
 	}
 
@@ -1413,6 +1441,7 @@ void function FreeDM_FFA_PresentChampionPodium()
 	SetGlobalNetTime( "pickLoadoutGamestateEndTime", endTime )
 	SetChampionShowingState( true, endTime )
 	SetGlobalNetTime( "championSquadPresentationStartTime", Time() )
+	FreeDM_FFA_SetChampionHudFlags( true )
 
 	printt( "[FreeDM] FFA champion podium start end=" + string( endTime ) + " dur=" + string( durationSec ) )
 
@@ -1420,10 +1449,19 @@ void function FreeDM_FFA_PresentChampionPodium()
 	{
 		if ( !FS_1v1_PlayerHasClient( player ) )
 			continue
-		Remote_CallFunction_NonReplay( player, "ServerCallback_FSDM_ChampionScreenHandle", true, teamWon, durationSec, careerKills, careerDeaths, -1, -1 )
+		try
+		{
+			Remote_CallFunction_NonReplay( player, "ServerCallback_FSDM_ChampionScreenHandle", true, teamWon, durationSec, careerKills, careerDeaths, -1, -1 )
+		}
+		catch ( champErr )
+		{
+			printt( "[FreeDM] FFA champion remote failed " + champErr )
+		}
 	}
 
-	WaitForChampionToFinish()
+	float podiumDeadline = Time() + 6.0
+	while ( Time() < GetGlobalNetTime( "championDisplayEndTime" ) && Time() < podiumDeadline )
+		WaitFrame()
 	FreeDM_FFA_EndChampionPodium()
 }
 
@@ -1434,8 +1472,15 @@ void function FreeDM_FFA_OpenRoundLoadout( entity player )
 	if ( !LoadoutSelection_IsMenuEnabled() || LoadoutSelection_GetAvailableLoadoutCount() < 2 )
 		return
 
-	LoadoutSelection_UpdateLoadoutInfoForMenus( player )
-	Remote_CallFunction_UI( player, "LoadoutSelectionMenu_OpenLoadoutMenu", false )
+	try
+	{
+		LoadoutSelection_UpdateLoadoutInfoForMenus( player )
+		Remote_CallFunction_UI( player, "LoadoutSelectionMenu_OpenLoadoutMenu", false )
+	}
+	catch ( openErr )
+	{
+		printt( "[FreeDM] FFA open loadout failed " + player.GetPlayerName() + " " + openErr )
+	}
 }
 
 void function FreeDM_FFA_FinishRoundLoadout( entity player )
@@ -1444,7 +1489,15 @@ void function FreeDM_FFA_FinishRoundLoadout( entity player )
 		return
 
 	if ( !player.IsBot() && LoadoutSelection_IsMenuEnabled() )
-		Remote_CallFunction_UI( player, "LoadoutSelectionMenu_CloseLoadoutMenu" )
+	{
+		try
+		{
+			Remote_CallFunction_UI( player, "LoadoutSelectionMenu_CloseLoadoutMenu" )
+		}
+		catch ( closeErr )
+		{
+		}
+	}
 
 	if ( IsAlive( player ) )
 		ApplyLoadout( player )
@@ -1465,101 +1518,147 @@ void function FreeDM_FFA_Persist_THREAD()
 		if ( GetGameState() != eGameState.Playing )
 			continue
 
-		bool hasChampion = FreeDM_FFA_PickRoundChampion()
-		float champTime = 0.0
-		if ( hasChampion )
-			champTime = 4.0
-
-		float introTime = GetCurrentPlaylistVarFloat( "freedm_prematch_intro_time", 7.0 )
-		if ( introTime < 0.0 )
-			introTime = 0.0
-
-		float roundTime = GetCurrentPlaylistVarFloat( "flowstateRoundtime", 300.0 )
-		float now = Time()
-		float champEnd = now + champTime
-		float startTime = champEnd + introTime
-		float endTime = startTime + roundTime
-		SetGlobalNetInt( "FSDM_CurrentRound", currentRound > 511 ? 511 : currentRound )
-		SetGlobalNetTime( "pickLoadoutGamestateEndTime", champEnd )
-		SetGlobalNetTime( "championSquadPresentationStartTime", now )
-		SetGlobalNetTime( "championDisplayEndTime", champEnd )
-		SetGlobalNetTime( "flowstate_DMStartTime", startTime )
-		SetGlobalNetTime( "flowstate_DMRoundEndTime", endTime )
-		SetGlobalNonRewindNetTime( "matchStartTime", startTime )
-		SetGlobalNonRewindNetTime( "matchEndTime", endTime )
-		printt( "[FreeDM] FFA round " + string( currentRound ) + " start dur=" + string( roundTime ) + " champ=" + string( champTime ) + " intro=" + string( introTime ) )
-
-		array<entity> roundPlayers = GetPlayerArray()
-		roundPlayers.randomize()
-		foreach ( entity player in roundPlayers )
+		try
 		{
-			if ( !IsValid( player ) )
-				continue
-			FreeDM_FFA_RespawnForRound( player )
-			FreeDM_FFA_FreezeForIntro( player )
-		}
+			bool hasChampion = FreeDM_FFA_PickRoundChampion()
+			float champTime = 0.0
+			if ( hasChampion )
+				champTime = 4.0
 
-		foreach ( entity player in GetPlayerArray() )
-		{
-			if ( IsValid( player ) )
-				Remote_CallFunction_NonReplay( player, "ServerCallback_FreeDM_FFA_RoundStart" )
-		}
+			float introTime = GetCurrentPlaylistVarFloat( "freedm_prematch_intro_time", 7.0 )
+			if ( introTime < 0.0 )
+				introTime = 0.0
 
-		if ( hasChampion )
-			FreeDM_FFA_PresentChampionPodium()
-		else
-			FreeDM_FFA_EndChampionPodium()
+			float roundTime = GetCurrentPlaylistVarFloat( "flowstateRoundtime", 300.0 )
+			float now = Time()
+			float champEnd = now + champTime
+			float startTime = champEnd + introTime
+			float endTime = startTime + roundTime
+			SetGlobalNetInt( "FSDM_CurrentRound", currentRound > 511 ? 511 : currentRound )
+			SetGlobalNetTime( "pickLoadoutGamestateEndTime", champEnd )
+			SetGlobalNetTime( "championSquadPresentationStartTime", now )
+			SetGlobalNetTime( "championDisplayEndTime", champEnd )
+			SetGlobalNetTime( "flowstate_DMStartTime", startTime )
+			SetGlobalNetTime( "flowstate_DMRoundEndTime", endTime )
+			SetGlobalNonRewindNetTime( "matchStartTime", startTime )
+			SetGlobalNonRewindNetTime( "matchEndTime", endTime )
+			printt( "[FreeDM] FFA round " + string( currentRound ) + " start dur=" + string( roundTime ) + " champ=" + string( champTime ) + " intro=" + string( introTime ) )
 
-		FreeDM_ResetRound()
+			array<entity> roundPlayers = GetPlayerArray()
+			roundPlayers.randomize()
+			foreach ( entity player in roundPlayers )
+			{
+				if ( !IsValid( player ) )
+					continue
+				FreeDM_FFA_RespawnForRound( player )
+				FreeDM_FFA_FreezeForIntro( player )
+			}
 
-		foreach ( entity player in GetPlayerArray() )
-			FreeDM_FFA_OpenRoundLoadout( player )
+			foreach ( entity player in GetPlayerArray() )
+			{
+				if ( !IsValid( player ) )
+					continue
+				try
+				{
+					Remote_CallFunction_NonReplay( player, "ServerCallback_FreeDM_FFA_RoundStart" )
+				}
+				catch ( startErr )
+				{
+				}
+			}
 
-		if ( introTime > 0.0 )
-		{
-			while ( Time() < GetGlobalNetTime( "flowstate_DMStartTime" ) )
+			if ( hasChampion )
+				FreeDM_FFA_PresentChampionPodium()
+			else
+				FreeDM_FFA_EndChampionPodium()
+
+			FreeDM_ResetRound()
+
+			foreach ( entity player in GetPlayerArray() )
+				FreeDM_FFA_OpenRoundLoadout( player )
+
+			if ( introTime > 0.0 )
+			{
+				float introDeadline = startTime + 2.0
+				while ( Time() < GetGlobalNetTime( "flowstate_DMStartTime" ) && Time() < introDeadline )
+					WaitFrame()
+			}
+
+			foreach ( entity player in GetPlayerArray() )
+			{
+				if ( !IsValid( player ) )
+					continue
+				FreeDM_FFA_FinishRoundLoadout( player )
+				FreeDM_FFA_UnfreezeAfterIntro( player )
+			}
+
+			int winningTeam = TEAM_INVALID
+			while ( Time() < endTime && GetGameState() == eGameState.Playing )
 				WaitFrame()
-		}
 
-		foreach ( entity player in GetPlayerArray() )
-		{
-			if ( !IsValid( player ) )
+			if ( GetGameState() != eGameState.Playing )
 				continue
-			FreeDM_FFA_FinishRoundLoadout( player )
-			FreeDM_FFA_UnfreezeAfterIntro( player )
+
+			winningTeam = FreeDM_FFA_FindHighestScoreTeam()
+
+			printt( "[FreeDM] FFA round " + string( currentRound ) + " over team=" + string( winningTeam ) )
+
+			foreach ( entity player in GetPlayerArray() )
+			{
+				if ( !IsValid( player ) )
+					continue
+				player.SetInvulnerable()
+				try
+				{
+					Remote_CallFunction_NonReplay( player, "ServerCallback_FreeDM_FFA_RoundEnd" )
+				}
+				catch ( endErr )
+				{
+				}
+			}
+
+			wait GetCurrentPlaylistVarFloat( "endgame_delay", 6.0 )
+
+			foreach ( entity player in GetPlayerArray() )
+			{
+				if ( IsValid( player ) )
+					player.ClearInvulnerable()
+			}
+
+			FreeDM_FFA_LatchRoundChampion()
+			try
+			{
+				FS1v1_RemoteStats_SubmitSession()
+			}
+			catch ( statsErr )
+			{
+				printt( "[FreeDM] FFA stats submit failed " + statsErr )
+			}
+			file.isMatchWinnerFound = false
+			currentRound++
 		}
-
-		int winningTeam = TEAM_INVALID
-		while ( Time() < endTime && GetGameState() == eGameState.Playing )
-			WaitFrame()
-
-		if ( GetGameState() != eGameState.Playing )
-			continue
-
-		winningTeam = FreeDM_FFA_FindHighestScoreTeam()
-
-		printt( "[FreeDM] FFA round " + string( currentRound ) + " over team=" + string( winningTeam ) )
-
-		foreach ( entity player in GetPlayerArray() )
+		catch ( persistErr )
 		{
-			if ( !IsValid( player ) )
-				continue
-			player.SetInvulnerable()
-			Remote_CallFunction_NonReplay( player, "ServerCallback_FreeDM_FFA_RoundEnd" )
+			printt( "[FreeDM] FFA persist err round=" + string( currentRound ) + " " + persistErr )
+			try
+			{
+				FreeDM_FFA_EndChampionPodium()
+			}
+			catch ( endErr2 )
+			{
+			}
+			foreach ( entity player in GetPlayerArray() )
+			{
+				if ( !IsValid( player ) )
+					continue
+				player.Show()
+				FreeDM_FFA_UnfreezeAfterIntro( player )
+				if ( IsAlive( player ) )
+					ApplyLoadout( player )
+			}
+			FreeDM_FFA_SetChampionHudFlags( false )
+			wait 1.0
 		}
-
-		wait GetCurrentPlaylistVarFloat( "endgame_delay", 6.0 )
-
-		foreach ( entity player in GetPlayerArray() )
-		{
-			if ( IsValid( player ) )
-				player.ClearInvulnerable()
-		}
-
-		FreeDM_FFA_LatchRoundChampion()
-		FS1v1_RemoteStats_SubmitSession()
-		file.isMatchWinnerFound = false
-		currentRound++
 	}
 }
 
@@ -1807,6 +1906,8 @@ void function OnPlayerConnected( entity player )
 
 	if ( FreeDM_IsFFA() )
 	{
+		player.p.respawnPodLanded = true
+		player.p.survivalLandedOnGround = true
 		thread FreeDM_FFA_OnConnected_THREAD( player )
 		return
 	}
@@ -1845,6 +1946,8 @@ void function SpawnConnectedPlayer_thread( entity player )
 
 	if ( IsValid( player ) )
 	{
+		player.p.respawnPodLanded = true
+		player.p.survivalLandedOnGround = true
 		ClearPlayerIntroDropSettings( player )
 		DoCommonRespawnForPlayer( player )
 	}
@@ -1917,7 +2020,7 @@ void function ApplyLoadout( entity player )
 	}
 	else if ( LoadoutSelection_IsMenuEnabled() )
 	{
-		LoadoutSelection_GivePlayerInventoryAndLoadout( player, false, false, false, true )
+		LoadoutSelection_GivePlayerInventoryAndLoadout( player, false, false, true, true )
 	}
 
 	if ( FreeDM_IsFFA() )
@@ -1940,8 +2043,16 @@ void function ApplyLoadout( entity player )
 
 	if ( FreeDM_IsFFA() )
 	{
+		if ( player.p.holsterAndDisableWeaponCount > 0 || player.Server_IsOffhandWeaponsDisabled() )
+			DeployAndEnableWeapons( player )
 		entity primary0 = player.GetNormalWeapon( WEAPON_INVENTORY_SLOT_PRIMARY_0 )
 		entity primary1 = player.GetNormalWeapon( WEAPON_INVENTORY_SLOT_PRIMARY_1 )
+		if ( IsValid( primary0 ) )
+			player.SetActiveWeaponBySlot( eActiveInventorySlot.mainHand, WEAPON_INVENTORY_SLOT_PRIMARY_0 )
+		else if ( IsValid( primary1 ) )
+			player.SetActiveWeaponBySlot( eActiveInventorySlot.mainHand, WEAPON_INVENTORY_SLOT_PRIMARY_1 )
+		if ( IsValid( primary0 ) || IsValid( primary1 ) )
+			player.DeployWeapon()
 		string gun0 = IsValid( primary0 ) ? primary0.GetWeaponClassName() : "none"
 		string gun1 = IsValid( primary1 ) ? primary1.GetWeaponClassName() : "none"
 		printt( "[FreeDM] FFA ApplyLoadout " + player.GetPlayerName() + " forceWeapons=" + string( FreeDM_FFA_ShouldGiveForcedWeapons() ) + " picker=" + string( LoadoutSelection_IsMenuEnabled() ) + " guns=" + gun0 + "/" + gun1 + " shieldMax=" + string( player.GetShieldHealthMax() ) )
@@ -2067,14 +2178,17 @@ void function FreeDM_FFA_ApplyLoadoutAfterRespawn_THREAD( entity player )
 	PlayerMatchState_Set( player, ePlayerMatchState.NORMAL )
 
 	bool isFirstSpawn = !( player in file.hasPlayerSpawnedOnce )
-	if ( isFirstSpawn && LoadoutSelection_IsMenuEnabled() )
-	{
-		thread SetupPlayer( player )
+	float readyUntil = Time() + 3.0
+	while ( Time() < readyUntil && LoadoutSelection_IsMenuEnabled() && LoadoutSelection_GetAvailableLoadoutCount() > 0 && LoadoutSelection_GetWeaponCountByLoadoutIndex( 0 ) <= 0 )
+		WaitFrame()
+	if ( !IsValid( player ) || !IsAlive( player ) )
 		return
-	}
 
 	ApplyLoadout( player )
 	file.hasPlayerSpawnedOnce[ player ] <- true
+
+	if ( isFirstSpawn && LoadoutSelection_IsMenuEnabled() && LoadoutSelection_GetAvailableLoadoutCount() > 1 && !player.IsBot() )
+		FreeDM_FFA_OpenRoundLoadout( player )
 }
 
 void function FreeDM_FFA_RespawnAfterDeath_THREAD( entity player )
@@ -2119,34 +2233,31 @@ void function SetupPlayer( entity player )
 
 	bool isFirstSpawn = !(player in file.hasPlayerSpawnedOnce)
 
+	if ( FreeDM_IsFFA() )
+	{
+		WaittillGameStateOrHigher( eGameState.Playing )
+		file.hasPlayerSpawnedOnce[ player ] <- true
+		ClearPlayerIntroDropSettings( player )
+		ApplyLoadout( player )
+		if ( isFirstSpawn )
+			GamemodeUtility_SetJIPPlayerIsWaitingForSpawnBonus( player, false )
+		if ( isFirstSpawn && LoadoutSelection_IsMenuEnabled() && LoadoutSelection_GetAvailableLoadoutCount() > 1 && !player.IsBot() )
+			FreeDM_FFA_OpenRoundLoadout( player )
+		if ( GetCurrentPlaylistVarBool( "allow_third_person", false ) == true )
+			player.SetThirdPersonShoulderModeOn()
+		return
+	}
+
 	if( isFirstSpawn && LoadoutSelection_IsMenuEnabled() && LoadoutSelection_GetAvailableLoadoutCount() > 1 )
 	{
-		if ( FreeDM_IsFFA() )
-		{
-			float readyDeadline = Time() + 8.0
-			while ( Time() < readyDeadline && LoadoutSelection_GetAvailableLoadoutCount() < 2 )
-				WaitFrame()
-		}
-
 		LoadoutSelection_UpdateLoadoutInfoForMenus( player )
-		if ( FreeDM_IsFFA() )
-			WaittillGameStateOrHigher( eGameState.Playing )
-		else
-		{
-			WaittillGameStateOrHigher(eGameState.Prematch)
-			wait 2.1
-		}
+		WaittillGameStateOrHigher(eGameState.Prematch)
+		wait 2.1
 		file.hasPlayerSpawnedOnce[ player ] <- true
 		ClearPlayerIntroDropSettings( player )
 		if ( !player.IsBot() )
 		{
 			Remote_CallFunction_UI( player, "LoadoutSelectionMenu_OpenLoadoutMenu", false )
-			if ( FreeDM_IsFFA() )
-			{
-				wait 0.75
-				if ( IsValid( player ) && !LoadoutSelection_HasPlayerSelectedLoadout( player ) )
-					Remote_CallFunction_UI( player, "LoadoutSelectionMenu_OpenLoadoutMenu", false )
-			}
 			player.WaitSignal( "LoadoutSelection_LoadoutSelectMenuClosed" )
 		}
 	}
@@ -2593,6 +2704,8 @@ void function Client_OnGameStatePlaying()
 		localPlayer.ClearMenuCameraEntity()
 
 	HudTargetInfo_Enable( true )
+	if ( FreeDM_IsFFA() )
+		FreeDM_FFA_RestorePlayHud()
 	if( file.displayScoreThread != null )
 		thread file.displayScoreThread()
 	else
@@ -2983,8 +3096,15 @@ void function FreeDM_FFA_ApplyRoundClock()
 	FS_Hud_SetScorebarClock( GetGlobalNetTime( "flowstate_DMRoundEndTime" ), GetGlobalNetTime( "flowstate_DMStartTime" ) )
 }
 
+void function FreeDM_FFA_RestorePlayHud()
+{
+	FS_1v1_RestoreFfaPlayHud()
+	FreeDM_FFA_ApplyRoundClock()
+}
+
 void function ServerCallback_FreeDM_FFA_RoundEnd()
 {
+	FS_1v1_HideFfaPlayHud()
 	FS_Hud_OpenRoundEndLeaderboard()
 }
 
@@ -3007,6 +3127,8 @@ void function FreeDM_FFA_ShowRoundIntro()
 
 	while ( Time() < GetGlobalNetTime( "championDisplayEndTime" ) )
 		WaitFrame()
+
+	FreeDM_FFA_RestorePlayHud()
 
 	float introEndTime = GetGlobalNetTime( "flowstate_DMStartTime" )
 	if ( introEndTime <= Time() )
@@ -3032,6 +3154,7 @@ void function FreeDM_FFA_ShowRoundIntro()
 	{
 		printt( "[FreeDM] FFA round intro RUI failed: " + eIntro )
 		RuiDestroyIfAlive( introRui )
+		FreeDM_FFA_RestorePlayHud()
 		return
 	}
 
@@ -3045,6 +3168,7 @@ void function FreeDM_FFA_ShowRoundIntro()
 				file.introCountdownRUI = null
 			try { RunUIScript( "SetRespawnOverlayTime", RUI_BADGAMETIME, RUI_BADGAMETIME ) }
 			catch ( eClearOverlay ) {}
+			FreeDM_FFA_RestorePlayHud()
 		}
 	)
 

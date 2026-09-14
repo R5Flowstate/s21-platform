@@ -45,7 +45,7 @@
         {
             ControlName				CNestedPanel
             InheritProperties       SettingsContentPanel
-			tall                    1780
+			tall                    2000
 			visible                 1
             tabPosition             1
 
@@ -273,7 +273,7 @@
                className               "SettingScrollSizer"
                style					DialogListButton
                navUp					SwitchTargetSpeed
-               navDown					SwitchDummieMovement
+               navDown					SwitchDummieHelmetMatchShields
                list
                {
                    "#LOOT_TIER1"    1
@@ -294,7 +294,7 @@
                 className               "SettingScrollSizer"
                 style					DialogListButton
                 navUp					SwitchDummieShield
-                navDown					SwitchDummieMovement
+                navDown					SwitchDummieInvincible
                 list
                 {
                     "#SETTING_OFF"	0
@@ -306,13 +306,32 @@
                    pin_to_sibling_corner	BOTTOM_LEFT
                 childGroupAlways        ChoiceButtonAlways
             }
+           SwitchDummieInvincible
+            {
+                ControlName				RuiButton
+                InheritProperties		SwitchButton
+                className               "SettingScrollSizer"
+                style					DialogListButton
+                navUp					SwitchDummieHelmetMatchShields
+                navDown					SwitchDummieMovement
+                list
+                {
+                    "#SETTING_OFF"	0
+                    "#SETTING_ON"	1
+                }
+
+                pin_to_sibling			SwitchDummieHelmetMatchShields
+                pin_corner_to_sibling	TOP_LEFT
+                pin_to_sibling_corner	BOTTOM_LEFT
+                childGroupAlways        ChoiceButtonAlways
+            }
            SwitchDummieMovement
            {
                ControlName				RuiButton
                InheritProperties		SwitchButton
                className               "SettingScrollSizer"
                style					DialogListButton
-               navUp					SwitchDummieHelmetMatchShields
+               navUp					SwitchDummieInvincible
                navDown					SwitchDummieStance
                list
                {
@@ -321,7 +340,7 @@
                    "#DUMMIE_MOVEMENT_STRAFERANDOM"  2
                    "#DUMMIE_MOVEMENT_RANDOM"        3
                }
-               pin_to_sibling			SwitchDummieHelmetMatchShields
+               pin_to_sibling			SwitchDummieInvincible
                pin_corner_to_sibling	TOP_LEFT
                pin_to_sibling_corner	BOTTOM_LEFT
                childGroupAlways        MultiChoiceButtonAlways
@@ -352,9 +371,7 @@
               className               "SettingScrollSizer"
               style					DialogListButton
               navUp					SwitchDummieStance
-
               navDown				SwitchDummieStrafeDurationMin
-
               list
               {
                   "#FRSETTING_DUMMIESTRAFESPEED_NAME_1"   1
@@ -366,58 +383,32 @@
               pin_to_sibling_corner	BOTTOM_LEFT
               childGroupAlways        MultiChoiceButtonAlways
          }
-         SwitchDummieStrafeDurationMin
-         {
-             ControlName				RuiButton
-             InheritProperties		SwitchButton
-             className               "SettingScrollSizer"
-             style					DialogListButton
-             navUp					SwitchDummieSpeed
-             navDown				SwitchDummieStrafeDurationMax
-             list
-             {
-                 "0.10s"   0
-                 "0.15s"   1
-                 "0.20s"   2
-                 "0.25s"   3
-                 "0.30s"   4
-                 "0.40s"   5
-                 "0.50s"   6
-                 "0.60s"   7
-                 "0.75s"   8
-                 "0.90s"   9
-             }
-             pin_to_sibling			SwitchDummieSpeed
-             pin_corner_to_sibling	TOP_LEFT
-             pin_to_sibling_corner	BOTTOM_LEFT
-             childGroupAlways        MultiChoiceButtonAlways
-        }
-        SwitchDummieStrafeDurationMax
-        {
-             ControlName				RuiButton
-             InheritProperties		SwitchButton
-             className               "SettingScrollSizer"
-             style					DialogListButton
-             navUp					SwitchDummieStrafeDurationMin
-             navDown				SwitchDummieShooting
-             list
-             {
-                 "0.10s"   0
-                 "0.15s"   1
-                 "0.20s"   2
-                 "0.25s"   3
-                 "0.30s"   4
-                 "0.40s"   5
-                 "0.50s"   6
-                 "0.60s"   7
-                 "0.75s"   8
-                 "0.90s"   9
-             }
-             pin_to_sibling			SwitchDummieStrafeDurationMin
-             pin_corner_to_sibling	TOP_LEFT
-             pin_to_sibling_corner	BOTTOM_LEFT
-             childGroupAlways        MultiChoiceButtonAlways
-        }
+            SwitchDummieStrafeDurationMin
+            {
+                ControlName				RuiButton
+                InheritProperties		SwitchButton
+                className               "SettingScrollSizer"
+                style					DialogListButton
+                navUp					SwitchDummieSpeed
+                navDown					SwitchDummieStrafeDurationMax
+                pin_to_sibling			SwitchDummieSpeed
+                pin_corner_to_sibling	TOP_LEFT
+                pin_to_sibling_corner	BOTTOM_LEFT
+                childGroupAlways        MultiChoiceButtonAlways
+            }
+            SwitchDummieStrafeDurationMax
+            {
+                ControlName				RuiButton
+                InheritProperties		SwitchButton
+                className               "SettingScrollSizer"
+                style					DialogListButton
+                navUp					SwitchDummieStrafeDurationMin
+                navDown					SwitchDummieShooting
+                pin_to_sibling			SwitchDummieStrafeDurationMin
+                pin_corner_to_sibling	TOP_LEFT
+                pin_to_sibling_corner	BOTTOM_LEFT
+                childGroupAlways        MultiChoiceButtonAlways
+            }
 	        SwitchDummieShooting
             {
                 ControlName				RuiButton

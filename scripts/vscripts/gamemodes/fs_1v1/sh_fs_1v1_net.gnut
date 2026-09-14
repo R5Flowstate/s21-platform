@@ -1099,11 +1099,8 @@ void function FS_1v1_RestoreWorldViewAfterChampion()
 	if ( GetCurrentPlaylistVarBool( "freedm_ffa_active", false ) )
 	{
 		FS_1v1_ClearMenuCamera()
-		if ( IsValid( lp ) )
-		{
-			SetAllHudVisExceptMinimap( true )
-			ShowScriptHUD( lp )
-		}
+		FS_1v1_RestoreFfaPlayHud()
+		printt( "[FreeDM] FFA champion HUD restore" )
 		thread FS_1v1_RestoreWorldViewRetry_THREAD()
 		return
 	}
@@ -1139,6 +1136,8 @@ void function FS_1v1_RestoreWorldViewRetry_THREAD()
 	{
 		wait 0.25
 		FS_1v1_ClearMenuCamera()
+		if ( GetCurrentPlaylistVarBool( "freedm_ffa_active", false ) )
+			FS_1v1_RestoreFfaPlayHud()
 	}
 }
 

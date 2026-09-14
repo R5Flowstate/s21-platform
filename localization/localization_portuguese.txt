@@ -28174,6 +28174,9 @@
 	"FRSETTING_DUMMIESTRAFEDURATION_060" "0.60 s"
 	"FRSETTING_DUMMIESTRAFEDURATION_075" "0.75 s"
 	"FRSETTING_DUMMIESTRAFEDURATION_090" "0.90 s"
+	"FRSETTING_DUMMIEINVINCIBLE" "Bonecos invencíveis"
+	"FRSETTING_DUMMIEINVINCIBLE_DESC" "Os bonecos sofrem acertos, mas não morrem. Vida e escudos recarregam após alguns segundos sem dano."
+	"FRSETTING_DUMMIEINVINCIBLE_CHANGED" "Bonecos invencíveis"
 	"HUD_DAMAGE_CLOSES_MENU" "Receber Dano Fecha a Caixa de Morte ou o Menu"
 	"HUD_DAMAGE_CLOSES_MENU_DESC" "Determina se receber dano enquanto saqueia uma caixa de morte ou está em um menu ou habilidade fechará o menu."
 	"HUD_SHOW_HEALTHBARS" "Mostrar Barras de Saúde"
@@ -28914,7 +28917,7 @@
 	"GEAR_STOCK_SNIPER_L4_DESC" "Manuseio rápido, grande redução do desvio de mira, recarga mais rápida. \nSem penalidade de movimento enquanto a arma é sacada."
 	"GEAR_STOCK_SNIPER_L4_NAME" "Coronha de Fuzil de Precisão"
 	"MAINMENU_CONNECT_LOCALHOST" "Conectar Localhost"
-	"MANTLE_BOOST_TEXT" "%s1 para impulso de escalada"
+	"MANTLE_BOOST_TEXT" "%s1 IMPULSO"
 	"MEDIC_PASSIVE_CANCEL_REVIVE_HINT" "%scriptCommand5% Cancelar Reviver"
 	"MOD_PRO_SCREEN_DESC" "Digital threat display."
 	"MOD_PRO_SCREEN_NAME" "Pro Screen"
@@ -28991,4 +28994,7 @@
 	"WPN_VINSON_MYTHIC_S26_DESC" "Pode disparar Projéteis Explosivos.\nUnidades inimigas derrubadas terão uma bomba anexada."
 	"WPN_VINSON_MYTHIC_S26_DESC_SHORT" "Muito fogo!"
 	"Y_BUTTON_MODS" "%[Y_BUTTON|MOUSE1]% Mods"
+
+	// OTHER CUSTOM
+	"REASON_WEAPON_CORRUPTED" "Esta arma já tem um acessório Corrompido"
 }

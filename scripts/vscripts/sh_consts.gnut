@@ -2552,6 +2552,7 @@ global enum eFRSettingType
 	                   
 	DYNAMICDUMMIESON,	// Dynamic Dummies Enabled/Disabled
 	DUMMIEHIGHLIGHTSON,	// Whether or not to highlight dummies.
+	FRDUMMIEINVINCIBLE,	// Dummies take hits but do not die.
        
 	//	// ----- Shared Int Settings.
 	// To add new Shared Int Setting:

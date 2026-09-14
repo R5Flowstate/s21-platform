@@ -974,6 +974,7 @@ void function FS_1v1_OnPlayerDamaged_Score( entity victim, var damageInfo )
 	int nextDmg = attacker.GetPlayerNetInt( "damage" ) + int( dmg )
 	attacker.SetPlayerNetInt( "damage", nextDmg )
 	attacker.SetPlayerNetInt( "damageDealt", nextDmg )
+	FS1v1_RemoteStats_RecordWeaponDamage( attacker, damageInfo, dmg )
 
 	MatchGroup group = Gamemode1v1_GetPlayerSoloGroup( attacker )
 	if ( !Gamemode1v1_IsMatchValid( group ) )
@@ -1143,6 +1144,7 @@ void function _OnPlayerConnected1v1( entity player )
 	player.p.fs_stats_hits = 0
 	player.p.fs_stats_shots = 0
 	player.p.fs_stats_headshots = 0
+	FS1v1_RemoteStats_ResetWeapon( player )
 	player.SetPlayerNetInt( "accuracy", 0 )
 
 	if ( !player.IsBot() )
@@ -3346,6 +3348,7 @@ void function _ResetPlayerStats1v1( entity player )
 	player.p.fs_stats_hits = 0
 	player.p.fs_stats_shots = 0
 	player.p.fs_stats_headshots = 0
+	FS1v1_RemoteStats_ResetWeapon( player )
 	player.SetPlayerNetInt( "accuracy", 0 )
 
 	if( GetCurrentPlaylistName() == "fs_lgduels_1v1" )

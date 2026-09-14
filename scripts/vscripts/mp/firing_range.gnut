@@ -185,6 +185,7 @@ global function UCB_SV_FRSetting_LegendUpgradesEnabled
 global function FRSetting_3rdPerson_IsOn
 
 global function UCB_SV_FRSetting_DummieHelmetMatchShields
+global function UCB_SV_FRSetting_DummieInvincible
 
 // Unified
 global function UCB_SV_FRSetting_Change_Int
@@ -408,6 +409,7 @@ void function FiringRangeGameMode_Init()
                            
 
 	Remote_RegisterServerFunction( "UCB_SV_FRSetting_DummieHelmetMatchShields", "bool", "bool" )
+	Remote_RegisterServerFunction( "UCB_SV_FRSetting_DummieInvincible", "bool", "bool" )
 
 	// Customize Range Menu open state tracking.
 	Remote_RegisterServerFunction( "UCB_CustomizeRangeMenu_TrackState", "bool" )
@@ -609,6 +611,7 @@ void function FR_Init_NetVars_And_PVars()
 	                   
 		frBoolSettings_Defaults	[ eFRSettingType.DYNAMICDUMMIESON ] <- true
 		frBoolSettings_Defaults [ eFRSettingType.DUMMIEHIGHLIGHTSON ] <- true
+		frBoolSettings_Defaults [ eFRSettingType.FRDUMMIEINVINCIBLE ] <- false
                           
 
 	// --- Shared Int Settings.
@@ -708,6 +711,7 @@ void function FR_Init_NetVars_And_PVars()
 	frSetting_IsShared[ eFRSettingType.FRDUMMIESHOOTING ] 	<- true
 	frSetting_IsShared[ eFRSettingType.DYNAMICDUMMIESON ] 	<- true
 	frSetting_IsShared[ eFRSettingType.DUMMIEHIGHLIGHTSON ] <- true
+	frSetting_IsShared[ eFRSettingType.FRDUMMIEINVINCIBLE ] <- true
 	frSetting_IsShared[ eFRSettingType.FRDUMMIESTRAFEDURATIONMIN ] <- true
 	frSetting_IsShared[ eFRSettingType.FRDUMMIESTRAFEDURATIONMAX ] <- true
                          
@@ -726,6 +730,7 @@ void function FR_Init_NetVars_And_PVars()
 	// FR Bool Settings
 	frSetting_ShouldBeSaved[ eFRSettingType.FRIENDLYFIRE ] 	<- false
 	frSetting_ShouldBeSaved[ eFRSettingType.FRDUMMIEHELMETMATCHSHIELDS ] <- true
+	frSetting_ShouldBeSaved[ eFRSettingType.FRDUMMIEINVINCIBLE ] <- true
 
 	// FR Int Settings
 	frSetting_ShouldBeSaved[ eFRSettingType.TARGETSPEED ] 		<- true
@@ -837,6 +842,7 @@ void function FR_Init_NetVars_And_PVars()
 		file.prefsNameToSetting[ "SHOWHITMARKS" ] <- eFRSettingType.SHOWHITMARKS
 		file.prefsNameToSetting[ "SHOW3RDPERSON" ] <- eFRSettingType.SHOW3RDPERSON
 		file.prefsNameToSetting[ "FRDUMMIEHELMETMATCHSHIELDS" ] <- eFRSettingType.FRDUMMIEHELMETMATCHSHIELDS
+		file.prefsNameToSetting[ "FRDUMMIEINVINCIBLE" ] <- eFRSettingType.FRDUMMIEINVINCIBLE
 
 		file.prefsSettingToName[ eFRSettingType.TARGETSPEED ] <- "TARGETSPEED"
 		file.prefsSettingToName[ eFRSettingType.FRDUMMIESHIELDLVL ] <- "FRDUMMIESHIELDLVL"
@@ -854,6 +860,7 @@ void function FR_Init_NetVars_And_PVars()
 		file.prefsSettingToName[ eFRSettingType.SHOWHITMARKS ] <- "SHOWHITMARKS"
 		file.prefsSettingToName[ eFRSettingType.SHOW3RDPERSON ] <- "SHOW3RDPERSON"
 		file.prefsSettingToName[ eFRSettingType.FRDUMMIEHELMETMATCHSHIELDS ] <- "FRDUMMIEHELMETMATCHSHIELDS"
+		file.prefsSettingToName[ eFRSettingType.FRDUMMIEINVINCIBLE ] <- "FRDUMMIEINVINCIBLE"
 	#endif // SERVER
 
 	file.fr_NetVarsAndPVarsInitiated = true
@@ -1501,6 +1508,10 @@ void function FRSettings_Sync_Netvars( entity srcPlayer, entity destPlayer )
 	setting_Bool = FRS_NetVar_Get_Bool( srcPlayer, settingType )
 	FRS_NetVar_Set_Bool( destPlayer, settingType, setting_Bool )
 
+	settingType = eFRSettingType.FRDUMMIEINVINCIBLE
+	setting_Bool = FRS_NetVar_Get_Bool( srcPlayer, settingType )
+	FRS_NetVar_Set_Bool( destPlayer, settingType, setting_Bool )
+
 	settingType = eFRSettingType.FRDUMMIESPEED
 	setting_Int = FRS_NetVar_Get_Int( srcPlayer, settingType )
 	FRS_NetVar_Set_Int( destPlayer, settingType, setting_Int )
@@ -1761,6 +1772,7 @@ void function SCB_Broadcast_FRSetting_Changed_Bool( entity playerThatChanged, in
 	string settingNameLocalized
 
 	settingNamesByType[ eFRSettingType.FRDUMMIEHELMETMATCHSHIELDS ] <- "#FRSETTING_DUMMIEHELMETMATCHSHIELDS_CHANGED"
+	settingNamesByType[ eFRSettingType.FRDUMMIEINVINCIBLE ] <- "#FRSETTING_DUMMIEINVINCIBLE_CHANGED"
 
 	                   
 		settingNamesByType[ eFRSettingType.DYNAMICDUMMIESON ] 	<- "#DYNDUMMIE_DYNSPAWN_CHANGED"
@@ -2129,6 +2141,30 @@ void function UCB_SV_FRSetting_DummieHelmetMatchShields( entity player, bool val
 	FRS_PVar_Set_Bool( player, eFRSettingType.FRDUMMIEHELMETMATCHSHIELDS, value )
 	FRSetting_DummieHelmetMatchShields_Set( realm, value )
 	thread Dummies_DelayedReset_Thread( realm, true )
+}
+
+void function UCB_SV_FRSetting_DummieInvincible( entity player, bool value, bool indicateChange )
+{
+	if( !IsValid( player ) )
+		return
+
+	if( !RangeMaster_Check( player ) )
+		return
+
+	int realm = GetCombatRangeRealm( player )
+	array< entity > teamPlayers = ReadyPVarPlayers_Get_ByPlayer( player )
+	foreach( entity teamPlayer in teamPlayers )
+	{
+		if( IsValid( teamPlayer ) )
+		{
+			FRS_NetVar_Set_Bool( teamPlayer, eFRSettingType.FRDUMMIEINVINCIBLE, value )
+			if( indicateChange )
+				Remote_CallFunction_NonReplay( teamPlayer, "SCB_Broadcast_FRSetting_Changed_Bool", player, eFRSettingType.FRDUMMIEINVINCIBLE, value )
+		}
+	}
+	FRS_PVar_Set_Bool( player, eFRSettingType.FRDUMMIEINVINCIBLE, value )
+	FRSetting_DummieInvincible_Set( realm, value )
+	FRDummie_ApplyInvincibleInRealm( realm )
 }
 
                    
@@ -3151,6 +3187,9 @@ void function OnPlayerReadiedInRealm( entity player )
 		boolVal = FRSetting_DummieHelmetMatchShields_Get( realm )
 		FRSetting_SetOnPlayer_Bool( player, eFRSettingType.FRDUMMIEHELMETMATCHSHIELDS, boolVal )
 
+		boolVal = FRSetting_DummieInvincible_Get( realm )
+		FRSetting_SetOnPlayer_Bool( player, eFRSettingType.FRDUMMIEINVINCIBLE, boolVal )
+
 		// --- Get shared Dummie Speed
 		value = FRSetting_DummieSpeed_Get( realm )
 		FRSetting_SetOnPlayer_Int( player, eFRSettingType.FRDUMMIESPEED, value )
@@ -3240,6 +3279,8 @@ void function OnPlayerReadiedInRealm( entity player )
 			// --- Dummie Helmet Match Shields
 			FRSettings_Bool_Propagate( player, eFRSettingType.FRDUMMIEHELMETMATCHSHIELDS )
 
+			FRSettings_Bool_Propagate( player, eFRSettingType.FRDUMMIEINVINCIBLE )
+
 			// --- Dummie Speeds
 			FRSettings_Int_Propagate( player, eFRSettingType.FRDUMMIESPEED )
 
@@ -3310,6 +3351,9 @@ void function OnPlayerReadiedInRealm( entity player )
 
 			savedSetting_Bool = FRSetting_DummieHelmetMatchShields_Get( realm )
 			FRSetting_SetOnPlayer_Bool( player, eFRSettingType.FRDUMMIEHELMETMATCHSHIELDS, savedSetting_Bool )
+
+			savedSetting_Bool = FRSetting_DummieInvincible_Get( realm )
+			FRSetting_SetOnPlayer_Bool( player, eFRSettingType.FRDUMMIEINVINCIBLE, savedSetting_Bool )
 
 		                   
 			// --- Dummie Shooting
@@ -4984,6 +5028,8 @@ void function FRSettings_Client_Update()
 
 	// Dummie Helmet Match Shields
 	Update_SettingsMenu_Bool( eFRSettingType.FRDUMMIEHELMETMATCHSHIELDS )
+
+	Update_SettingsMenu_Bool( eFRSettingType.FRDUMMIEINVINCIBLE )
 
 	// Dummie Speed.
 	Update_SettingsMenu_Int( eFRSettingType.FRDUMMIESPEED )

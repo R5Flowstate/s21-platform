@@ -690,7 +690,7 @@
     "FS_ChalNotAccepting": "AKZEPTIERT KEINE HERAUSFORDERUNGEN",
     "FS_ChalOffer": "%s hat dich herausgefordert",
     "FS_ChalPending": "HERAUSFORDERUNG BEREITS GESENDET",
-    "MANTLE_BOOST_TEXT": "%s1 fur Mantle-Boost",
+    "MANTLE_BOOST_TEXT": "%s1 BOOST",
     "SETTING_MANTLE_BOOST_TOO_EARLY": "Zu fruh",
     "LAB_TAB_PLAYER": "Spieler",
     "LAB_TAB_ARMORY": "Waffenkammer",
@@ -908,6 +908,10 @@
     "FRSETTING_DUMMIESTRAFEDURATION_050": "0.50 s",
     "FRSETTING_DUMMIESTRAFEDURATION_060": "0.60 s",
     "FRSETTING_DUMMIESTRAFEDURATION_075": "0.75 s",
-    "FRSETTING_DUMMIESTRAFEDURATION_090": "0.90 s"
+    "FRSETTING_DUMMIESTRAFEDURATION_090": "0.90 s",
+    "FRSETTING_DUMMIEINVINCIBLE": "Unverwundbare Dummys",
+    "FRSETTING_DUMMIEINVINCIBLE_DESC": "Dummys erleiden Treffer, sterben aber nicht. Gesundheit und Schilde füllen sich nach einigen Sekunden ohne Schaden wieder auf.",
+    "FRSETTING_DUMMIEINVINCIBLE_CHANGED": "Unverwundbare Dummys",
+    "REASON_WEAPON_CORRUPTED": "Diese Waffe hat bereits ein verdorbenes Aufsatzteil"
   }
 }

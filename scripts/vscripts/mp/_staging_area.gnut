@@ -51,6 +51,8 @@ global function FRSetting_DummieShieldLvl_Set
 
 global function FRSetting_DummieHelmetMatchShields_Get
 global function FRSetting_DummieHelmetMatchShields_Set
+global function FRSetting_DummieInvincible_Get
+global function FRSetting_DummieInvincible_Set
 
 global function FRSetting_DummieSpeed_Get
 global function FRSetting_DummieSpeed_Set
@@ -3149,6 +3151,16 @@ void function FRSetting_DummieHelmetMatchShields_Set( int realm, bool setting )
 	FRBoolSetting_Set( realm, eFRSettingType.FRDUMMIEHELMETMATCHSHIELDS , setting )
 }
 
+bool function FRSetting_DummieInvincible_Get( int realm )
+{
+	return( FRBoolSetting_Get( realm, eFRSettingType.FRDUMMIEINVINCIBLE ))
+}
+
+void function FRSetting_DummieInvincible_Set( int realm, bool setting )
+{
+	FRBoolSetting_Set( realm, eFRSettingType.FRDUMMIEINVINCIBLE , setting )
+}
+
 // ---
 
 int function FRSetting_DummieSpeed_Get (int realm)
@@ -4106,6 +4118,7 @@ void function Respawning_FRDummy_Thread( int realm, vector spawnOrigin, vector s
 		s_FRDummiesInRealm[realm].append( npc )
 		npc.RemoveFromAllRealms()
 		npc.AddToRealm( realm )
+		FRDummie_ApplyInvincible( npc, FRSetting_DummieInvincible_Get( realm ) )
 		// npc.SetNetworkDistanceCullEnabled( false ) // S3: entity method not available at compile time
 
 		                         

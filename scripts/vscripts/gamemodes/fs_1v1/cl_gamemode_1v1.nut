@@ -14,6 +14,8 @@ global function FS_1v1_DisplayHints
 global function FS_Show1v1Banner
 global function FS_1v1_SetCombatHudVisible
 global function FS_1v1_SetMinimapVisible
+global function FS_1v1_RestoreFfaPlayHud
+global function FS_1v1_HideFfaPlayHud
 
 global function Gamemode1v1_ForceLegendSelector_Deprecated
 
@@ -163,6 +165,11 @@ void function Cl_Gamemode1v1_Init()
 
 	Obituary_SetAlwaysShow( true )
 	Obituary_SetMaxEntries( 8 )
+	if ( GetConVarInt( "cl_visual_clutter_ship" ) < 1 )
+	{
+		SetConVarInt( "cl_visual_clutter", 1 )
+		SetConVarInt( "cl_visual_clutter_ship", 1 )
+	}
 	CL_1v1_RegisterNetworkFunctions()
 
 	// Precache particles
@@ -559,6 +566,33 @@ void function FS_1v1_SetMinimapVisible( bool show )
 		return
 	file.minimapHeldHidden = true
 	Minimap_DisableDraw()
+}
+
+void function FS_1v1_HideFfaPlayHud()
+{
+	FS_1v1_SuppressAllHud()
+}
+
+void function FS_1v1_RestoreFfaPlayHud()
+{
+	// FFA has no 1v1 PlayerState. SetCombatHudVisible(true) starts the duel
+	// opponent blip and hides compass; only unwind the champion suppress here.
+	file.hudSuppressed = false
+	entity lp = GetLocalClientPlayer()
+	if ( IsValid( lp ) )
+		ShowScriptHUD( lp )
+	SetAllHudVisExceptMinimap( true )
+	try { FS_1v1_SetRuiVisibleSafe( GetCompassRui(), true ) } catch ( eCompass ) {}
+	try { FS_1v1_SetRuiVisibleSafe( GetPilotRui(), true ) } catch ( ePilot ) {}
+	try { FS_1v1_SetRuiVisibleSafe( GetDpadMenuRui(), true ) } catch ( eDpad ) {}
+	try { FS_1v1_SetRuiVisibleSafe( GetWeaponRui(), true ) } catch ( eWeap ) {}
+	try { FS_1v1_SetRuiVisibleSafe( GetTacticalRui(), true ) } catch ( eTac ) {}
+	try { FS_1v1_SetRuiVisibleSafe( GetUltimateRui(), true ) } catch ( eUlt ) {}
+	FS_1v1_SetMinimapVisible( true )
+	FS_Hud_SetModeChromeVisible( true )
+	var rui = ClGameState_GetRui()
+	if ( rui != null )
+		FS_1v1_RuiSetBoolSafe( rui, "isVisible", true )
 }
 
 void function FS_1v1_SetEnemyMinimapActive( bool active )

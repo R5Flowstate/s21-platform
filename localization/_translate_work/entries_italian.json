@@ -690,7 +690,7 @@
     "FS_ChalNotAccepting": "NON ACCETTA SFIDE",
     "FS_ChalOffer": "%s ti ha sfidato",
     "FS_ChalPending": "SFIDA GIA INVIATA",
-    "MANTLE_BOOST_TEXT": "%s1 per la spinta da scavalcata",
+    "MANTLE_BOOST_TEXT": "%s1 POTENZIA",
     "SETTING_MANTLE_BOOST_TOO_EARLY": "Troppo presto",
     "LAB_TAB_PLAYER": "Giocatore",
     "LAB_TAB_ARMORY": "Armeria",
@@ -908,6 +908,10 @@
     "FRSETTING_DUMMIESTRAFEDURATION_050": "0.50 s",
     "FRSETTING_DUMMIESTRAFEDURATION_060": "0.60 s",
     "FRSETTING_DUMMIESTRAFEDURATION_075": "0.75 s",
-    "FRSETTING_DUMMIESTRAFEDURATION_090": "0.90 s"
+    "FRSETTING_DUMMIESTRAFEDURATION_090": "0.90 s",
+    "FRSETTING_DUMMIEINVINCIBLE": "Manichini invincibili",
+    "FRSETTING_DUMMIEINVINCIBLE_DESC": "I manichini subiscono i colpi ma non muoiono. Salute e scudi si ricaricano dopo qualche secondo senza danni.",
+    "FRSETTING_DUMMIEINVINCIBLE_CHANGED": "Manichini invincibili",
+    "REASON_WEAPON_CORRUPTED": "Quest'arma ha già un accessorio Corrotto"
   }
 }

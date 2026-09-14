@@ -690,7 +690,7 @@
     "FS_ChalNotAccepting": "N ACCEPTE PAS LES DEFIS",
     "FS_ChalOffer": "%s vous a defie",
     "FS_ChalPending": "DEFI DEJA ENVOYE",
-    "MANTLE_BOOST_TEXT": "%s1 pour le boost d'escalade",
+    "MANTLE_BOOST_TEXT": "%s1 PROPULSION",
     "SETTING_MANTLE_BOOST_TOO_EARLY": "Trop tot",
     "LAB_TAB_PLAYER": "Joueur",
     "LAB_TAB_ARMORY": "Armurerie",
@@ -908,6 +908,10 @@
     "FRSETTING_DUMMIESTRAFEDURATION_050": "0.50 s",
     "FRSETTING_DUMMIESTRAFEDURATION_060": "0.60 s",
     "FRSETTING_DUMMIESTRAFEDURATION_075": "0.75 s",
-    "FRSETTING_DUMMIESTRAFEDURATION_090": "0.90 s"
+    "FRSETTING_DUMMIESTRAFEDURATION_090": "0.90 s",
+    "FRSETTING_DUMMIEINVINCIBLE": "Mannequins invincibles",
+    "FRSETTING_DUMMIEINVINCIBLE_DESC": "Les mannequins encaissent les tirs mais ne meurent pas. Santé et boucliers se régénèrent après quelques secondes sans dégâts.",
+    "FRSETTING_DUMMIEINVINCIBLE_CHANGED": "Mannequins invincibles",
+    "REASON_WEAPON_CORRUPTED": "Cette arme a déjà un accessoire Corrompu"
   }
 }

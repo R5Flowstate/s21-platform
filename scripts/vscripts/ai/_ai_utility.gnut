@@ -560,17 +560,21 @@ void function StopBotStrafe( entity bot )
 // up next iteration without a restart; the god flag gates the damage handlers.
 float function FlowstateDummy_GetSpeedMult( entity bot )
 {
-	if ( !IsValid( bot ) )
+	if ( !IsValid( bot ) || !bot.IsNPC() )
 		return 1.0
 	float mult = bot.ai.flowstateStrafeSpeedMult
 	if ( mult <= 0.0 )
 		return 1.0
+	if ( mult < AIMTRAINER_STRAFE_SPEED_MIN )
+		return AIMTRAINER_STRAFE_SPEED_MIN
+	if ( mult > AIMTRAINER_STRAFE_SPEED_MAX )
+		return AIMTRAINER_STRAFE_SPEED_MAX
 	return mult
 }
 
 void function FlowstateDummy_SetSpeedMult( entity npc, float mult )
 {
-	if ( !IsValid( npc ) )
+	if ( !IsValid( npc ) || !npc.IsNPC() )
 		return
 	if ( mult < AIMTRAINER_STRAFE_SPEED_MIN )
 		mult = AIMTRAINER_STRAFE_SPEED_MIN
@@ -581,9 +585,10 @@ void function FlowstateDummy_SetSpeedMult( entity npc, float mult )
 
 // Infinite health for strafing bots: real damage path (client hit callbacks
 // still fire), lethal hits land at 1 HP, idle refills to the spawn-time pool.
+// AddEntityCallback asserts on a duplicate and that shuts the host down.
 void function AimTrainerStrafer_SetGod( entity npc, bool on )
 {
-	if ( !IsValid( npc ) )
+	if ( !IsValid( npc ) || !npc.IsNPC() || !IsAlive( npc ) )
 		return
 
 	npc.ai.flowstateInfiniteHealth = on
@@ -596,12 +601,17 @@ void function AimTrainerStrafer_SetGod( entity npc, bool on )
 		npc.ai.flowstateGodMaxShield = npc.GetShieldHealthMax()
 		if ( npc.ai.flowstateGodMaxHealth < 1 )
 			npc.ai.flowstateGodMaxHealth = npc.GetHealth()
+		if ( npc.ai.flowstateGodMaxHealth < 1 )
+			npc.ai.flowstateGodMaxHealth = 1
 	}
 	npc.e.lastDamagedTime = 0.0
 
-	AddEntityCallback_OnDamaged( npc, AimTrainerStrafer_OnDamaged )
-	AddEntityCallback_OnPostDamaged( npc, AimTrainerStrafer_OnPostDamaged )
-	thread AimTrainerStrafer_RegenThink( npc )
+	if ( !npc.e.entDamageCallbacks.contains( AimTrainerStrafer_OnDamaged ) )
+		AddEntityCallback_OnDamaged( npc, AimTrainerStrafer_OnDamaged )
+	if ( !npc.e.entPostDamageCallbacks.contains( AimTrainerStrafer_OnPostDamaged ) )
+		AddEntityCallback_OnPostDamaged( npc, AimTrainerStrafer_OnPostDamaged )
+	if ( !npc.ai.flowstateGodRegenActive )
+		thread AimTrainerStrafer_RegenThink( npc )
 }
 
 void function AimTrainerStrafer_OnDamaged( entity npc, var damageInfo )
@@ -622,6 +632,10 @@ void function AimTrainerStrafer_OnDamaged( entity npc, var damageInfo )
 		return
 
 	int needed = int( bodyDamage ) + 1
+	if ( needed < 1 )
+		needed = 1
+	if ( needed > 100000 )
+		needed = 100000
 	if ( health < needed )
 		npc.SetHealth( needed )
 }
@@ -643,6 +657,15 @@ void function AimTrainerStrafer_RegenThink( entity npc )
 {
 	EndSignal( npc, "OnDestroy" )
 	EndSignal( npc, "OnDeath" )
+
+	npc.ai.flowstateGodRegenActive = true
+	OnThreadEnd(
+		function() : ( npc )
+		{
+			if ( IsValid( npc ) && npc.IsNPC() )
+				npc.ai.flowstateGodRegenActive = false
+		}
+	)
 
 	while ( IsValid( npc ) && IsAlive( npc ) )
 	{
@@ -700,7 +723,16 @@ void function FlowstateDummy_ApplyOwnerPrefs( entity player, entity npc )
 	}
 	FlowstateDummy_SetSpeedMult( npc, mult )
 	if ( god )
-		AimTrainerStrafer_SetGod( npc, true )
+	{
+		try
+		{
+			AimTrainerStrafer_SetGod( npc, true )
+		}
+		catch ( eGod )
+		{
+			printt( format( "[AimTrainer] ApplyOwnerPrefs SetGod failed: %s", string( eGod ) ) )
+		}
+	}
 }
 
 // Yaw-only face -- keeps pitch/roll at 0 so the dummy stays upright on the ground.
@@ -807,6 +839,11 @@ void function FlowstateDummy_PlayActivityIfChanged( entity bot, string activity,
 {
 	if ( !IsValid( bot ) )
 		return
+
+	if ( playbackRate < 0.1 )
+		playbackRate = 0.1
+	if ( playbackRate > AIMTRAINER_STRAFE_SPEED_MAX )
+		playbackRate = AIMTRAINER_STRAFE_SPEED_MAX
 
 	if ( bot.ai.flowstateLastAct != activity )
 	{

@@ -28174,6 +28174,9 @@
 	"FRSETTING_DUMMIESTRAFEDURATION_060" "0.60 s"
 	"FRSETTING_DUMMIESTRAFEDURATION_075" "0.75 s"
 	"FRSETTING_DUMMIESTRAFEDURATION_090" "0.90 s"
+	"FRSETTING_DUMMIEINVINCIBLE" "Manichini invincibili"
+	"FRSETTING_DUMMIEINVINCIBLE_DESC" "I manichini subiscono i colpi ma non muoiono. Salute e scudi si ricaricano dopo qualche secondo senza danni."
+	"FRSETTING_DUMMIEINVINCIBLE_CHANGED" "Manichini invincibili"
 	"HUD_DAMAGE_CLOSES_MENU" "Subire danni chiude la scatola della morte o il menu"
 	"HUD_DAMAGE_CLOSES_MENU_DESC" "Determina se subire danni mentre si saccheggia una scatola della morte o in un menu o abilità chiuderà il menu."
 	"HUD_SHOW_HEALTHBARS" "Mostra le barre della salute"
@@ -28914,7 +28917,7 @@
 	"GEAR_STOCK_SNIPER_L4_DESC" "Controllo rapido, forte riduzione della deriva del mirino, ricariche velocissime. \nNessuna penalità di movimento quando l'arma è estratta."
 	"GEAR_STOCK_SNIPER_L4_NAME" "Calcio da cecchino"
 	"MAINMENU_CONNECT_LOCALHOST" "Connetti Localhost"
-	"MANTLE_BOOST_TEXT" "%s1 per la spinta da scavalcata"
+	"MANTLE_BOOST_TEXT" "%s1 POTENZIA"
 	"MEDIC_PASSIVE_CANCEL_REVIVE_HINT" "%scriptCommand5% Annulla rianimazione"
 	"MOD_PRO_SCREEN_DESC" "Digital threat display."
 	"MOD_PRO_SCREEN_NAME" "Pro Screen"
@@ -28991,4 +28994,7 @@
 	"WPN_VINSON_MYTHIC_S26_DESC" "Può sparare proiettili esplosivi.\nAi nemici KO viene messa addosso una bomba."
 	"WPN_VINSON_MYTHIC_S26_DESC_SHORT" "Una pioggia di proiettili!"
 	"Y_BUTTON_MODS" "%[Y_BUTTON|MOUSE1]% Mod"
+
+	// OTHER CUSTOM
+	"REASON_WEAPON_CORRUPTED" "Quest'arma ha già un accessorio Corrotto"
 }

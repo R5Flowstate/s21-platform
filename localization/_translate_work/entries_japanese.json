@@ -690,7 +690,7 @@
     "FS_ChalNotAccepting": "挑戦を受け付けていません",
     "FS_ChalOffer": "%s があなたに挑戦しました",
     "FS_ChalPending": "挑戦は既に送信済み",
-    "MANTLE_BOOST_TEXT": "%s1でマントルブースト",
+    "MANTLE_BOOST_TEXT": "%s1 ブースト",
     "SETTING_MANTLE_BOOST_TOO_EARLY": "早すぎる",
     "LAB_TAB_PLAYER": "プレイヤー",
     "LAB_TAB_ARMORY": "アーモリー",
@@ -908,6 +908,10 @@
     "FRSETTING_DUMMIESTRAFEDURATION_050": "0.50秒",
     "FRSETTING_DUMMIESTRAFEDURATION_060": "0.60秒",
     "FRSETTING_DUMMIESTRAFEDURATION_075": "0.75秒",
-    "FRSETTING_DUMMIESTRAFEDURATION_090": "0.90秒"
+    "FRSETTING_DUMMIESTRAFEDURATION_090": "0.90秒",
+    "FRSETTING_DUMMIEINVINCIBLE": "ダミー無敵",
+    "FRSETTING_DUMMIEINVINCIBLE_DESC": "ダミーは被弾しても死なない。数秒攻撃がなければ体力とシールドが回復する。",
+    "FRSETTING_DUMMIEINVINCIBLE_CHANGED": "ダミー無敵",
+    "REASON_WEAPON_CORRUPTED": "この武器には既にコラプテッドアタッチメントが付いています"
   }
 }

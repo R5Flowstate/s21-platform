@@ -690,7 +690,7 @@
     "FS_ChalNotAccepting": "لا يقبل التحديات",
     "FS_ChalOffer": "%s تحداك",
     "FS_ChalPending": "التحدي مرسل بالفعل",
-    "MANTLE_BOOST_TEXT": "%s1 لدفع التسلق",
+    "MANTLE_BOOST_TEXT": "%s1 تعزيز",
     "SETTING_MANTLE_BOOST_TOO_EARLY": "مبكر جدا",
     "LAB_TAB_PLAYER": "اللاعب",
     "LAB_TAB_ARMORY": "الترسانة",
@@ -908,6 +908,10 @@
     "FRSETTING_DUMMIESTRAFEDURATION_050": "0.50 ث",
     "FRSETTING_DUMMIESTRAFEDURATION_060": "0.60 ث",
     "FRSETTING_DUMMIESTRAFEDURATION_075": "0.75 ث",
-    "FRSETTING_DUMMIESTRAFEDURATION_090": "0.90 ث"
+    "FRSETTING_DUMMIESTRAFEDURATION_090": "0.90 ث",
+    "FRSETTING_DUMMIEINVINCIBLE": "دمى لا تُقهر",
+    "FRSETTING_DUMMIEINVINCIBLE_DESC": "تتلقى الدمى الإصابات لكنها لا تموت. تُعاد تعبئة الصحة والدرع بعد ثوانٍ دون ضرر.",
+    "FRSETTING_DUMMIEINVINCIBLE_CHANGED": "دمى لا تُقهر",
+    "REASON_WEAPON_CORRUPTED": "هذا السلاح يحتوي بالفعل على ملحق فاسد"
   }
 }

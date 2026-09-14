@@ -690,7 +690,7 @@
     "FS_ChalNotAccepting": "NIE PRZYJMUJE WYZWAN",
     "FS_ChalOffer": "%s rzucil Ci wyzwanie",
     "FS_ChalPending": "WYZWANIE JUZ WYSŁANE",
-    "MANTLE_BOOST_TEXT": "%s1 by dopalic z mantla",
+    "MANTLE_BOOST_TEXT": "%s1 WYBICIE",
     "SETTING_MANTLE_BOOST_TOO_EARLY": "Za wczesnie",
     "LAB_TAB_PLAYER": "Gracz",
     "LAB_TAB_ARMORY": "Zbrojownia",
@@ -908,6 +908,10 @@
     "FRSETTING_DUMMIESTRAFEDURATION_050": "0.50 s",
     "FRSETTING_DUMMIESTRAFEDURATION_060": "0.60 s",
     "FRSETTING_DUMMIESTRAFEDURATION_075": "0.75 s",
-    "FRSETTING_DUMMIESTRAFEDURATION_090": "0.90 s"
+    "FRSETTING_DUMMIESTRAFEDURATION_090": "0.90 s",
+    "FRSETTING_DUMMIEINVINCIBLE": "Nieśmiertelne manekiny",
+    "FRSETTING_DUMMIEINVINCIBLE_DESC": "Manekiny otrzymują trafienia, ale nie giną. Zdrowie i tarcze odnawiają się po kilku sekundach bez obrażeń.",
+    "FRSETTING_DUMMIEINVINCIBLE_CHANGED": "Nieśmiertelne manekiny",
+    "REASON_WEAPON_CORRUPTED": "Ta broń ma już skażony dodatek"
   }
 }

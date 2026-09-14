@@ -600,6 +600,9 @@ global struct ServerPlayerStruct
 	int fs_stats_hits = 0
 	int fs_stats_shots = 0
 	int fs_stats_headshots = 0
+	string fs_stats_weapon = ""
+	int fs_stats_weapon_damage = 0
+	table<string, int> fs_stats_weapon_dmg
 	bool isConnected = false
 	table<string, float> rateLimitTable
 
@@ -1136,6 +1139,7 @@ global struct ServerAIStruct
 	bool flowstateInfiniteHealth = false
 	int flowstateGodMaxHealth = 0
 	int flowstateGodMaxShield = 0
+	bool flowstateGodRegenActive = false
 	// Aim trainer freeroam: owning player for budget / kill credit
 	entity aimTrainerOwner = null
        

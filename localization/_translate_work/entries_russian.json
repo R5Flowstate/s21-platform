@@ -690,7 +690,7 @@
     "FS_ChalNotAccepting": "НЕ ПРИНИМАЕТ ВЫЗОВЫ",
     "FS_ChalOffer": "%s бросил вам вызов",
     "FS_ChalPending": "ВЫЗОВ УЖЕ ОТПРАВЛЕН",
-    "MANTLE_BOOST_TEXT": "%s1 для усиления с уступа",
+    "MANTLE_BOOST_TEXT": "%s1 СУПЕРПРЫЖОК",
     "SETTING_MANTLE_BOOST_TOO_EARLY": "Слишком рано",
     "LAB_TAB_PLAYER": "Игрок",
     "LAB_TAB_ARMORY": "Арсенал",
@@ -908,6 +908,10 @@
     "FRSETTING_DUMMIESTRAFEDURATION_050": "0.50 с",
     "FRSETTING_DUMMIESTRAFEDURATION_060": "0.60 с",
     "FRSETTING_DUMMIESTRAFEDURATION_075": "0.75 с",
-    "FRSETTING_DUMMIESTRAFEDURATION_090": "0.90 с"
+    "FRSETTING_DUMMIESTRAFEDURATION_090": "0.90 с",
+    "FRSETTING_DUMMIEINVINCIBLE": "Бессмертные манекены",
+    "FRSETTING_DUMMIEINVINCIBLE_DESC": "Манекены получают попадания, но не умирают. Здоровье и щиты восстанавливаются через несколько секунд без урона.",
+    "FRSETTING_DUMMIEINVINCIBLE_CHANGED": "Бессмертные манекены",
+    "REASON_WEAPON_CORRUPTED": "На этом оружии уже есть испорченный модуль"
   }
 }

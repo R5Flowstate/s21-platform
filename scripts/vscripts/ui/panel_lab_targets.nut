@@ -53,7 +53,7 @@ void function LabTargets_BindRows()
 	array<string> names = [
 		"ButtonDummy", "ButtonSandbag", "ButtonStrafer", "ButtonStraferFast",
 		"ButtonFakePlayer", "ButtonFakeEnemy",
-		"SldStrafeSpeed", "SldBotHealth",
+		"SldStrafeSpeed", "SwitchBotHealth",
 		"SwitchAimMode", "SwitchDuration", "ButtonChallengeStart", "ButtonChallengeStop",
 		"SwitchReloadKill", "SwitchReloadHit", "SwitchReloadShot",
 		"SwitchDynStats", "SwitchReconBars", "ButtonQuitAimTrainer"
@@ -75,7 +75,8 @@ void function LabTargets_BindRows()
 	Lab_SetupRow( LabTargets_Row( "ButtonFakeEnemy" ), "#LAB_TARGETS_FAKEENEMY",
 		"#LAB_TARGETS_FAKEENEMY_DESC" )
 	LabTargets_SetupSlider( LabTargets_Row( "SldStrafeSpeed" ), "#LAB_TARGETS_STRAFESPEED" )
-	LabTargets_SetupSlider( LabTargets_Row( "SldBotHealth" ), "#LAB_TARGETS_BOTHEALTH" )
+	Lab_SetupRow( LabTargets_Row( "SwitchBotHealth" ), "#LAB_TARGETS_BOTHEALTH",
+		"#LAB_TARGETS_BOTHEALTH_DESC" )
 	Lab_SetupRow( LabTargets_Row( "SwitchAimMode" ), "#LAB_TARGETS_AIMMODE",
 		"#LAB_TARGETS_AIMMODE_DESC", true )
 	Lab_SetupRow( LabTargets_Row( "SwitchDuration" ), "#LAB_TARGETS_DURATION",
@@ -111,7 +112,7 @@ void function LabTargets_BindRows()
 	AddButtonEventHandler( LabTargets_Row( "ButtonQuitAimTrainer" ), UIE_CLICK, LabTargets_ClickQuit )
 
 	AddButtonEventHandler( LabTargets_Row( "SldStrafeSpeed" ), UIE_CHANGE, LabTargets_OnStrafeSpeed )
-	AddButtonEventHandler( LabTargets_Row( "SldBotHealth" ), UIE_CHANGE, LabTargets_OnBotHealth )
+	AddButtonEventHandler( LabTargets_Row( "SwitchBotHealth" ), UIE_CHANGE, LabTargets_OnBotHealth )
 	AddButtonEventHandler( LabTargets_Row( "SwitchDuration" ), UIE_CHANGE, LabTargets_OnDuration )
 	AddButtonEventHandler( LabTargets_Row( "SwitchReloadKill" ), UIE_CHANGE, LabTargets_OnReloadKill )
 	AddButtonEventHandler( LabTargets_Row( "SwitchReloadHit" ), UIE_CHANGE, LabTargets_OnReloadHit )
@@ -134,8 +135,6 @@ void function LabTargets_SliderFocus( var slider )
 {
 	if ( slider == LabTargets_Row( "SldStrafeSpeed" ) )
 		Lab_SetDetails( Localize( "#LAB_TARGETS_STRAFESPEED" ), Localize( "#LAB_TARGETS_STRAFESPEED_DESC" ) )
-	else if ( slider == LabTargets_Row( "SldBotHealth" ) )
-		Lab_SetDetails( Localize( "#LAB_TARGETS_BOTHEALTH" ), Localize( "#LAB_TARGETS_BOTHEALTH_DESC" ) )
 }
 
 void function LabTargets_BuildAimModeList()
@@ -194,7 +193,7 @@ void function LabTargets_SetState( bool hit, bool shot, bool kill, bool dynStats
 		Hud_SliderControl_SetCurrentValue( LabTargets_Row( "SldStrafeSpeed" ), file.lastSpeedSent )
 	}
 	file.lastGodSent = straferGod
-	Hud_SliderControl_SetCurrentValue( LabTargets_Row( "SldBotHealth" ), straferGod ? 1.0 : 0.0 )
+	Hud_SetDialogListSelectionValue( LabTargets_Row( "SwitchBotHealth" ), straferGod ? "1" : "0" )
 	file.applyingValues = false
 }
 
@@ -232,10 +231,19 @@ void function LabTargets_OnStrafeSpeed( var button )
 		return
 
 	float speed = Hud_SliderControl_GetCurrentValue( button )
+	if ( speed < 0.5 )
+		speed = 0.5
+	if ( speed > 2.0 )
+		speed = 2.0
 	if ( fabs( speed - file.lastSpeedSent ) < 0.049 )
 		return
 	file.lastSpeedSent = speed
-	ClientCommand( format( "dev_aimtrainer strafe_speed %d", int( speed * 10.0 + 0.5 ) ) )
+	int tenth = int( speed * 10.0 + 0.5 )
+	if ( tenth < 5 )
+		tenth = 5
+	if ( tenth > 20 )
+		tenth = 20
+	ClientCommand( format( "dev_aimtrainer strafe_speed %d", tenth ) )
 }
 
 void function LabTargets_OnBotHealth( var button )
@@ -243,7 +251,7 @@ void function LabTargets_OnBotHealth( var button )
 	if ( LabTargets_Ignore() )
 		return
 
-	bool god = Hud_SliderControl_GetCurrentValue( button ) >= 0.5
+	bool god = ( Hud_GetDialogListSelectionValue( button ) == "1" )
 	if ( god == file.lastGodSent )
 		return
 	file.lastGodSent = god

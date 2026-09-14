@@ -1329,8 +1329,11 @@ void function UICallback_UpdateEquipmentButton( var button )
 		entity weapon          = player.GetNormalWeapon( esWeapon.weaponSlot )
 
 		LootData wData = SURVIVAL_GetLootDataFromWeapon( weapon )
-		
-		RuiSetBool( rui, "isFullyKitted", SURVIVAL_IsAttachmentPointLocked( wData.ref, attachmentPoint ) )
+		bool dormantHopupSlot = attachmentPoint.find( "hopup" ) != -1 && DormantHopups_WeaponHasDormantHopupInBaseMods( wData )
+		if ( dormantHopupSlot )
+			RuiSetBool( rui, "isFullyKitted", false )
+		else
+			RuiSetBool( rui, "isFullyKitted", SURVIVAL_IsAttachmentPointLocked( wData.ref, attachmentPoint ) )
 		RuiSetBool( rui, "showBrackets", true )
 
 		if ( IsValid( weapon ) && SURVIVAL_Loot_IsRefValid( wData.ref ) && AttachmentPointSupported( attachmentPoint, wData.ref ) )
@@ -2933,7 +2936,7 @@ void function UICallback_OnInventoryMouseDrop( var dropButton, var sourcePanel, 
 				{
 					if ( EquipmentSlot_IsAttachmentSlot( sourceEquipmentSlot ) )
 					{
-						if ( CanAttachToWeapon( data.ref, dropSlotData.ref ) )
+						if ( CanAttachToWeapon( data.ref, dropSlotData.ref ) && !SURVIVAL_ExclusiveCorruptedBlocksAttach( player.GetNormalWeapon( es.weaponSlot ), data.ref ) )
 						{
 							if ( initOnly )
 								Hud_SetLocked( dropButton, false )
@@ -2944,7 +2947,7 @@ void function UICallback_OnInventoryMouseDrop( var dropButton, var sourcePanel, 
 				}
 				else if ( sourceEquipmentSlot == "inventory" )
 				{
-					if ( CanAttachToWeapon( data.ref, dropSlotData.ref ) )
+					if ( CanAttachToWeapon( data.ref, dropSlotData.ref ) && !SURVIVAL_ExclusiveCorruptedBlocksAttach( player.GetNormalWeapon( es.weaponSlot ), data.ref ) )
 					{
 						if ( initOnly )
 							Hud_SetLocked( dropButton, false )

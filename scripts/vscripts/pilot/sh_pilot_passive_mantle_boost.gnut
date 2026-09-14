@@ -25,7 +25,7 @@ void function PassiveMantleBoost_CreateHintRui( entity player )
 	// written as a file-scope $"..." literal.
 	asset hintAsset = GetKeyValueAsAsset( { kn = "ui/mantle_boost.rpak" }, "kn" )
 
-	file.mantleBoostRui = CreateCockpitRui( hintAsset, 32000 )
+	file.mantleBoostRui = CreateCockpitPostFXRui( hintAsset, 32000 )
 	thread PassiveMantleBoost_ShowHint_Thread( player )
 }
 

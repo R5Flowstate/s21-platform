@@ -480,65 +480,87 @@ void function SURVIVAL_Loot_All_InitShared()
 	file.initialized = true
 }
 
+bool function SURVIVAL_Loot_DormantHopupsShouldPrecharge()
+{
+	if ( GetCurrentPlaylistVarBool( "dormant_hopups_precharged", false ) )
+		return true
+	if ( GetCurrentPlaylistVarBool( "survival_firingrange", false ) )
+		return true
+	if ( GetCurrentPlaylistVarBool( "survival_training", false ) )
+		return true
+
+	#if SERVER || CLIENT
+		string mode = GameRules_GetGameMode()
+		if ( mode != "" && mode != "survival" )
+			return true
+	#endif
+
+	return false
+}
+
 void function SURVIVAL_Loot_ResolveDormantHopups()
 {
-	const string DORMANT_PREFIX = "dormant_"
+	int keptCount = 0
+	int strippedCount = 0
+	int prechargedCount = 0
+	bool stripDormants = GetCurrentPlaylistVarBool( "disable_dormant_hopups", false )
+	bool precharge = !stripDormants && SURVIVAL_Loot_DormantHopupsShouldPrecharge()
 
-	array<string> weaponRefs
 	foreach ( string r, LootData d in file.lootData )
 	{
-		if ( d.lootType == eLootType.MAINWEAPON )
-			weaponRefs.append( r )
-	}
+		if ( d.lootType != eLootType.MAINWEAPON )
+			continue
 
-	int unlockedCount = 0
-	int strippedCount = 0
-
-	foreach ( string r in weaponRefs )
-	{
-		LootData data = file.lootData[r]
-		array<string> newMods
-		bool changed = false
-
-		foreach ( string mod in data.baseMods )
+		array<string> mods = clone d.baseMods
+		foreach ( string mod in mods )
 		{
-			if ( mod.find( DORMANT_PREFIX ) != 0 )
-			{
-				newMods.append( mod )
+			if ( mod.find( "dormant_hopup" ) != 0 )
 				continue
-			}
 
-			changed = true
-			string unlocked = mod.slice( DORMANT_PREFIX.len() )
-			if ( !SURVIVAL_Loot_IsRefValid( unlocked ) || SURVIVAL_Loot_IsRefDisabled( unlocked ) )
+			if ( stripDormants )
 			{
+				d.baseMods.fastremovebyvalue( mod )
+				if ( d.supportedAttachments.contains( "hopup" ) )
+					d.supportedAttachments.fastremovebyvalue( "hopup" )
+				file.lootData[r] = d
 				strippedCount++
 				continue
 			}
 
-			if ( !newMods.contains( unlocked ) )
-				newMods.append( unlocked )
+			if ( !precharge )
+			{
+				keptCount++
+				continue
+			}
 
-			string altfire = ""
-			if ( unlocked == "hopup_selectfire" )
-				altfire = "altfire_selectfire"
-			else if ( unlocked == "hopup_double_tap" )
-				altfire = "altfire_double_tap"
-
-			if ( altfire != "" && !newMods.contains( altfire ) )
-				newMods.append( altfire )
-
-			unlockedCount++
-		}
-
-		if ( changed )
-		{
-			data.baseMods = newMods
-			file.lootData[r] = data
+			string liveHopup = mod.slice( "dormant_".len() )
+			d.baseMods.fastremovebyvalue( mod )
+			if ( SURVIVAL_Loot_IsRefValid( liveHopup ) && !SURVIVAL_Loot_IsRefDisabled( liveHopup ) )
+			{
+				if ( !d.baseMods.contains( liveHopup ) )
+					d.baseMods.append( liveHopup )
+				if ( liveHopup == "hopup_double_tap" && !d.baseMods.contains( "altfire_double_tap" ) )
+					d.baseMods.append( "altfire_double_tap" )
+				if ( liveHopup == "hopup_selectfire" && !d.baseMods.contains( "altfire_selectfire" ) )
+					d.baseMods.append( "altfire_selectfire" )
+				prechargedCount++
+			}
+			else
+			{
+				if ( d.supportedAttachments.contains( "hopup" ) )
+					d.supportedAttachments.fastremovebyvalue( "hopup" )
+				strippedCount++
+			}
+			file.lootData[r] = d
 		}
 	}
 
-	printt( "[LOOT] dormant hopups unlocked=" + unlockedCount + " stripped=" + strippedCount )
+	if ( stripDormants )
+		printt( "[LOOT] dormant hopups stripped=" + strippedCount )
+	else if ( precharge )
+		printt( "[LOOT] dormant hopups precharged=" + prechargedCount + " stripped=" + strippedCount )
+	else
+		printt( "[LOOT] dormant hopups kept=" + keptCount )
 }
 
 void function SURVIVAL_Loot_RegFromDataTable( var dt )

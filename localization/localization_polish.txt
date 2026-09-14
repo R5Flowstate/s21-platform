@@ -28174,6 +28174,9 @@
 	"FRSETTING_DUMMIESTRAFEDURATION_060" "0.60 s"
 	"FRSETTING_DUMMIESTRAFEDURATION_075" "0.75 s"
 	"FRSETTING_DUMMIESTRAFEDURATION_090" "0.90 s"
+	"FRSETTING_DUMMIEINVINCIBLE" "Nieśmiertelne manekiny"
+	"FRSETTING_DUMMIEINVINCIBLE_DESC" "Manekiny otrzymują trafienia, ale nie giną. Zdrowie i tarcze odnawiają się po kilku sekundach bez obrażeń."
+	"FRSETTING_DUMMIEINVINCIBLE_CHANGED" "Nieśmiertelne manekiny"
 	"HUD_DAMAGE_CLOSES_MENU" "Obrażenia zamykają skrzynkę śmierci lub menu"
 	"HUD_DAMAGE_CLOSES_MENU_DESC" "Określa, czy obrażenia podczas plądrowania skrzynki śmierci, w menu lub w trakcie używania zdolności zamkną menu."
 	"HUD_SHOW_HEALTHBARS" "Pokaż Paski Zdrowia"
@@ -28914,7 +28917,7 @@
 	"GEAR_STOCK_SNIPER_L4_DESC" "Szybsze dobywanie broni, najszybsze przeładowanie i znaczna redukcja odchylenia przy celowaniu. \nBrak spowolnienia ruchu przy wyciągniętej broni."
 	"GEAR_STOCK_SNIPER_L4_NAME" "Kolba snajperska"
 	"MAINMENU_CONNECT_LOCALHOST" "Połącz z Localhost"
-	"MANTLE_BOOST_TEXT" "%s1 by dopalic z mantla"
+	"MANTLE_BOOST_TEXT" "%s1 WYBICIE"
 	"MEDIC_PASSIVE_CANCEL_REVIVE_HINT" "%scriptCommand5% Anuluj Odrodzenie"
 	"MOD_PRO_SCREEN_DESC" "Digital threat display."
 	"MOD_PRO_SCREEN_NAME" "Pro Screen"
@@ -28991,4 +28994,7 @@
 	"WPN_VINSON_MYTHIC_S26_DESC" "Pozwala strzelać wybuchowymi pociskami.\nDo powalonych wrogów zostanie przyczepiona bomba."
 	"WPN_VINSON_MYTHIC_S26_DESC_SHORT" "Dużo ognia!"
 	"Y_BUTTON_MODS" "%[Y_BUTTON|MOUSE1]% Mody"
+
+	// OTHER CUSTOM
+	"REASON_WEAPON_CORRUPTED" "Ta broń ma już skażony dodatek"
 }

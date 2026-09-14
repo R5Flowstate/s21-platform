@@ -249,6 +249,15 @@ global function CleanupAltMods
 global function SURVIVAL_GetLootDataFromWeapon
 global function SURVIVAL_Weapon_IsAttachmentLocked
 global function SURVIVAL_IsAttachmentPointLocked
+global function WeaponHasLockedHopup
+global function SURVIVAL_Loot_IsDormantHopup
+global function SURVIVAL_Weapon_HasDormantHopup
+global function HasExclusiveCorruptedAttachments
+global function IsAttachmentCorrupted
+global function WeaponIsAlreadyCorrupted
+global function ModListContainsCorruptedAttachment
+global function SURVIVAL_ExclusiveCorruptedBlocksAttach
+global function SURVIVAL_ExclusiveCorruptedBlocksMods
 global function SURVIVAL_Weapon_IsFullyKitted
 global function SURVIVAL_Weapon_GetBaseMods
 global function SURVIVAL_Weapon_IsOrdnance
@@ -3930,6 +3939,9 @@ bool function SURVIVAL_CanAddModToWeapon( entity player, entity weapon, string i
 	if ( SURVIVAL_IsAttachmentPointLocked( weaponName, GetAttachPointForAttachmentOnWeapon( weaponName, item ) ) )
 		return false
 
+	if ( SURVIVAL_ExclusiveCorruptedBlocksAttach( weapon, item ) )
+		return false
+
 	if ( weapon.IsDiscarding() )
 		return false
 
@@ -4187,6 +4199,7 @@ LootActionStruct function SURVIVAL_GetActionForAttachment( entity player, LootDa
 	string attachmentPointForStowed = ""
 	bool haveBetterAttachOnMain = false
 	bool haveBetterAttachOnStowed = false
+	bool weaponCorrupted = false
 
 	bool wouldHaveEquipped = false
 
@@ -4195,6 +4208,21 @@ LootActionStruct function SURVIVAL_GetActionForAttachment( entity player, LootDa
 		entity activeWeapon = weapons[0]
 		string activeWeaponName = GetWeaponClassNameWithLockedSet( activeWeapon )
 		bool canAttach      = CanAttachToWeapon( lootData.ref, activeWeaponName )
+
+		if ( IsAttachmentCorrupted( lootData ) && HasExclusiveCorruptedAttachments() )
+		{
+			foreach ( string mod in GetWeaponMods( activeWeapon ) )
+			{
+				if ( SURVIVAL_Loot_IsRefValid( mod ) && IsAttachmentCorrupted( SURVIVAL_Loot_GetLootDataByRef( mod ) ) && mod != lootData.ref )
+				{
+					weaponCorrupted = true
+					wouldHaveEquipped = canAttach
+					canAttach = false
+					break
+				}
+			}
+		}
+
 		attachmentPointForMain = GetAttachPointForAttachmentOnWeapon( activeWeaponName, lootData.ref )
 		string installedAttachment = GetInstalledWeaponAttachmentForPoint( activeWeapon, attachmentPointForMain )
 		bool isEmpty        = canAttach && weapons.len() > 0 ? installedAttachment == "" : false
@@ -4229,6 +4257,21 @@ LootActionStruct function SURVIVAL_GetActionForAttachment( entity player, LootDa
 		entity stowedWeapon = weapons[1]
 		string stowedWeaponName = SURVIVAL_GetStowedWeapon( player )
 		bool canAttach      = CanAttachToWeapon( lootData.ref, stowedWeaponName )
+
+		if ( IsAttachmentCorrupted( lootData ) && HasExclusiveCorruptedAttachments() )
+		{
+			foreach ( string mod in GetWeaponMods( stowedWeapon ) )
+			{
+				if ( SURVIVAL_Loot_IsRefValid( mod ) && IsAttachmentCorrupted( SURVIVAL_Loot_GetLootDataByRef( mod ) ) && mod != lootData.ref )
+				{
+					weaponCorrupted = true
+					wouldHaveEquipped = canAttach
+					canAttach = false
+					break
+				}
+			}
+		}
+
 		attachmentPointForStowed = GetAttachPointForAttachmentOnWeapon( stowedWeaponName, lootData.ref )
 		string installedAttachment = GetInstalledWeaponAttachmentForPoint( stowedWeapon, attachmentPointForStowed )
 		bool isEmpty        = canAttach && weapons.len() > 1 ? installedAttachment == "" : false
@@ -4263,7 +4306,11 @@ LootActionStruct function SURVIVAL_GetActionForAttachment( entity player, LootDa
 
 		#if CLIENT
 			string betterAttachPoint = ""
-			if ( haveBetterAttachOnMain )
+			if ( weaponCorrupted && HasExclusiveCorruptedAttachments() )
+			{
+				reason = Localize( "#REASON_WEAPON_CORRUPTED" )
+			}
+			else if ( haveBetterAttachOnMain )
 			{
 				betterAttachPoint = attachmentPointForMain
 			}
@@ -5191,9 +5238,15 @@ void function SURVIVAL_UpdateStringForEquipmentAction( entity player, string equ
 									SURVIVAL_Loot_IsRefValid( attachWeaponData.ref ) &&
 									CanAttachToWeapon( actionLoot.ref, attachWeaponData.ref ) )
 
+				bool exclusiveBlocked = SURVIVAL_ExclusiveCorruptedBlocksAttach( attachWeapon, actionLoot.ref )
+				if ( canAttach && exclusiveBlocked )
+					canAttach = false
+
 				if ( !canAttach )
 				{
-					if ( SURVIVAL_IsAttachmentPointLocked( attachWeaponData.ref, actionLoot.ref ) )
+					if ( exclusiveBlocked )
+						as.displayString = Localize( "#REASON_WEAPON_CORRUPTED" )
+					else if ( SURVIVAL_IsAttachmentPointLocked( attachWeaponData.ref, actionLoot.ref ) )
 						as.displayString = Localize( "#REASON_CANNOT_TRANSFER_FULLY_KITTED" )
 					else if ( attachWeaponData.pickupString != "" )
 						as.displayString = Localize( "#REASON_CANNOT_TRANSFER", Localize( attachWeaponData.pickupString ) )
@@ -7156,6 +7209,7 @@ table<string, string> function GetCompatibleAttachmentsFromInventory( entity pla
 
 	playerInventory.sort( SortInventoryByLootTier )
 	table<string, string> compatibleAttachmentMap
+	bool weaponIsCorrupted = false
 
 	foreach ( item in playerInventory )
 	{
@@ -7166,6 +7220,12 @@ table<string, string> function GetCompatibleAttachmentsFromInventory( entity pla
 		string attachPoint = GetAttachPointForAttachmentOnWeapon( toWeapon, data.ref )
 		if ( CanAttachToWeapon( data.ref, toWeapon ) && !filledInAttachmentSlots.contains( attachPoint ) )
 		{
+			if ( HasExclusiveCorruptedAttachments() && IsAttachmentCorrupted( data ) && weaponIsCorrupted )
+				continue
+
+			if ( IsAttachmentCorrupted( data ) )
+				weaponIsCorrupted = true
+
 			filledInAttachmentSlots.append( attachPoint )
 			compatibleAttachmentMap[attachPoint] <- data.ref
 		}
@@ -7183,13 +7243,32 @@ table<string, string> function GetCompatibleAttachmentMap( entity player, entity
 
 	LootData toWeaponData = SURVIVAL_Loot_GetLootDataByRef( toWeapon )
 	table<string, string> attachmentMap
+	bool includesCorruptedAttachment = false
 	foreach ( attachPoint in toWeaponData.supportedAttachments )
 	{
 		attachmentMap[attachPoint] <- ""
 		if ( attachPoint in weaponAttachments )
+		{
+			if ( HasExclusiveCorruptedAttachments() )
+			{
+				bool attachmentIsCorrupted = SURVIVAL_Loot_IsRefValid( weaponAttachments[attachPoint] ) && IsAttachmentCorrupted( SURVIVAL_Loot_GetLootDataByRef( weaponAttachments[attachPoint] ) )
+				if ( attachmentIsCorrupted && includesCorruptedAttachment )
+					continue
+				includesCorruptedAttachment = includesCorruptedAttachment || attachmentIsCorrupted
+			}
 			attachmentMap[attachPoint] = weaponAttachments[attachPoint]
+		}
 		else if ( attachPoint in inventoryAttachments )
+		{
+			if ( HasExclusiveCorruptedAttachments() )
+			{
+				bool attachmentIsCorrupted = SURVIVAL_Loot_IsRefValid( inventoryAttachments[attachPoint] ) && IsAttachmentCorrupted( SURVIVAL_Loot_GetLootDataByRef( inventoryAttachments[attachPoint] ) )
+				if ( attachmentIsCorrupted && includesCorruptedAttachment )
+					continue
+				includesCorruptedAttachment = includesCorruptedAttachment || attachmentIsCorrupted
+			}
 			attachmentMap[attachPoint] = inventoryAttachments[attachPoint]
+		}
 	}
 
 	return attachmentMap
@@ -7631,14 +7710,109 @@ bool function SURVIVAL_Weapon_IsAttachmentLocked( string weaponName )
 }
 
 
+bool function HasExclusiveCorruptedAttachments()
+{
+	return GetCurrentPlaylistVarBool( "has_exclusive_corrupted_attachments", true )
+}
+
+bool function IsAttachmentCorrupted( LootData data )
+{
+	return data.lootTags.contains( "corrupted_attachment" )
+}
+
+bool function WeaponIsAlreadyCorrupted( entity weapon )
+{
+	if ( !IsValid( weapon ) )
+		return false
+
+	return ModListContainsCorruptedAttachment( GetWeaponMods( weapon ) )
+}
+
+bool function ModListContainsCorruptedAttachment( array<string> mods )
+{
+	foreach ( string mod in mods )
+	{
+		if ( SURVIVAL_Loot_IsRefValid( mod ) && IsAttachmentCorrupted( SURVIVAL_Loot_GetLootDataByRef( mod ) ) )
+			return true
+	}
+
+	return false
+}
+
+bool function SURVIVAL_ExclusiveCorruptedBlocksAttach( entity weapon, string item )
+{
+	if ( !HasExclusiveCorruptedAttachments() )
+		return false
+	if ( !IsValid( weapon ) )
+		return false
+	if ( !SURVIVAL_Loot_IsRefValid( item ) )
+		return false
+	if ( !IsAttachmentCorrupted( SURVIVAL_Loot_GetLootDataByRef( item ) ) )
+		return false
+	return WeaponIsAlreadyCorrupted( weapon )
+}
+
+bool function SURVIVAL_ExclusiveCorruptedBlocksMods( array<string> mods, string item )
+{
+	if ( !HasExclusiveCorruptedAttachments() )
+		return false
+	if ( !SURVIVAL_Loot_IsRefValid( item ) )
+		return false
+	if ( !IsAttachmentCorrupted( SURVIVAL_Loot_GetLootDataByRef( item ) ) )
+		return false
+	return ModListContainsCorruptedAttachment( mods )
+}
+
+bool function SURVIVAL_Loot_IsDormantHopup( string ref )
+{
+	if ( ref.find( "dormant_hopup" ) == 0 )
+		return true
+
+	if ( !SURVIVAL_Loot_IsRefValid( ref ) )
+		return false
+
+	return SURVIVAL_Loot_GetLootDataByRef( ref ).lootTags.contains( "DormantHopup" )
+}
+
+
+bool function SURVIVAL_Weapon_HasDormantHopup( string weaponName )
+{
+	if ( !SURVIVAL_Loot_IsRefValid( weaponName ) )
+		return false
+
+	LootData data = SURVIVAL_Loot_GetLootDataByRef( weaponName )
+	foreach ( string mod in data.baseMods )
+	{
+		if ( SURVIVAL_Loot_IsDormantHopup( mod ) )
+			return true
+	}
+
+	return false
+}
+
+
+bool function WeaponHasLockedHopup( LootData weaponData )
+{
+	foreach ( string mod in weaponData.baseMods )
+	{
+		if ( !SURVIVAL_Loot_IsRefValid( mod ) )
+			continue
+		if ( SURVIVAL_Loot_GetLootDataByRef( mod ).lootType != eLootType.ATTACHMENT )
+			continue
+		if ( SURVIVAL_Loot_GetLootDataByRef( mod ).lootTags.contains( "LockedHopup" ) )
+			return true
+	}
+
+	return false
+}
+
+
 bool function SURVIVAL_IsAttachmentPointLocked( string weaponName, string attachmentPoint )
 {
-                        
-                                              
-              
-       
-
 	if ( SURVIVAL_Weapon_IsAttachmentLocked( weaponName ) && attachmentPoint != "sight" )
+		return true
+
+	if ( SURVIVAL_Loot_IsRefValid( weaponName ) && attachmentPoint.find( "hopup" ) != -1 && WeaponHasLockedHopup( SURVIVAL_Loot_GetLootDataByRef( weaponName ) ) )
 		return true
 
 	return false

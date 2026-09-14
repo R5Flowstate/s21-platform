@@ -28174,6 +28174,9 @@
 	"FRSETTING_DUMMIESTRAFEDURATION_060" "0.60 s"
 	"FRSETTING_DUMMIESTRAFEDURATION_075" "0.75 s"
 	"FRSETTING_DUMMIESTRAFEDURATION_090" "0.90 s"
+	"FRSETTING_DUMMIEINVINCIBLE" "Muñecos invencibles"
+	"FRSETTING_DUMMIEINVINCIBLE_DESC" "Los muñecos reciben impactos pero no mueren. Salud y escudos se recargan tras unos segundos sin daño."
+	"FRSETTING_DUMMIEINVINCIBLE_CHANGED" "Muñecos invencibles"
 	"HUD_DAMAGE_CLOSES_MENU" "Recibir Daño Cierra Caja o Menú"
 	"HUD_DAMAGE_CLOSES_MENU_DESC" "Determina si recibir daño al saquear una deathbox o en un menu o habilidad cerrará el menú."
 	"HUD_SHOW_HEALTHBARS" "Mostrar Barras de Vida"
@@ -28914,7 +28917,7 @@
 	"GEAR_STOCK_SNIPER_L4_DESC" "Control rápido, gran reducción de inestabilidad de puntería, tiempo de recarga más rápido. \nSin penalización de movimiento al desenfundar el arma."
 	"GEAR_STOCK_SNIPER_L4_NAME" "Culata de francotirador"
 	"MAINMENU_CONNECT_LOCALHOST" "Conectar a Localhost"
-	"MANTLE_BOOST_TEXT" "%s1 para impulso de escalada"
+	"MANTLE_BOOST_TEXT" "%s1 IMPULSAR"
 	"MEDIC_PASSIVE_CANCEL_REVIVE_HINT" "%scriptCommand5% Cancelar Reanimacion"
 	"MOD_PRO_SCREEN_DESC" "Digital threat display."
 	"MOD_PRO_SCREEN_NAME" "Pro Screen"
@@ -28991,4 +28994,7 @@
 	"WPN_VINSON_MYTHIC_S26_DESC" "Puede disparar balas explosivas.\nLas leyendas enemigas derribadas tendrán una bomba adjunta."
 	"WPN_VINSON_MYTHIC_S26_DESC_SHORT" "¡Mucho fuego!"
 	"Y_BUTTON_MODS" "%[Y_BUTTON|MOUSE1]% Mods"
+
+	// OTHER CUSTOM
+	"REASON_WEAPON_CORRUPTED" "Esta arma ya tiene un accesorio Corrupto"
 }

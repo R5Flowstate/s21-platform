@@ -690,7 +690,7 @@
     "FS_ChalNotAccepting": "NO ACEPTA DESAFIOS",
     "FS_ChalOffer": "%s te desafio",
     "FS_ChalPending": "DESAFIO YA ENVIADO",
-    "MANTLE_BOOST_TEXT": "%s1 para impulso de escalada",
+    "MANTLE_BOOST_TEXT": "%s1 IMPULSAR",
     "SETTING_MANTLE_BOOST_TOO_EARLY": "Muy pronto",
     "LAB_TAB_PLAYER": "Jugador",
     "LAB_TAB_ARMORY": "Armeria",
@@ -908,6 +908,10 @@
     "FRSETTING_DUMMIESTRAFEDURATION_050": "0.50 s",
     "FRSETTING_DUMMIESTRAFEDURATION_060": "0.60 s",
     "FRSETTING_DUMMIESTRAFEDURATION_075": "0.75 s",
-    "FRSETTING_DUMMIESTRAFEDURATION_090": "0.90 s"
+    "FRSETTING_DUMMIESTRAFEDURATION_090": "0.90 s",
+    "FRSETTING_DUMMIEINVINCIBLE": "Muñecos invencibles",
+    "FRSETTING_DUMMIEINVINCIBLE_DESC": "Los muñecos reciben impactos pero no mueren. Salud y escudos se recargan tras unos segundos sin daño.",
+    "FRSETTING_DUMMIEINVINCIBLE_CHANGED": "Muñecos invencibles",
+    "REASON_WEAPON_CORRUPTED": "Esta arma ya tiene un accesorio Corrupto"
   }
 }

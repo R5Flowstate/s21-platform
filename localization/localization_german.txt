@@ -28174,6 +28174,9 @@
 	"FRSETTING_DUMMIESTRAFEDURATION_060" "0.60 s"
 	"FRSETTING_DUMMIESTRAFEDURATION_075" "0.75 s"
 	"FRSETTING_DUMMIESTRAFEDURATION_090" "0.90 s"
+	"FRSETTING_DUMMIEINVINCIBLE" "Unverwundbare Dummys"
+	"FRSETTING_DUMMIEINVINCIBLE_DESC" "Dummys erleiden Treffer, sterben aber nicht. Gesundheit und Schilde füllen sich nach einigen Sekunden ohne Schaden wieder auf."
+	"FRSETTING_DUMMIEINVINCIBLE_CHANGED" "Unverwundbare Dummys"
 	"HUD_DAMAGE_CLOSES_MENU" "Schaden schließen Beutebox oder Menü"
 	"HUD_DAMAGE_CLOSES_MENU_DESC" "Legt fest, ob das Einstecken von Schaden beim Plündern einer Beutebox oder in einem Menü oder einer Fähigkeit das Menü schließt."
 	"HUD_SHOW_HEALTHBARS" "Lebensleisten anzeigen"
@@ -28914,7 +28917,7 @@
 	"GEAR_STOCK_SNIPER_L4_DESC" "Schnelles Handling, deutliche Reduktion der Zielabweichung, schnellste Nachladezeit. \nKeine Bewegungsstrafe mit gezogener Waffe."
 	"GEAR_STOCK_SNIPER_L4_NAME" "Scharfschützenschaft"
 	"MAINMENU_CONNECT_LOCALHOST" "Localhost verbinden"
-	"MANTLE_BOOST_TEXT" "%s1 fur Mantle-Boost"
+	"MANTLE_BOOST_TEXT" "%s1 BOOST"
 	"MEDIC_PASSIVE_CANCEL_REVIVE_HINT" "%scriptCommand5% Wiederbelebung abbrechen"
 	"MOD_PRO_SCREEN_DESC" "Digital threat display."
 	"MOD_PRO_SCREEN_NAME" "Pro Screen"
@@ -28991,4 +28994,7 @@
 	"WPN_VINSON_MYTHIC_S26_DESC" "Kann explosive Munition abfeuern.\nAn Gegner:innen haftet nach Knockdown eine Bombe."
 	"WPN_VINSON_MYTHIC_S26_DESC_SHORT" "Jede Menge Feuer!"
 	"Y_BUTTON_MODS" "%[Y_BUTTON|MOUSE1]% Mods"
+
+	// OTHER CUSTOM
+	"REASON_WEAPON_CORRUPTED" "Diese Waffe hat bereits ein verdorbenes Aufsatzteil"
 }

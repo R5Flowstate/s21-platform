@@ -1336,6 +1336,7 @@ void function DummieData_Add( entity dummie, int realm, bool facePlayers = true 
 	{
 		file.dummiesSpawnedInRealm[ realm ].append( dummie )
 	}
+	FRDummie_ApplyInvincible( dummie, FRSetting_DummieInvincible_Get( realm ) )
 
 	if(( facePlayers ) && ( !( file.playerFacingDummiesByRealm[ realm ].contains( dummie ))))
 	{

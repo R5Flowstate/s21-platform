@@ -238,6 +238,8 @@ void function CreateHUDRuiTopologies()
 
 void function ClientCodeCallback_ResolutionChanged( bool askForConfirmation )
 {
+	UpdateFullscreenTopology( clGlobal.topoFullscreenHud, true )
+	UpdateFullscreenTopology( clGlobal.topoFullscreenHudPermanent, true )
 	UpdateMainHudVisibility( GetLocalViewPlayer() )
 	UpdateFullscreenTopology( clGlobal.topoFullScreen, false )
 	UpdateFullscreenTopology( clGlobal.topoFullscreenFullMap, true )

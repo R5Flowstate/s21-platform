@@ -128,6 +128,7 @@ void function SetupSettings()
 	file.generalSettingsToHud[ eFRSettingType.TARGETSPEED ] <- Hud_GetChild( file.contentPanel, "SwitchTargetSpeed" )
 	file.generalSettingsToHud[ eFRSettingType.FRDUMMIESHIELDLVL ] <- Hud_GetChild( file.contentPanel, "SwitchDummieShield" )
 	file.generalSettingsToHud[ eFRSettingType.FRDUMMIEHELMETMATCHSHIELDS ] <- Hud_GetChild( file.contentPanel, "SwitchDummieHelmetMatchShields" )
+	file.generalSettingsToHud[ eFRSettingType.FRDUMMIEINVINCIBLE ] <- Hud_GetChild( file.contentPanel, "SwitchDummieInvincible" )
 	file.generalSettingsToHud[ eFRSettingType.FRDUMMIESPEED ] <- Hud_GetChild( file.contentPanel, "SwitchDummieSpeed" )
 	file.generalSettingsToHud[ eFRSettingType.FRDUMMIEMOVEMENT ] <- Hud_GetChild( file.contentPanel, "SwitchDummieMovement" )
 	file.generalSettingsToHud[ eFRSettingType.FRDUMMIESTANCE ] <- Hud_GetChild( file.contentPanel, "SwitchDummieStance" )
@@ -177,6 +178,9 @@ void function SetupSettings()
 
 	SetupSettingsButton( file.generalSettingsToHud[ eFRSettingType.FRDUMMIEHELMETMATCHSHIELDS ], "#FRSETTING_DUMMIEHELMETMATCHSHIELDS", "#FRSETTING_DUMMIEHELMETMATCHSHIELDS_DESC", $"", false, true )
 	AddButtonEventHandler( file.generalSettingsToHud[ eFRSettingType.FRDUMMIEHELMETMATCHSHIELDS ], UIE_CHANGE, void function( var btn ){ Firing_Range_GeneralSettingChanged( eFRSettingType.FRDUMMIEHELMETMATCHSHIELDS, btn ) } )
+
+	SetupSettingsButton( file.generalSettingsToHud[ eFRSettingType.FRDUMMIEINVINCIBLE ], "#FRSETTING_DUMMIEINVINCIBLE", "#FRSETTING_DUMMIEINVINCIBLE_DESC", $"", false, true )
+	AddButtonEventHandler( file.generalSettingsToHud[ eFRSettingType.FRDUMMIEINVINCIBLE ], UIE_CHANGE, void function( var btn ){ Firing_Range_GeneralSettingChanged( eFRSettingType.FRDUMMIEINVINCIBLE, btn ) } )
 
 
 	SetupSettingsButton( file.generalSettingsToHud[ eFRSettingType.FRDUMMIESPEED ], "#FRSETTING_DUMMIESTRAFESPEED", "#FRSETTING_DUMMIESTRAFESPEED_DESC", $"", false, true  )
@@ -354,6 +358,7 @@ void function UpdateDetails()
 	Hud_SetEnabled( file.generalSettingsToHud[ eFRSettingType.TARGETSPEED ], 		file.isRangeMaster && !file.setting_DebounceLocked[ eFRSettingType.TARGETSPEED ])
 	Hud_SetEnabled( file.generalSettingsToHud[ eFRSettingType.FRDUMMIESHIELDLVL ], 	file.isRangeMaster && !file.setting_DebounceLocked[ eFRSettingType.FRDUMMIESHIELDLVL ])
 	Hud_SetEnabled( file.generalSettingsToHud[ eFRSettingType.FRDUMMIEHELMETMATCHSHIELDS ], file.isRangeMaster && !file.setting_DebounceLocked[ eFRSettingType.FRDUMMIEHELMETMATCHSHIELDS ])
+	Hud_SetEnabled( file.generalSettingsToHud[ eFRSettingType.FRDUMMIEINVINCIBLE ], file.isRangeMaster && !file.setting_DebounceLocked[ eFRSettingType.FRDUMMIEINVINCIBLE ])
 
 	
 	bool fcOn
@@ -624,6 +629,10 @@ void function Firing_Range_GeneralSettingChanged( int setting, var btn )
 		case eFRSettingType.FRDUMMIEHELMETMATCHSHIELDS:
 			file.generalSettings[ setting ] <- float( boolValue )
 			Remote_ServerCallFunction( "UCB_SV_FRSetting_DummieHelmetMatchShields", boolValue, true )
+			break
+		case eFRSettingType.FRDUMMIEINVINCIBLE:
+			file.generalSettings[ setting ] <- float( boolValue )
+			Remote_ServerCallFunction( "UCB_SV_FRSetting_DummieInvincible", boolValue, true )
 			break
 		case eFRSettingType.FRDUMMIEMOVEMENT:
 			file.generalSettings[ setting ] <- float( indexValue )
