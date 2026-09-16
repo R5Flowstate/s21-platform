@@ -1056,6 +1056,7 @@ Scripts:
 [
 	gamemodes/sh_gamemode_freedm.nut
 	gamemodes/sh_freedm_ffa_loadout.nut
+	gamemodes/sh_freedm_ffa_legacy_spawns.nut
 	gamemodes/sh_freedm_gun_game.nut
 	gamemodes/sh_freedm_tdm.nut
 	gamemodes/sh_freedm_treasure_hunt.nut
@@ -2801,6 +2802,7 @@ Scripts:
 [
 	gamemodes/sh_gamemode_freedm.nut
 	gamemodes/sh_freedm_ffa_loadout.nut
+	gamemodes/sh_freedm_ffa_legacy_spawns.nut
 	gamemodes/sh_freedm_gun_game.nut
 	gamemodes/sh_freedm_tdm.nut
 	gamemodes/sh_freedm_treasure_hunt.nut

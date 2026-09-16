@@ -1047,10 +1047,35 @@ bool function GetPlayerIs3pEmoting( entity player )
 	return player.GetPlayerNetBool( "isEmoting" )
 }
 
-ItemFlavor function GetEmotingPlayerEmote( entity player )
+ItemFlavor ornull function GetEmotingPlayerEmote( entity player )
 {
-	return file.emotingPlayers[ player ]
+	if ( player in file.emotingPlayers )
+		return file.emotingPlayers[ player ]
+	return null
 }
+
+#if SERVER
+bool function Emote_FlavorMatchesCharacter( ItemFlavor flavor, ItemFlavor character )
+{
+	if ( ItemFlavor_GetType( flavor ) != eItemType.character_emote )
+		return true
+
+	ItemFlavor ornull owner = CharacterQuip_GetCharacterFlavor( flavor )
+	return owner == null || expect ItemFlavor( owner ) == character
+}
+
+ItemFlavor function Emote_GetFallbackForCharacter( EHI playerEHI, ItemFlavor character )
+{
+	LoadoutEntry slot0 = Loadout_CharacterQuip( character, 0 )
+	if ( LoadoutSlot_IsReady( playerEHI, slot0 ) )
+	{
+		ItemFlavor equipped = LoadoutSlot_GetItemFlavor( playerEHI, slot0 )
+		if ( ItemFlavor_GetType( equipped ) == eItemType.character_emote && Emote_FlavorMatchesCharacter( equipped, character ) )
+			return equipped
+	}
+	return slot0.defaultItemFlavor
+}
+#endif
 
 int function CheckPlayerCanEmote( entity player )
 {
@@ -1179,8 +1204,11 @@ void function ModelPerformEmote( entity model, ItemFlavor item, entity mover, bo
 	string anim3p     = CharacterQuip_GetAnim3p( item, character )
 	string loopAnim3p = CharacterQuip_GetAnimLoop3p( item )
 
-	Assert( model.LookupSequence( anim3p ) != -1, "Victory sequence " + anim3p + "doesn't exist on model " + model.GetModelName() +
+	int emoteSeqId = model.LookupSequence( anim3p )
+	Assert( emoteSeqId != -1, "Victory sequence " + anim3p + "doesn't exist on model " + model.GetModelName() +
 	"Likely an issue with grabbing the wrong sequence from CharacterQuip_GetAnim3p" )
+	if ( emoteSeqId == -1 )
+		return
 
 	bool usesLoop = loopAnim3p != ""
 
@@ -1325,14 +1353,7 @@ void function ClientCallback_RequestEmote( entity player, int flavorGUID )
 	if ( ItemFlavor_GetType( flavor ) != eItemType.character_emote )
 		return
 
-	ItemFlavor character = LoadoutSlot_GetItemFlavor( ToEHI( player ), Loadout_Character() )
-	ItemFlavor ornull owner = CharacterQuip_GetCharacterFlavor( flavor )
-	if ( owner != null && expect ItemFlavor( owner ) != character )
-	{
-		printt( "[EMOTE] " + player.GetPlayerName() + " asked for " + ItemFlavor_GetHumanReadableRef( flavor ) + " while playing " + ItemFlavor_GetHumanReadableRef( character ) + " -- ignored" )
-		return
-	}
-
+	// Stale cross-character flavors remap inside the funnel, never ignore here.
 	RequestPlayerPerformEmote( player, flavor )
 }
 
@@ -1393,9 +1414,17 @@ void function RequestPlayerPerformEmote( entity player, ItemFlavor flavor )
 	if ( CheckPlayerCanEmote( player ) != eCanEmoteCheckReults.SUCCESS )
 		return
 
+	ItemFlavor character = LoadoutSlot_GetItemFlavor( ToEHI( player ), Loadout_Character() )
+	if ( !Emote_FlavorMatchesCharacter( flavor, character ) )
+	{
+		ItemFlavor fallback = Emote_GetFallbackForCharacter( ToEHI( player ), character )
+		printt( "[EMOTE] " + player.GetPlayerName() + " asked for " + ItemFlavor_GetHumanReadableRef( flavor ) + " while playing " + ItemFlavor_GetHumanReadableRef( character ) + " -- remapped to " + ItemFlavor_GetHumanReadableRef( fallback ) )
+		flavor = fallback
+	}
+
 	if ( GetPlayerIsEmoting( player ) )
 	{
-		ItemFlavor currentEmote = GetEmotingPlayerEmote( player )
+		ItemFlavor ornull currentEmote = GetEmotingPlayerEmote( player )
 		if ( currentEmote == flavor )
 			return    // keep going
 
@@ -1426,6 +1455,14 @@ void function PlayerPerformEmote( entity player, ItemFlavor flavor )
 	EndSignal( player, "BleedOut_OnStartDying" )
 	EndSignal( player, "StartHeal" )
 	EndSignal( player, SIGNAL_END_EMOTE_PERFORMANCE )
+
+	ItemFlavor character = LoadoutSlot_GetItemFlavor( ToEHI( player ), Loadout_Character() )
+	if ( !Emote_FlavorMatchesCharacter( flavor, character ) )
+		return
+
+	string anim3p = CharacterQuip_GetAnim3p( flavor, character )
+	if ( anim3p == "" || player.LookupSequence( anim3p ) == -1 )
+		return
 
 	SetPlayerEmoting( player, flavor )
 	Signal( player, SIGNAL_STARTING_EMOTE )
@@ -1482,9 +1519,6 @@ void function PlayerPerformEmote( entity player, ItemFlavor flavor )
 	// Listens to input, ends emote if player moves
 	thread WatchPlayerEmoteForInterrupt( player )
 
-	ItemFlavor character = LoadoutSlot_GetItemFlavor( ToEHI( player ), Loadout_Character() )
-	Assert( CharacterQuip_GetAnim3p( flavor, character ) != "", "Warning! Character emote has no 3p animation!" )
-	string anim3p = CharacterQuip_GetAnim3p( flavor, character )
 	string loopAnim3p = CharacterQuip_GetAnimLoop3p( flavor )
 
 	float emoteTime = DEV_CharacterEmote_GetCustomAnimSequenceTime( anim3p )
@@ -1634,10 +1668,22 @@ void function EmoteTransitionToLoop( entity player, ItemFlavor flavor, float sta
 
 	wait startAnimTime
 
-	string loopSeq = CharacterQuip_GetAnimLoop3p( flavor )
-
 	while ( true )
 	{
+		ItemFlavor loopCharacter = LoadoutSlot_GetItemFlavor( ToEHI( player ), Loadout_Character() )
+		if ( !Emote_FlavorMatchesCharacter( flavor, loopCharacter ) )
+		{
+			Emote_StopEmoteNow( player )
+			return
+		}
+
+		string loopSeq = CharacterQuip_GetAnimLoop3p( flavor )
+		if ( loopSeq == "" || player.LookupSequence( loopSeq ) == -1 )
+		{
+			Emote_StopEmoteNow( player )
+			return
+		}
+
 		//Loop anim
 		player.Anim_PlayWithRefPoint( loopSeq, player.GetOrigin(), viewAngles, 2 )
 		player.Anim_EnablePlanting()
@@ -1660,6 +1706,12 @@ void function EmoteTransitionToLoop( entity player, ItemFlavor flavor, float sta
 		thread PromptFlourish( player, flourishTime )
 
 		WaitSignal( player, SIGNAL_EMOTE_FLOURISH )
+
+		if ( !Emote_FlavorMatchesCharacter( flavor, LoadoutSlot_GetItemFlavor( ToEHI( player ), Loadout_Character() ) ) || player.LookupSequence( flourishSeq ) == -1 )
+		{
+			Emote_StopEmoteNow( player )
+			return
+		}
 
 		player.Anim_PlayWithRefPoint( flourishSeq, player.GetOrigin(), viewAngles, 2 )
 		player.Anim_EnablePlanting()
@@ -1793,6 +1845,30 @@ void function StandingEmote_OnPlayerClassChanged( entity player )
 {
 	if ( GetPlayerIsEmoting( player ) )
 		Emote_StopEmoteNow( player )
+
+	if ( !AreEmotesEnabled() )
+		return
+
+	thread Emote_RefreshForCharacter( player )
+}
+
+void function Emote_RefreshForCharacter( entity player )
+{
+	player.EndSignal( "OnDestroy" )
+
+	EHI playerEHI = ToEHI( player )
+
+	int tries = 0
+	while ( !LoadoutSlot_IsReady( playerEHI, Loadout_Character() ) && tries < 300 )
+	{
+		WaitFrame()
+		tries++
+	}
+
+	if ( !IsValid( player ) || !LoadoutSlot_IsReady( playerEHI, Loadout_Character() ) )
+		return
+
+	EquipBaseEmoteForCharacter( player, LoadoutSlot_GetItemFlavor( playerEHI, Loadout_Character() ) )
 }
 
 void function OnEmotingPlayerDamaged( entity player, var damageInfo )

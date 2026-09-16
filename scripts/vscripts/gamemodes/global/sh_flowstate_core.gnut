@@ -186,6 +186,10 @@ void function FS_Core_SharedInit()
 		// surfaces an inventory menu; only the remotes belong behind the cap.
 		FS_Core_EnsureLootThrowSignals()
 
+		// Stock death screen needs this backdrop on maps with no victory room.
+		if ( !FS_HasCap( FS_CAP_NO_BR_DEATH_SCREEN ) )
+			PrecacheModel( $"mdl/levels_terrain/mp_lobby/mp_setting_menu.rmdl" )
+
 		if ( FS_HasCap( FS_CAP_SURVIVAL_INVENTORY_UI ) )
 			FS_Core_RegisterInventoryRemotes()
 	#endif

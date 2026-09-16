@@ -449,6 +449,10 @@ void function FreeDM_GamemodeInitServer()
 	if ( FreeDM_IsFFA() )
 	{
 		FreeDM_FFA_PrecacheForcedKit()
+		// FFA owns respawns outright. Survival's spawn-near-squad thread would
+		// otherwise race us and wipe the kit after the give.
+		RespawnNearSquad_SetCallback_CanRespawnPlayer( FreeDM_FFA_BlockSpawnNearSquad )
+		FreeDM_FFA_RegisterLegacySpawns()
 		thread FreeDM_FFA_ForcePlaying_THREAD()
 	}
 }
@@ -721,6 +725,9 @@ void function EntitiesDidLoad()
 
 	FlagSet( "DisableDropships" )
 	//FlagSet( "disable_npcs" )
+
+	if ( FreeDM_IsFFA() )
+		FreeDM_FFA_BuildRing()
 }
 #endif // SERVER
 
@@ -1285,6 +1292,7 @@ void function FreeDM_FFA_RespawnForRound( entity player )
 	{
 		player.SetOrigin( spawnPoint.GetOrigin() )
 		player.SetAngles( <0.0, spawnPoint.GetAngles().y, 0.0> )
+		FreeDM_FFA_SnapPlayerToGround( player )
 	}
 	player.SetHealth( player.GetMaxHealth() )
 	if ( player.GetShieldHealthMax() > 0 )
@@ -2150,6 +2158,8 @@ void function FreeDM_FFA_ApplyLoadoutAfterRespawn_THREAD( entity player )
 	if ( GetGameState() > eGameState.Playing )
 		return
 
+	FreeDM_FFA_SnapPlayerToGround( player )
+
 	player.p.respawnPodLanded = true
 	player.p.survivalLandedOnGround = true
 	ClearPlayerIntroDropSettings( player )
@@ -2173,6 +2183,150 @@ void function FreeDM_FFA_ApplyLoadoutAfterRespawn_THREAD( entity player )
 		FreeDM_FFA_OpenRoundLoadout( player )
 }
 
+bool function FreeDM_FFA_BlockSpawnNearSquad( entity player )
+{
+	return false
+}
+
+void function FreeDM_FFA_BuildRing()
+{
+	// Native POI locations ship their own fencing; the ring is only for
+	// custom pools without it.
+	if ( !GetCurrentPlaylistVarBool( "ffa_ring", false ) )
+		return
+
+	float forcedRadius = GetCurrentPlaylistVarFloat( "ffa_ring_radius", 0.0 )
+	if ( forcedRadius < 0.0 )
+		return
+
+	vector center = <0,0,0>
+	float radius = 0.0
+
+	if ( GetCurrentPlaylistVarBool( "is_using_cull_circle_ents", false ) )
+	{
+		array<float> circle = GamemodeUtility_ParseCircleString( GetCurrentPlaylistVarString( "cull_entity_spawn_circle", "" ) )
+		if ( circle.len() == 4 && circle[3] > 0.0 )
+		{
+			center = <circle[0], circle[1], circle[2]>
+			radius = circle[3]
+		}
+	}
+
+	if ( radius <= 0.0 )
+	{
+		array<array<vector> > pool = FreeDM_FFA_GetLegacyPool()
+		if ( pool.len() > 0 )
+		{
+			foreach ( array<vector> spawn in pool )
+				center += spawn[0]
+			center /= float( pool.len() )
+			foreach ( array<vector> spawn in pool )
+				radius = max( radius, Distance2D( spawn[0], center ) )
+		}
+	}
+
+	if ( radius <= 0.0 )
+	{
+		array<entity> points = SpawnPoints_GetPilot()
+		if ( points.len() > 0 )
+		{
+			foreach ( entity point in points )
+				center += point.GetOrigin()
+			center /= float( points.len() )
+			foreach ( entity point in points )
+				radius = max( radius, Distance2D( point.GetOrigin(), center ) )
+		}
+	}
+
+	if ( forcedRadius > 0.0 )
+		radius = forcedRadius
+	if ( radius <= 0.0 )
+		return
+	radius += GetCurrentPlaylistVarFloat( "ffa_ring_padding", 500.0 )
+
+	entity ring = CreateEntity( "prop_script" )
+	ring.SetValueForModelKey( $"mdl/fx/ar_survival_radius_1x100.rmdl" )
+	ring.kv.fadedist = -1
+	ring.kv.modelscale = radius
+	ring.kv.renderamt = 255
+	ring.kv.rendercolor = <255.0, 80.0, 80.0>
+	ring.kv.solid = 0
+	ring.kv.VisibilityFlags = ENTITY_VISIBLE_TO_EVERYONE
+	ring.SetOrigin( center )
+	ring.SetAngles( <0, 0, 0> )
+	ring.NotSolid()
+	ring.DisableHibernation()
+	DispatchSpawn( ring )
+
+	printt( "[FreeDM] FFA ring center=" + string( center ) + " radius=" + string( radius ) )
+	thread FreeDM_FFA_RingDamage_THREAD( ring, radius )
+}
+
+void function FreeDM_FFA_RingDamage_THREAD( entity circle, float radius )
+{
+	circle.EndSignal( "OnDestroy" )
+	WaitFrame()
+
+	float pct = GetCurrentPlaylistVarFloat( "ffa_ring_damage_pct", 10.0 ) / 100.0
+
+	for ( ;; )
+	{
+		wait 1.5
+
+		if ( GetGameState() != eGameState.Playing || !IsValid( circle ) )
+			continue
+
+		foreach ( entity player in GetPlayerArray_Alive() )
+		{
+			if ( !IsValid( player ) || player.IsPhaseShifted() )
+				continue
+			if ( Distance2D( player.GetOrigin(), circle.GetOrigin() ) <= radius )
+				continue
+
+			int dmg = int( pct * float( player.GetMaxHealth() ) )
+			if ( dmg < 1 )
+				dmg = 1
+			Remote_CallFunction_Replay( player, "ServerCallback_PlayerTookDamage", 0, <0,0,0>, DF_BYPASS_SHIELD | DF_DOOMED_HEALTH_LOSS, eDamageSourceId.deathField, 0 )
+			player.TakeDamage( dmg, null, null, { scriptType = DF_BYPASS_SHIELD | DF_DOOMED_HEALTH_LOSS, damageSourceId = eDamageSourceId.deathField } )
+		}
+	}
+}
+
+void function FreeDM_FFA_SnapPlayerToGround( entity player )
+{
+	if ( !IsValid( player ) || !IsAlive( player ) )
+		return
+
+	vector origin = player.GetOrigin()
+	vector mins = player.GetPlayerMins()
+	vector maxs = player.GetPlayerMaxs()
+
+	float lift = 0.0
+	while ( lift <= 256.0 )
+	{
+		TraceResults free = TraceHull( origin + <0,0,lift>, origin + <0,0,lift> + <0,0,1>, mins, maxs, player, TRACE_MASK_PLAYERSOLID, TRACE_COLLISION_GROUP_PLAYER )
+		if ( !free.startSolid && !free.allSolid )
+			break
+		lift += 32.0
+	}
+
+	float dropLift = lift + 64.0
+	while ( dropLift <= 4096.0 )
+	{
+		TraceResults drop = TraceHull( origin + <0,0,dropLift>, origin - <0,0,2048>, mins, maxs, player, TRACE_MASK_PLAYERSOLID, TRACE_COLLISION_GROUP_PLAYER )
+		if ( !drop.startSolid && !drop.allSolid && drop.fraction < 1.0 )
+		{
+			vector snapped = drop.endPos + <0,0,2>
+			if ( Distance( snapped, player.GetOrigin() ) > 4.0 )
+				player.SetOrigin( snapped )
+			return
+		}
+		dropLift *= 2.0
+	}
+
+	printt( "[FreeDM] FFA ground snap failed " + player.GetPlayerName() + " origin=" + string( origin ) )
+}
+
 void function FreeDM_FFA_RespawnAfterDeath_THREAD( entity player )
 {
 	player.EndSignal( "OnDestroy" )
@@ -2181,6 +2335,18 @@ void function FreeDM_FFA_RespawnAfterDeath_THREAD( entity player )
 	float delay = GetCurrentPlaylistVarFloat( "respawn_cooldown", 3.0 )
 	if ( delay < 0.0 )
 		delay = 0.0
+
+	float respawnStatusEndTime = Time() + delay
+	player.SetPlayerNetTime( "respawnStatusEndTime", respawnStatusEndTime )
+	player.SetPlayerNetTime( "hackStartTime", Time() )
+	try
+	{
+		Remote_CallFunction_NonReplay( player, "ServerCallback_RespawnPodStarted", respawnStatusEndTime )
+	}
+	catch ( podErr )
+	{
+	}
+
 	if ( delay > 0.0 )
 		wait delay
 

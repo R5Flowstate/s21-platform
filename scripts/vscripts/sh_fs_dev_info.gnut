@@ -3,9 +3,6 @@ global function R5F_GetProductVersion
 
 string function R5F_GetProductVersion()
 {
-	string ver = GetConVarString( "r5f_display_version" )
-	if ( ver.len() == 0 )
-		return "1.0.5"
-	return ver
+	return "1.0.7"
 }
 #endif

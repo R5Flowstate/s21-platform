@@ -575,6 +575,19 @@ void function UI_SetScoreboardTeamData( var panel, int teams, int playersPerTeam
 	array<var> teamPlayers = GetPanelElementsByClassname( panel, "TeamPlayer" )
 	file.panels[panel].teamPlayers = teamPlayers
 
+	// .res rows are fixed per header class, so clamp to what the panel owns.
+	// A mode with more teams than rows errored indexing past the arrays.
+	if ( playersPerTeam < 1 )
+		playersPerTeam = 1
+	file.panels[panel].playersPerTeam = playersPerTeam
+	teams = minint( teams, teamHeaders.len() )
+	teams = minint( teams, teamPlayers.len() / playersPerTeam )
+	if ( !ShouldUseTinyMode( panel ) )
+		teams = minint( teams, file.panels[panel].teamFrames.len() )
+	file.panels[panel].teams = teams
+	if ( teams <= 0 )
+		return
+
 	CheckHeaderCountRestraints( panel )
 
 	UISize screenSize = GetScreenSize()

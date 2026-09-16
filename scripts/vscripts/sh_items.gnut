@@ -1681,18 +1681,23 @@ ItemFlavor ornull function RegisterItemFlavorFromSettingsAsset( asset settingsAs
 	}
 
 	string assetPath = string( settingsAsset )
-	if ( !ItemFlavor_AssetPathLooksValid( assetPath ) )
+	// slice throws only when len < prefix+suffix. A long string() that is not
+	// settings/itemflav/*.rpak is still a real handle -- keep registering.
+	string humanReadableRef
+	if ( ItemFlavor_AssetPathLooksValid( assetPath ) )
 	{
-		Warning( "RegisterItemFlavorFromSettingsAsset: skipping bad path \"" + assetPath + "\" guid=" + guid + " len=" + assetPath.len() + " map=" + GetMapName() + " playlist=" + GetCurrentPlaylistName() + "\n" + GetStack() )
-		return null
+		humanReadableRef = assetPath.slice( ITEM_FLAV_PREFIX.len(), assetPath.len() - ITEM_FLAV_SUFFIX.len() )
+		humanReadableRef = replace( humanReadableRef, "/", "_" )
+	}
+	else
+	{
+		Warning( "RegisterItemFlavorFromSettingsAsset: nonstandard path \"" + assetPath + "\" guid=" + guid + " len=" + assetPath.len() + "\n" + GetStack() )
+		if ( assetPath.len() < ITEM_FLAV_PREFIX_LEN + ITEM_FLAV_SUFFIX_LEN )
+			return null
+		humanReadableRef = format( "guid_%d", guid )
 	}
 
 	Assert( !fileLevel.isItemRegistrationFinished, "Attempted to register item flavor after registration period ended (" + assetPath + ")" )
-
-	Assert( assetPath.find( ITEM_FLAV_PREFIX ) == 0 )
-
-	string humanReadableRef = assetPath.slice( ITEM_FLAV_PREFIX.len(), assetPath.len() - ITEM_FLAV_SUFFIX.len() )
-	humanReadableRef = replace( humanReadableRef, "/", "_" )
 
 	string guidString = ConvertAssetIDToGUIDString( GetUniqueIdForSettingsAsset( settingsAsset ) )
 
@@ -1701,11 +1706,15 @@ ItemFlavor ornull function RegisterItemFlavorFromSettingsAsset( asset settingsAs
 	ItemFlavor flavor
 
 	string itemType = GetGlobalSettingsString( settingsAsset, "itemType" )
-	Assert( itemType in eItemType, "Unknown item type: " + itemType + " (check eItemType matches code_root.rson)" )
+	if ( !(itemType in eItemType) )
+	{
+		Warning( "RegisterItemFlavorFromSettingsAsset: unknown itemType \"" + itemType + "\" path=\"" + assetPath + "\" guid=" + guid + "\n" + GetStack() )
+		return null
+	}
 	flavor.typeIndex = eItemType[itemType]
 
 	int availability = flavor.typeIndex == eItemType.character ? GetPlaylistAvailabilityByRef( [ humanReadableRef, guidString ] ) : GetPlaylistAvailabilityByRef( [ guidString ] )
-	if ( availability == eItemFlavorPlaylistAvailability.DISABLED )
+	if ( availability == eItemFlavorPlaylistAvailability.DISABLED && flavor.typeIndex != eItemType.account_currency )
 	{
 		#if DEVELOPER
 			printt( "Item flavor disabled by dev-only playlist vars: " + humanReadableRef + " | " + guidString )

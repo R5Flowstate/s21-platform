@@ -1839,6 +1839,29 @@ playlists
                 roundwinningkillreplay_enabled 0
                 scoreboard_onlyMyTeam 0
 
+                // Stock teams board is unused in FFA (custom flowstate leaderboard).
+                // Its .res only carries 4 TDM headers vs 12 solo teams, so keep
+                // every stock board off and never steer the death screen at it.
+                enable_inventory_scoreboard 0
+                enable_death_scoreboard 0
+                enable_match_end_scoreboard 0
+                death_screen_default_tab 1
+
+                // Legacy POI spawn layout override (LocationSettings port).
+                // Empty = native map-entity spawns. Set to a location name in
+                // sh_freedm_ffa_legacy_spawns.nut to spawn from its pool.
+                ffa_legacy_location ""
+
+                // Soft boundary ring (FX + out-of-ring damage tick). Only for
+                // custom pools without native fencing: native POI locations
+                // stay ringless. Geometry auto-derives from cull circle,
+                // legacy pool, then map spawns. ffa_ring_radius > 0 forces
+                // exact radius, < 0 disables.
+                ffa_ring 0
+                ffa_ring_radius 0
+                ffa_ring_padding 500
+                ffa_ring_damage_pct 10
+
                 pin_match_type "ffa"
                 stats_match_type "ffa"
 
@@ -1997,9 +2020,90 @@ playlists
                 mp_rr_arena_phase_runner 1
             } } }
         }
+        mix_s_ffa_ttv_building
+        {
+            inherit freedm_ffa
+            vars
+            {
+                r5f_mode                                1
+                r5f_mode_group                          flowstate
+                r5f_mode_family                         ffa
+                r5f_mode_family_title                   "FFA"
+                r5f_mode_family_order                   22
+                r5f_mode_map                            mp_rr_desertlands_hu
+                r5f_mode_map_title                      "TTV Building"
+                r5f_overlay                             1
+                r5f_mode_order                          59
+                r5f_mode_title                          "FFA TTV Building"
+                visible 0
+
+                map_name  "#MP_RR_DESERTLANDS_MU3"
+
+                ffa_legacy_location "TTV Building"
+                freedm_forced_location "fdm_fragment"
+
+                is_using_cull_circle_ents   1
+                cull_entity_spawn_circle "<10300 5250 -4100> 4500"
+            }
+            gamemodes { freedm { maps {
+                mp_rr_desertlands_hu 1
+            } } }
+        }
+        mix_s_ffa_bionomics
+        {
+            inherit freedm_ffa
+            vars
+            {
+                r5f_mode                                1
+                r5f_mode_group                          flowstate
+                r5f_mode_family                         ffa
+                r5f_mode_family_title                   "FFA"
+                r5f_mode_family_order                   22
+                r5f_mode_map                            mp_rr_divided_moon_mu1
+                r5f_mode_map_title                      "Bionomics"
+                r5f_overlay                             1
+                r5f_mode_order                          60
+                r5f_mode_title                          "FFA Bionomics"
+                visible 0
+
+                freedm_forced_location "fdm_bionomics"
+
+                is_using_cull_circle_ents   1
+                cull_entity_spawn_circle "<-10075 13435 4566> 8000"
+            }
+            gamemodes { freedm { maps {
+                mp_rr_divided_moon_mu1 1
+            } } }
+        }
+        mix_s_ffa_filtration
+        {
+            inherit freedm_ffa
+            vars
+            {
+                r5f_mode                                1
+                r5f_mode_group                          flowstate
+                r5f_mode_family                         ffa
+                r5f_mode_family_title                   "FFA"
+                r5f_mode_family_order                   22
+                r5f_mode_map                            mp_rr_canyonlands_hu
+                r5f_mode_map_title                      "Filtration Dam"
+                r5f_overlay                             1
+                r5f_mode_order                          61
+                r5f_mode_title                          "FFA Filtration Dam"
+                visible 0
+
+                freedm_forced_location "fdm_filtration_dam"
+
+                is_using_cull_circle_ents   1
+                cull_entity_spawn_circle "<-20516 23704 3980> 8000"
+            }
+            gamemodes { freedm { maps {
+                mp_rr_canyonlands_hu 1
+            } } }
+        }
 
 
-		///////////////////////////////////
+ 		///////////////////////////////////
         ////////////   Big TDM   //////////
         ///////////////////////////////////
 

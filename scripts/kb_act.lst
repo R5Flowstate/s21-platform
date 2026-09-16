@@ -55,3 +55,5 @@
 "blank"					  				"#BINDINGS_HEADER_MISCELLANEOUS"
 "blank"					  				"=========================="
 "jpeg"					  				"#SCREENSHOT"
+"noclip"					  				"#LAB_PLAYER_NOCLIP"
+"ToggleThirdPerson"			"#LAB_PLAYER_THIRDPERSON"

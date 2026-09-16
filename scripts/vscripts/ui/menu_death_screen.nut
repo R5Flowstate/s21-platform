@@ -1161,7 +1161,13 @@ void function DeathScreenTryToggleUpgradesOnGladCard( var button )
 void function DeathScreenUpdateCursor()
 {
 	int tabIndex = GetMenuActiveTabIndex( file.menu )
-	if ( tabIndex == eDeathScreenPanel.SPECTATE || tabIndex == eDeathScreenPanel.KILLREPLAY )
+	bool hideCursor = tabIndex == eDeathScreenPanel.SPECTATE || tabIndex == eDeathScreenPanel.KILLREPLAY
+	// FFA sits on spectate for the whole 3s respawn, and suicides never build
+	// recap data so the auto-switch never fires. Keep the cursor up instead.
+	if ( tabIndex == eDeathScreenPanel.SPECTATE && GetCurrentPlaylistVarBool( "freedm_ffa_active", false ) )
+		hideCursor = false
+
+	if ( hideCursor )
 	{
 		HideGameCursor()
 		SetGamepadCursorEnabled( file.menu, false )
