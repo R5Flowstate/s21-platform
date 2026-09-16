@@ -79,6 +79,7 @@ void function RemoteFunctions_Init_Begin()
        
 	// DevMenu Auto Respawn countdown overlay (freeDM-style "#RESPAWNING_IN").
 	Remote_RegisterClientFunction( "ServerCallback_DevAutoRespawnOverlay", "float", 0.0, 5000.0, 32 )
+	Remote_RegisterClientFunction( "ServerCallback_DevInfiniteAbilities", "int", 0, 2 )
 
 	// Freeplay aim trainer (DevMenu Flowstate Aim Trainer)
 	// Client remotes (server -> client)

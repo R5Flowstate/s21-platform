@@ -3038,6 +3038,23 @@ asset function Crafting_GetCraftingZoneIcon()
 
 ///// CRAFTING WORKBENCHES /////
 #if SERVER
+void function Crafting_PlaceBenchAtDoorAttach( entity workbench_cluster, entity bench, int doorIndex )
+{
+	string attachName = "door_open_" + doorIndex
+	int doorAttachment = workbench_cluster.LookupAttachment( attachName )
+	if ( doorAttachment <= 0 )
+	{
+		Warning( "CRAFTING: missing attach \"" + attachName + "\" on " + string( workbench_cluster.GetModelName() ) + " map=" + GetMapName() + "\n" + GetStack() )
+		return
+	}
+
+	vector originToAttachment = workbench_cluster.GetAttachmentOrigin( doorAttachment ) - workbench_cluster.GetOrigin()
+	vector workbenchOrigin = workbench_cluster.GetAttachmentOrigin( doorAttachment ) + (originToAttachment * 0.3)
+	workbenchOrigin = <workbenchOrigin.x, workbenchOrigin.y, workbench_cluster.GetAttachmentOrigin( doorAttachment ).z - 20>
+	bench.SetOrigin( workbenchOrigin )
+	bench.SetAngles( workbench_cluster.GetAttachmentAngles( doorAttachment ) )
+}
+
 void function OnWorkbenchScriptTargetSpawned( entity ent )
 {
 	vector origin = ent.GetOrigin()
@@ -3128,14 +3145,7 @@ void function OnWorkbenchScriptTargetSpawned( entity ent )
 	int workbenchCounter = 1
 	foreach( bench in workbenches )
 	{
-		int doorAttachment = workbench_cluster.LookupAttachment( "door_open_" + workbenchCounter )
-		vector originToAttachment = workbench_cluster.GetAttachmentOrigin( doorAttachment ) - workbench_cluster.GetOrigin()
-		vector workbenchOrigin = workbench_cluster.GetAttachmentOrigin( doorAttachment ) + (originToAttachment * 0.3)
-		workbenchOrigin = <workbenchOrigin.x, workbenchOrigin.y, workbench_cluster.GetAttachmentOrigin( doorAttachment ).z - 20>
-		vector workbenchAngles = workbench_cluster.GetAttachmentAngles( doorAttachment )
-		bench.SetOrigin( workbenchOrigin )
-		bench.SetAngles( workbenchAngles )
-
+		Crafting_PlaceBenchAtDoorAttach( workbench_cluster, bench, workbenchCounter )
 		workbenchCounter++
 	}
 
@@ -3535,13 +3545,7 @@ void function AirdropWorkbench_Thread( vector origin, vector angles, bool animat
 	int workbenchCounter = 1
 	foreach( bench in workbenches )
 	{
-		int doorAttachment = workbench_cluster.LookupAttachment( "door_open_" + workbenchCounter )
-		vector originToAttachment = workbench_cluster.GetAttachmentOrigin( doorAttachment ) - workbench_cluster.GetOrigin()
-		vector workbenchOrigin = workbench_cluster.GetAttachmentOrigin( doorAttachment ) + (originToAttachment *0.3)
-		workbenchOrigin = <workbenchOrigin.x, workbenchOrigin.y, workbench_cluster.GetAttachmentOrigin( doorAttachment ).z - 20>
-		vector workbenchAngles = workbench_cluster.GetAttachmentAngles( doorAttachment )
-		bench.SetOrigin( workbenchOrigin )
-		bench.SetAngles( workbenchAngles )
+		Crafting_PlaceBenchAtDoorAttach( workbench_cluster, bench, workbenchCounter )
 		workbenchCounter++
 	}
 

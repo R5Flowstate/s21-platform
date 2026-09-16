@@ -1797,22 +1797,28 @@ void function LoadoutSelection_CheckForMidMatchLoadoutChange( entity player )
 	array< string > _classes_offered
 	foreach( loadoutCategory in file.loadoutCategories )
 	{
+		if ( !( loadoutCategory.activeLoadoutName in loadoutCategory.loadoutContentsByNameTable ) )
+			continue
 		LoadoutSelectionLoadoutContents loadoutContents = loadoutCategory.loadoutContentsByNameTable[ loadoutCategory.activeLoadoutName ]
 		string weaponLoadoutText = loadoutContents.weaponLoadoutString
-		string consumableLoadoutText = "" // loadoutContents.consumablesLoadoutString Removed consumable text because the string gets too long, can update how it gets populated if we need it
+		string consumableLoadoutText = ""
 		string loadoutHeaderText = loadoutContents.loadoutNameText
 		_classes_offered.append( loadoutHeaderText + ": " + weaponLoadoutText + " " + consumableLoadoutText )
 	}
+
+	if ( loadoutIndex < 0 || loadoutIndex >= _classes_offered.len() )
+		return
 
 	array< string > previousWeapons
 	string currentLoadout = _classes_offered[ loadoutIndex ]
 	if ( player in file.playerToLastUsedLoadoutTable )
 	{
-		if ( loadoutIndex != file.playerToLastUsedLoadoutTable[ player ] )
+		int lastIndex = file.playerToLastUsedLoadoutTable[ player ]
+		if ( loadoutIndex != lastIndex )
 		{
-			previousWeapons.append( _classes_offered[ file.playerToLastUsedLoadoutTable[ player ] ] )
+			if ( lastIndex >= 0 && lastIndex < _classes_offered.len() )
+				previousWeapons.append( _classes_offered[ lastIndex ] )
 
-			//PIN_PlayerWeaponLoadoutChange( player, _classes_offered, previousWeapons, currentLoadout, true )
 			file.playerToLastUsedLoadoutTable[ player ] = loadoutIndex
 		}
 	}
@@ -2844,6 +2850,9 @@ void function LoadoutSelection_GivePlayerWeapon( entity player, int selectedLoad
 		return
 
 	LoadoutSelectionLoadoutContents	data = LoadoutSelection_GetLoadoutContentsByLoadoutSlotIndex( selectedLoadout )
+	if ( selectedWeapon >= data.weaponLoadoutSelectionItemsInLoadout.len() )
+		return
+
 	int opticIndex = -1
 
 	if ( selectedWeapon == 0 )
@@ -2936,11 +2945,18 @@ void function LoadoutSelection_GivePlayerWeapon( entity player, int selectedLoad
 
 	LootData weaponData = SURVIVAL_Loot_GetLootDataByRef( weaponRef )
 	array<string> lootTags = weaponData.lootTags
-	entity newActiveWeapon = SpawnGenericLoot( weaponData.baseWeapon, player.GetOrigin(), player.GetAngles(), -1 )
+	vector lootOrigin = player.GetOrigin()
+	lootOrigin.z -= 8192.0
+	entity newActiveWeapon = SpawnGenericLoot( weaponData.baseWeapon, lootOrigin, player.GetAngles(), -1 )
+	if ( !IsValid( newActiveWeapon ) )
+		return
 	newActiveWeapon.SetWeaponMods( upgrades )
 	SURVIVAL_GiveMainWeapon( player, newActiveWeapon, lootTags, null, false, null, false, false, [], false )
-	SetItemSpawnSource( newActiveWeapon, eSpawnSource.GAME, player )
-	newActiveWeapon.Destroy()
+	if ( IsValid( newActiveWeapon ) )
+	{
+		SetItemSpawnSource( newActiveWeapon, eSpawnSource.GAME, player )
+		newActiveWeapon.Destroy()
+	}
 
 
 	// Fill the weapon ammo and clip so the player doesn't have to reload the gun right away

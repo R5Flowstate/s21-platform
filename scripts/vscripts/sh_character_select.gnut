@@ -1580,6 +1580,29 @@ void function OpenCharacterSelectClientSetup( var menu )
 #endif
 
 #if CLIENT
+// Local persist is the lobby pick and does not follow a mid-match switch.
+// The live setfile is who the pawn is.
+ItemFlavor function CharacterSelect_GetCurrentCharacter()
+{
+	entity player = GetLocalClientPlayer()
+	if ( IsValid( player ) && player.IsPlayer() )
+	{
+		asset settings = player.GetPlayerSettings()
+		if ( settings != $"" && settings != SPECTATOR_SETTINGS )
+		{
+			foreach ( ItemFlavor character in GetAllCharacters() )
+			{
+				if ( ItemFlavor_GetAsset( character ) == CHARACTER_RANDOM )
+					continue
+				if ( CharacterClass_GetSetFile( character ) == settings )
+					return character
+			}
+		}
+	}
+
+	return LoadoutSlot_GetItemFlavor( LocalClientEHI(), Loadout_Character() )
+}
+
 void function _OpenCharacterSelectMenu( var menu )
 {
 
@@ -1601,7 +1624,7 @@ void function _OpenCharacterSelectMenu( var menu )
 
                     
 	fileLevel.upgradeTreeRTK = Hud_GetChild( menu, "LobbyLegendSkillPerkInfo" )
-	ItemFlavor defaultCharacter = LoadoutSlot_GetItemFlavor( LocalClientEHI(), Loadout_Character() )
+	ItemFlavor defaultCharacter = CharacterSelect_GetCurrentCharacter()
 	RunUIScript( "ClientToUI_UpdateHighlightedCharacter", ItemFlavor_GetGUIDString( defaultCharacter ) )
       
 
@@ -1658,7 +1681,7 @@ void function _OpenCharacterSelectMenu( var menu )
 
 	if ( fileLevel.isBrowseMode )
 	{
-		ItemFlavor selectedCharacter = LoadoutSlot_GetItemFlavor( LocalClientEHI(), Loadout_Character() )
+		ItemFlavor selectedCharacter = CharacterSelect_GetCurrentCharacter()
 		int buttonIndex = GetButtonIndexForCharacter( selectedCharacter )
 		if ( buttonIndex >= 0 && buttonIndex != fileLevel.currentCharacterIndex)
 		{
@@ -2904,7 +2927,7 @@ void function OnLoadoutButton_Activate( var button )
 				return
 		}
 
-		ItemFlavor currentCharacter = LoadoutSlot_GetItemFlavor( ToEHI( player ), Loadout_Character() )
+		ItemFlavor currentCharacter = CharacterSelect_GetCurrentCharacter()
 		ItemFlavor currentSkin = LoadoutSlot_GetItemFlavor( ToEHI( player ), Loadout_CharacterSkin( currentCharacter ) )
 		if ( (character == currentCharacter) && ((skinOrNull == null) || (skinOrNull == currentSkin)) )
 		{

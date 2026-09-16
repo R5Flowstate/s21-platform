@@ -15,7 +15,6 @@ playlists
                 max_players 16
                 max_teams 2
 
-                aimassist_adspull_disabled 1
                 reconnect_disabled 0
                 match_jip 0
 
@@ -23,6 +22,11 @@ playlists
                 //// Code Var Overrides (these should be baked into code defaults)
                 ///////////////////////////////////////////////////////////////////////////////////
                 aimassist_magnet_pc 	0.30
+                aimassist_filter_plv_enabled 1
+                aimassist_filter_plv_aim_enabled 1
+                aimassist_filter_plv_aim_coefficient 0.05
+                aimassist_filter_plv_threshold_aim_enabled 1
+                aimassist_filter_plv_threshold_aim_coefficient 0.05
 
                 ///////////////////////////////////////////////////////////////////////////////////
                 //// Character Configurations
@@ -1840,7 +1844,7 @@ playlists
 
                 fullmap_enabled 0
                 match_time_limit -1
-                flowstateRoundtime 60
+                flowstateRoundtime 600
                 endgame_delay 6
                 match_ending_enabled 0
                 match_jip 1
@@ -4982,7 +4986,7 @@ playlists
                 flowstateAdminTgive                     0
 
 
-                flowstateRoundtime                      60
+                flowstateRoundtime                      600
 
 
                 // BR evo tree needs survival pilot HUD; 1v1 has neither.
@@ -5177,7 +5181,7 @@ playlists
                 flowstateAdminTgive                     0
 
 
-                flowstateRoundtime                      60
+                flowstateRoundtime                      600
 
 
                 passive_upgrade_core_enabled            0

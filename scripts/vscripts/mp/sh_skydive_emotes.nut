@@ -127,13 +127,35 @@ array<ItemFlavor> function GetAllSkydiveEmotesForPlayer( entity player )
 table<int, ItemFlavor> function GetValidPlayerSkydiveEmotes( entity player )
 {
 	table<int, ItemFlavor> emotes
-	array<ItemFlavor> all = GetAllSkydiveEmotesForPlayer( player )
-	int count = all.len()
+	EHI playerEHI = ToEHI( player )
+	LoadoutEntry characterSlot = Loadout_Character()
+
+	if ( !LoadoutSlot_IsReady( playerEHI, characterSlot ) )
+		return emotes
+
+	ItemFlavor character = LoadoutSlot_GetItemFlavor( playerEHI, characterSlot )
+	if ( !( character in fileLevel.loadoutCharacterSkydiveEmoteSlotMap ) )
+		return emotes
+
+	array<LoadoutEntry> slots = fileLevel.loadoutCharacterSkydiveEmoteSlotMap[character]
+	int count = slots.len()
 	if ( count > NUM_SKYDIVE_EMOTE_SLOTS )
 		count = NUM_SKYDIVE_EMOTE_SLOTS
 
 	for ( int i = 0; i < count; i++ )
-		emotes[i] <- all[i]
+	{
+		if ( !LoadoutSlot_IsReady( playerEHI, slots[i] ) )
+			continue
+
+		ItemFlavor flav = LoadoutSlot_GetItemFlavor( playerEHI, slots[i] )
+		if ( SkydiveEmote_IsTheEmpty( flav ) )
+			continue
+
+		if ( !IsItemFlavorUnlockedForLoadoutSlot( playerEHI, slots[i], flav ) )
+			continue
+
+		emotes[i] <- flav
+	}
 
 	return emotes
 }
@@ -141,11 +163,33 @@ table<int, ItemFlavor> function GetValidPlayerSkydiveEmotes( entity player )
 
 ItemFlavor function GetPlayerSkydiveEmote( entity player, int index )
 {
-	array<ItemFlavor> all = GetAllSkydiveEmotesForPlayer( player )
-	if ( index >= 0 && index < all.len() )
-		return all[index]
+	ItemFlavor emptyEmote = GetItemFlavorByAsset( $"settings/itemflav/skydive_emote/_empty.rpak" )
 
-	return GetItemFlavorByAsset( $"settings/itemflav/skydive_emote/_empty.rpak" )
+	EHI playerEHI = ToEHI( player )
+	LoadoutEntry characterSlot = Loadout_Character()
+
+	if ( !LoadoutSlot_IsReady( playerEHI, characterSlot ) )
+		return emptyEmote
+
+	ItemFlavor character = LoadoutSlot_GetItemFlavor( playerEHI, characterSlot )
+	if ( !( character in fileLevel.loadoutCharacterSkydiveEmoteSlotMap ) )
+		return emptyEmote
+
+	array<LoadoutEntry> slots = fileLevel.loadoutCharacterSkydiveEmoteSlotMap[character]
+	if ( index < 0 || index >= slots.len() )
+		return emptyEmote
+
+	if ( !LoadoutSlot_IsReady( playerEHI, slots[index] ) )
+		return emptyEmote
+
+	ItemFlavor flav = LoadoutSlot_GetItemFlavor( playerEHI, slots[index] )
+	if ( SkydiveEmote_IsTheEmpty( flav ) )
+		return emptyEmote
+
+	if ( !IsItemFlavorUnlockedForLoadoutSlot( playerEHI, slots[index], flav ) )
+		return emptyEmote
+
+	return flav
 }
 
 

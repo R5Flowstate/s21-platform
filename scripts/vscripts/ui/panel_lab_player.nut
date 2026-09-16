@@ -3,6 +3,7 @@
 // caller; nothing here reaches another player.
 
 global function InitLabPlayerPanel
+global function LabPlayer_SetInfiniteAbilities
 
 const string LAB_LEGEND_NONE = "?"
 
@@ -18,6 +19,7 @@ struct
 
 	bool listsBuilt = false
 	bool applyingValues = false
+	bool infiniteAbilities = false
 
 	array<string> legendRefs
 	array<string> bodyModelIds
@@ -90,6 +92,8 @@ void function LabPlayer_BindRows()
 		"#LAB_PLAYER_BODYMODEL_DESC", true )
 	Lab_SetupRow( LabPlayer_Row( "ButtonAlterLoadout" ), "#LAB_PLAYER_LOADOUT",
 		"#LAB_PLAYER_LOADOUT_DESC" )
+	Hud_Hide( LabPlayer_Row( "ButtonAlterLoadout" ) )
+	Hud_SetEnabled( LabPlayer_Row( "ButtonAlterLoadout" ), false )
 
 	AddButtonEventHandler( LabPlayer_Row( "SwitchGodMode" ), UIE_CHANGE, LabPlayer_OnGodMode )
 	AddButtonEventHandler( LabPlayer_Row( "SwitchNoClip" ), UIE_CHANGE, LabPlayer_OnNoClip )
@@ -120,6 +124,7 @@ void function OnLabPlayerPanel_Show( var panel )
 
 	file.applyingValues = true
 	Hud_SetDialogListSelectionValue( LabPlayer_Row( "SwitchHud" ), DevHud_IsHidden() ? "0" : "1" )
+	Hud_SetDialogListSelectionValue( LabPlayer_Row( "SwitchInfiniteAbilities" ), file.infiniteAbilities ? "1" : "0" )
 	file.applyingValues = false
 
 	ScrollPanel_SetActive( file.contentPanelParent, true )
@@ -213,11 +218,25 @@ void function LabPlayer_OnInfiniteAmmo( var button )
 	ClientCommand( "infinite_ammo" )
 }
 
+void function LabPlayer_SetInfiniteAbilities( bool enable )
+{
+	file.infiniteAbilities = enable
+	if ( file.rows.len() == 0 )
+		return
+
+	file.applyingValues = true
+	Hud_SetDialogListSelectionValue( LabPlayer_Row( "SwitchInfiniteAbilities" ), enable ? "1" : "0" )
+	file.applyingValues = false
+}
+
 void function LabPlayer_OnInfiniteAbilities( var button )
 {
 	if ( LabPlayer_Ignore() )
 		return
-	ClientCommand( "infinite_abilities" )
+
+	string val = Hud_GetDialogListSelectionValue( button )
+	file.infiniteAbilities = ( val == "1" )
+	ClientCommand( "infinite_abilities " + val )
 }
 
 void function LabPlayer_OnAutoRespawn( var button )
@@ -306,17 +325,11 @@ void function LabPlayer_OnKillSelf( var button )
 
 void function LabPlayer_OnAlterLoadout( var button )
 {
-	if ( !Lab_GetCheats() )
-		return
-
-	CloseAllMenus()
-	AdvanceMenu( GetMenu( "DevMenu" ) )
-	thread LabPlayer_OpenAlterLoadout_Thread()
+	EmitUISound( "UI_Menu_Deny" )
+	return
 }
 
 void function LabPlayer_OpenAlterLoadout_Thread()
 {
-	WaitFrame()
-	WaitFrame()
-	ChangeToThisMenu( SetupAlterLoadout )
+	return
 }

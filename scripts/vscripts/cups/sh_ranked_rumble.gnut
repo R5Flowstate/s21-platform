@@ -174,7 +174,12 @@ void function RankedRumble_ParseContainerBakeryParams( ItemFlavor cupContainerIt
 	info.finishTime = CalEvent_GetFinishUnixTime( cupContainerItemFlavor )
 	// Parse ranked rumble badge
 	info.rankedRumbleBadge = GetItemFlavorByAsset( RankedRumble_ParseBadgeFromCupContainer( cupContainerItemFlavor ) )
-	ItemFlavor ornull rankedPeriod = RegisterItemFlavorFromSettingsAsset( GetGlobalSettingsAsset( ItemFlavor_GetAsset( cupContainerItemFlavor ), RANKED_PERIOD_FIELD_NAME ) )
+	asset rankedPeriodAsset = GetGlobalSettingsAsset( ItemFlavor_GetAsset( cupContainerItemFlavor ), RANKED_PERIOD_FIELD_NAME )
+	if ( rankedPeriodAsset == $"" )
+		return
+	ItemFlavor ornull rankedPeriod = RegisterItemFlavorFromSettingsAsset( rankedPeriodAsset )
+	if ( rankedPeriod == null )
+		return
 	info.rankedPeriod = expect ItemFlavor( rankedPeriod )
 
 	fileLevel.rankedRumbleContainers[cupContainerID] <- info

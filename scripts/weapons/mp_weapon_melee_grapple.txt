@@ -206,6 +206,13 @@
 
 		}
 
+		"infinite_abilities_grapple"
+		{
+			"grapple_maxLength" "*2"
+			"grapple_maxLengthVert" "*2"
+
+		}
+
 		"seer_heartbeat_sensor_melee"
 		{
 			"zoom_effects" "1"

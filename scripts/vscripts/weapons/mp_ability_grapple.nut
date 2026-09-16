@@ -60,6 +60,8 @@ void function GrappleWeaponInit()
 void function OnWeaponActivate_ability_grapple( entity weapon )
 {
 	entity weaponOwner = weapon.GetWeaponOwner()
+	if ( IsValid( weaponOwner ) && weaponOwner.IsPlayer() )
+		DevAbilities_ApplyGrappleRange( weapon, weaponOwner.p.infiniteAbilities )
 	int pmLevel = -1
 	if ( (pmLevel >= 2) && IsValid( weaponOwner ) )
 		weapon.SetScriptTime0( Time() )
@@ -138,6 +140,15 @@ var function OnWeaponNpcPrimaryAttack_ability_grapple( entity weapon, WeaponPrim
 bool function OnWeaponAttemptOffhandSwitch_ability_grapple( entity weapon )
 {
 	entity ownerPlayer = weapon.GetWeaponOwner()
+	if ( IsValid( ownerPlayer ) && ownerPlayer.IsPlayer() && ownerPlayer.p.infiniteAbilities )
+	{
+		#if SERVER
+			ownerPlayer.SetSuitGrapplePower( 100 )
+		#endif
+		DevAbilities_ApplyGrappleRange( weapon, true )
+		return true
+	}
+
 	bool allowSwitch = (ownerPlayer.GetSuitGrapplePower() >= 100.0)
 
 	if ( !allowSwitch )
@@ -225,7 +236,11 @@ void function CodeCallback_OnGrappleAttach( entity player, entity hitent, vector
 		if ( !grappleWeapon.GetWeaponSettingBool( eWeaponVar.grapple_weapon ) )
 			return
 
-		if ( GetCurrentPlaylistVarBool( "pathfinder_grapple_scaled_ammo_drain", true ) )
+		if ( player.IsPlayer() && player.p.infiniteAbilities )
+		{
+			DevAbilities_RefillPlayer( player, true )
+		}
+		else if ( GetCurrentPlaylistVarBool( "pathfinder_grapple_scaled_ammo_drain", true ) )
 		{
 			thread GrappleDecreaseAmmo( player, grappleWeapon )
 		}
@@ -253,6 +268,9 @@ void function GrappleDecreaseAmmo( entity player, entity grappleWeapon )
 		if ( !InPrediction() )
 			return
 	#endif
+	if ( IsValid( player ) && player.IsPlayer() && player.p.infiniteAbilities )
+		return
+
 	player.EndSignal( "OnDeath" )
 	grappleWeapon.EndSignal( "OnDestroy" )
 
@@ -383,6 +401,9 @@ void function CodeCallback_OnGrappleDetach( entity player )
 
 		//Signal( player, "OnGrappleDetach" )
 	#endif
+
+	if ( IsValid( player ) && player.IsPlayer() && player.p.infiniteAbilities )
+		DevAbilities_RefillPlayer( player, true )
 }
 
 bool function CodeCallback_GrappleDetachFromNPC( entity player, entity npc )

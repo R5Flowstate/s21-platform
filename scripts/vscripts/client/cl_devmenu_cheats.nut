@@ -5,6 +5,7 @@
 global function DEV_SendDevMenuStateToUI
 global function DEV_SendCheatsStateToUI
 global function ServerCallback_DevAutoRespawnOverlay
+global function ServerCallback_DevInfiniteAbilities
 global function DevHud_ClientSet
 
 struct
@@ -43,6 +44,14 @@ void function DEV_SendDevMenuStateToUI()
 		array<entity> players = GetPlayerArray()
 		if ( players.len() > 0 && IsValid( players[0] ) && players[0] == localPlayer )
 			isPlayer0 = true
+		try
+		{
+			RunUIScript( "LabPlayer_SetInfiniteAbilities", localPlayer.p.infiniteAbilities )
+			RunUIScript( "DevMenu_SetInfiniteAbilities", localPlayer.p.infiniteAbilities )
+		}
+		catch ( eInfAb )
+		{
+		}
 	}
 	RunUIScript( "UpdateDevMenuServerState", cheats, isPlayer0 )
 }
@@ -59,4 +68,27 @@ void function ServerCallback_DevAutoRespawnOverlay( float endTime )
 	RunUIScript( "SetRespawnOverlayTime", Time(), endTime )
 	RunUIScript( "SetRespawnOverlayString", "#RESPAWNING_IN" )
 	RunUIScript( "SetRespawnOverlayIdleString", "#READY_TO_SPAWN" )
+}
+
+void function ServerCallback_DevInfiniteAbilities( int enableInt )
+{
+	bool enable = enableInt != 0
+	entity player = GetLocalClientPlayer()
+	if ( !IsValid( player ) )
+		return
+
+	if ( !IsValidSignal( "DevInfiniteAbilities" ) )
+		RegisterSignal( "DevInfiniteAbilities" )
+
+	player.p.infiniteAbilities = enable
+	player.Signal( "DevInfiniteAbilities" )
+
+	try
+	{
+		RunUIScript( "LabPlayer_SetInfiniteAbilities", enable )
+		RunUIScript( "DevMenu_SetInfiniteAbilities", enable )
+	}
+	catch ( eInfAb )
+	{
+	}
 }

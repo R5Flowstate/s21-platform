@@ -109,8 +109,12 @@ void function InitializeScenarioData( asset scenarioAsset, ItemFlavor flavor )
 	foreach ( var challengeBlock in IterateSettingsArray( challengeArray ) )
 	{
 		asset challenge = GetSettingsBlockAsset( challengeBlock, "scenarioChallenge" )
-		
-		ItemFlavor newChallenge = expect ItemFlavor(RegisterItemFlavorFromSettingsAsset( challenge ))
+		if ( challenge == $"" )
+			continue
+		ItemFlavor ornull challengeOrNull = RegisterItemFlavorFromSettingsAsset( challenge )
+		if ( challengeOrNull == null )
+			continue
+		ItemFlavor newChallenge = expect ItemFlavor( challengeOrNull )
 
 		Assert( ItemFlavor_GetType( newChallenge ) == eItemType.challenge )
 	}

@@ -857,6 +857,9 @@ void function WreckingBall_GetTheBallRolling( entity ball, vector dir )
 	{
 		wait CHECK_FOR_GROUND_DELAY
 
+		if ( !IsValid( ball ) )
+			break
+
 		vector currentPos = ball.GetOrigin()
 
 		// Check for walls and redirect if needed

@@ -37,7 +37,9 @@ void function RegisterAllRewardSetTrackersAsItemFlavors()
 			continue
 		}
 		ItemFlavor trackerFlav = expect ItemFlavor( rewardSetTrackerOrNull )
-		RegisterItemFlavorFromSettingsAsset( GetGlobalSettingsAsset( ItemFlavor_GetAsset( trackerFlav ), "filterType" ) )
+		asset filterAsset = GetGlobalSettingsAsset( ItemFlavor_GetAsset( trackerFlav ), "filterType" )
+		if ( filterAsset != $"" )
+			RegisterItemFlavorFromSettingsAsset( filterAsset )
 	}
 }
 #endif

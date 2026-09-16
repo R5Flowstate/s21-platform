@@ -37,6 +37,7 @@ global function GetTriggerEnabled
 struct
 {
 	table<string,bool> flags
+	table warnedMissing
 } shFile
 
 void function Flags_Init()
@@ -44,6 +45,8 @@ void function Flags_Init()
 	#if DEVELOPER
 		//level.flagHistory <- {}
 	#endif
+
+	shFile.warnedMissing = {}
 
 	#if SERVER
 	AddSpawnCallback( "func_brush", FuncBrushMoveFlag )
@@ -63,9 +66,22 @@ void function FlagInit( string msg, bool isSet = false )
 	RegisterSignal( msg )
 }
 
+bool function FlagIsInit( string msg )
+{
+	if ( msg in shFile.flags )
+		return true
+	if ( !( msg in shFile.warnedMissing ) )
+	{
+		shFile.warnedMissing[ msg ] <- true
+		Warning( "Flag: missing \"" + msg + "\" map=" + GetMapName() + "\n" + GetStack() )
+	}
+	return false
+}
+
 void function FlagSet( string msg )
 {
-	Assert( msg in shFile.flags, "flag " + msg + " not initialized yet" )
+	if ( !FlagIsInit( msg ) )
+		return
 
 	#if DEVELOPER
 		//if ( !Flag( msg ) )
@@ -77,14 +93,16 @@ void function FlagSet( string msg )
 
 void function FlagClear( string msg )
 {
-	Assert( msg in shFile.flags, "flag " + msg + " not initialized yet" )
+	if ( !FlagIsInit( msg ) )
+		return
 
 	__FlagSetValue( msg, false )
 }
 
 void function FlagEnd( string msg )
 {
-		Assert( msg in shFile.flags, "flag " + msg + " not initialized yet" )
+	if ( !FlagIsInit( msg ) )
+		return
 	Assert( !Flag( msg ), "Flag " + msg + " was already set!!" )
 
 	EndSignal( level, msg )
@@ -92,7 +110,8 @@ void function FlagEnd( string msg )
 
 void function FlagClearEnd( string msg )
 {
-		Assert( msg in shFile.flags, "flag " + msg + " not initialized yet" )
+	if ( !FlagIsInit( msg ) )
+		return
 	Assert( Flag( msg ), "Flag " + msg + " is not already set!!" )
 
 	EndSignal( level, msg )
@@ -100,7 +119,8 @@ void function FlagClearEnd( string msg )
 
 bool function Flag( string msg )
 {
-		Assert( msg in shFile.flags, "flag " + msg + " not initialized yet" )
+	if ( !FlagIsInit( msg ) )
+		return false
 
 	return shFile.flags[ msg ]
 }
@@ -120,7 +140,8 @@ void function FlagToggle( string msg )
 //this function only works in threaded functions
 void function FlagWait( string msg )
 {
-		Assert( msg in shFile.flags, "flag " + msg + " not initialized yet" )
+	if ( !FlagIsInit( msg ) )
+		return
 
 	while ( !shFile.flags[ msg ] )
 	{
@@ -213,7 +234,8 @@ void function FlagWaitAny( ... )
 //this function only works in threaded functions
 void function FlagWaitClear( string msg )
 {
-	Assert( msg in shFile.flags, "flag " + msg + " not initialized yet" )
+	if ( !FlagIsInit( msg ) )
+		return
 
 	while ( shFile.flags[ msg ] )
 	{

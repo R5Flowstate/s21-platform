@@ -701,13 +701,9 @@ void function ClientCommand_recharge( entity player, array<string> args )
 	if ( GetConVarInt( "sv_cheats" ) != 1 )
 		return
 
-	DevAbilities_FillSlots( player, false )
+	DevAbilities_RefillPlayer( player, true )
 }
 
-// Continuous tac/ult clip + grapple (character abilities, not main weapons / not ordnance).
-// Research: ability cooldowns are offhand weapon clips + regen_ammo_refill_rate;
-// stock dev_mod_low_recharge only exists on one ability txt so is incomplete;
-// SetInfiniteAmmoState(INFINITEAMMO_CLIPS) is the engine no-drain path used by infinite ammo.
 void function ClientCommand_infinite_abilities( entity player, array<string> args )
 {
 	if ( !IsValid( player ) )
@@ -716,66 +712,42 @@ void function ClientCommand_infinite_abilities( entity player, array<string> arg
 	if ( GetConVarInt( "sv_cheats" ) != 1 )
 		return
 
-	bool enable = !player.p.infiniteAbilities
+	bool enable
+	if ( args.len() > 0 )
+	{
+		string a = args[0]
+		if ( a == "1" || a == "on" )
+			enable = true
+		else if ( a == "0" || a == "off" )
+			enable = false
+		else
+			enable = !player.p.infiniteAbilities
+	}
+	else
+	{
+		enable = !player.p.infiniteAbilities
+	}
+
+	bool wasEnabled = player.p.infiniteAbilities
 	player.p.infiniteAbilities = enable
 
 	if ( enable )
 	{
-		DevAbilities_FillSlots( player, true )
+		DevAbilities_RefillPlayer( player, true )
 		thread DevInfiniteAbilities_Think( player )
 	}
 	else
 	{
 		player.Signal( "DevInfiniteAbilities" )
-		DevAbilities_ClearInfiniteState( player )
+		DevAbilities_ApplyGrappleRangeForPlayer( player, false )
 	}
 
-	DevToggle_AlertAll( enable ? "#FS_INFINITE_ABILITIES_ON" : "#FS_INFINITE_ABILITIES_OFF" )
+	Remote_CallFunction_NonReplay( player, "ServerCallback_DevInfiniteAbilities", enable ? 1 : 0 )
+
+	if ( wasEnabled != enable )
+		DevToggle_AlertAll( enable ? "#FS_INFINITE_ABILITIES_ON" : "#FS_INFINITE_ABILITIES_OFF" )
 }
 
-void function DevAbilities_FillSlots( entity player, bool setInfiniteClips )
-{
-	if ( !IsValid( player ) )
-		return
-
-	// Tac (OFFHAND_LEFT) + ult (OFFHAND_INVENTORY) -- same slots as recharge.
-	array<int> slots = [ OFFHAND_TACTICAL, OFFHAND_ULTIMATE ]
-	foreach ( int slot in slots )
-	{
-		entity weapon = player.GetOffhandWeapon( slot )
-		if ( !IsValid( weapon ) )
-			continue
-
-		int clipMax = weapon.GetWeaponPrimaryClipCountMax()
-		if ( clipMax > 0 && weapon.GetWeaponPrimaryClipCount() < clipMax )
-			weapon.SetWeaponPrimaryClipCount( clipMax )
-
-		if ( setInfiniteClips )
-			weapon.SetInfiniteAmmoState( INFINITEAMMO_CLIPS )
-	}
-
-	// Grapple suit power (Pathfinder / recharge path).
-	player.SetSuitGrapplePower( 100 )
-}
-
-void function DevAbilities_ClearInfiniteState( entity player )
-{
-	if ( !IsValid( player ) )
-		return
-
-	array<int> slots = [ OFFHAND_TACTICAL, OFFHAND_ULTIMATE ]
-	foreach ( int slot in slots )
-	{
-		entity weapon = player.GetOffhandWeapon( slot )
-		if ( !IsValid( weapon ) )
-			continue
-
-		if ( weapon.GetInfiniteAmmoState() != INFINITEAMMO_NONE )
-			weapon.SetInfiniteAmmoState( INFINITEAMMO_NONE )
-	}
-}
-
-// Re-apply after fire / character swap / respawn while flag stays on.
 void function DevInfiniteAbilities_Think( entity player )
 {
 	if ( !IsValid( player ) )
@@ -788,7 +760,7 @@ void function DevInfiniteAbilities_Think( entity player )
 	while ( IsValid( player ) && player.p.infiniteAbilities )
 	{
 		if ( IsAlive( player ) )
-			DevAbilities_FillSlots( player, true )
+			DevAbilities_RefillPlayer( player, false )
 
 		wait 0.25
 	}

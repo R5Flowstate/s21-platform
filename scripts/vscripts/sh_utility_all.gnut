@@ -3813,7 +3813,7 @@ bool function IsEverythingUnlocked()
 			return true
 	#endif
 
-	return true//EverythingUnlockedConVarEnabled
+	return false
 }
 
 //

@@ -20,6 +20,7 @@ global function AimTrainer_UI_SyncDevMenuState
 global function CafeMod_UI_SyncState
 global function CafeMod_UI_ItemsState
 global function UpdateDevMenuServerState
+global function DevMenu_SetInfiniteAbilities
 global function GetCheatsState
 
 
@@ -141,6 +142,11 @@ void function UpdateDevMenuServerState( bool cheatsState, bool isServerPlayer0 )
 
 	if ( changed && GetActiveMenu() == GetMenu( "DevMenu" ) )
 		UpdateDevMenuButtons()
+}
+
+void function DevMenu_SetInfiniteAbilities( bool enable )
+{
+	file.devInfiniteAbilities = enable
 }
 
 // Server -> client -> UI: dynamic CafeMod slot labels.
@@ -465,7 +471,6 @@ void function SetupDefaultDevCommandsMP()
 	{
 		SetupDevMenu( "Change Character", SetDevMenu_SurvivalCharacter )
 		SetupDevMenu( "Weapons", SetDevMenu_FreeroamWeapons )
-		SetupDevMenu( "Alter Loadout", SetDevMenu_AlterLoadout )
 		//SetupDevMenu( "Override Spawn Character", SetDevMenu_OverrideSpawnSurvivalCharacter )
 		SetupDevMenu( "Survival", SetDevMenu_Survival )
 		SetupDevMenu( "Ammo", SetDevMenu_SurvivalLoot, "ammo" )
@@ -731,8 +736,9 @@ void function SetupCafeModsDevMenu()
 
 	// Dev cheats that belong next to Cafe mutators (not CafeMod bitfield).
 	SetupDevFunc( format( "Infinite Abilities: %s", DevMenu_OnOffLabel( file.devInfiniteAbilities ) ), void function( var unused ) {
-		ClientCommand( "infinite_abilities" )
-		file.devInfiniteAbilities = !file.devInfiniteAbilities
+		bool next = !file.devInfiniteAbilities
+		ClientCommand( format( "infinite_abilities %d", next ? 1 : 0 ) )
+		file.devInfiniteAbilities = next
 		thread DevMenu_RefreshInPlace()
 	} )
 
@@ -1089,152 +1095,32 @@ void function SetDevMenu_SurvivalCharacter( var _ )
 	thread ChangeToThisMenu( SetupChangeSurvivalCharacterClass )
 }
 
-
 void function DEV_InitLoadoutDevSubMenu()
 {
-	file.initializingCodeDevMenu = true
-	string codeDevMenuPrefix = file.codeDevMenuPrefix
-	
-	
-	
-	
-	file.codeDevMenuPrefix += "Alter Loadout/"
-	DevMenu_Rm_DEV( file.codeDevMenuPrefix + "(Click to load this menu..)" )
-	thread ChangeToThisMenu( SetupAlterLoadout )
-	file.codeDevMenuPrefix = codeDevMenuPrefix
-	file.initializingCodeDevMenu = false
+	return
 }
 
 
 void function SetDevMenu_AlterLoadout( var _ )
 {
-	if ( file.initializingCodeDevMenu )
-	{
-		DevMenu_Alias_DEV( file.codeDevMenuPrefix + "(Click to load this menu..)", "script_ui DEV_InitLoadoutDevSubMenu()" )
-	}
-	else
-	{
-		thread ChangeToThisMenu( SetupAlterLoadout )
-	}
+	return
 }
 
-// Alter Loadout: always compiled. Apply path uses loadouts_devset (server requires sv_cheats).
+// Alter Loadout is disabled. The apply path stays in sh_loadouts for engine
+// callers, but no menu reaches it.
 void function SetupAlterLoadout()
 {
-	array<string> categories = []
-	foreach ( LoadoutEntry entry in GetAllLoadoutSlots() )
-	{
-		if ( entry.category == eLoadoutCategory.ARTIFACT_CONFIGURATIONS )
-			continue
-
-		if ( !categories.contains( LOADOUT_CATEGORIES_TO_NAMES_MAP[entry.category] ) )
-			categories.append( LOADOUT_CATEGORIES_TO_NAMES_MAP[entry.category] )
-	}
-	categories.sort()
-	foreach ( string category in categories )
-	{
-		SetupDevMenu( category, void function( var unused ) : ( category ) {
-			thread ChangeToThisMenu( void function() : ( category ) {
-				SetupAlterLoadout_CategoryScreen( category )
-			} )
-		} )
-	}
+	return
 }
 
 void function SetupAlterLoadout_CategoryScreen( string category )
 {
-	array<LoadoutEntry> entries = clone GetAllLoadoutSlots()
-	entries.sort( int function( LoadoutEntry a, LoadoutEntry b ) {
-		if ( a.DEV_name < b.DEV_name )
-			return -1
-		if ( a.DEV_name > b.DEV_name )
-			return 1
-		return 0
-	} )
-
-	array<string> charactersUsed = []
-
-	foreach ( LoadoutEntry entry in  entries )
-	{
-		if ( entry.category == eLoadoutCategory.ARTIFACT_CONFIGURATIONS )
-			continue
-
-		if ( LOADOUT_CATEGORIES_TO_NAMES_MAP[entry.category] != category )
-			continue
-
-		string prefix = "character_"
-
-		if ( entry.DEV_name.find( prefix ) == 0 )
-		{
-			string character = GetCharacterNameFromDEV_name( entry.DEV_name )
-
-			if ( !charactersUsed.contains( character ) )
-			{
-				charactersUsed.append( character )
-				SetupDevMenu( character, void function( var unused ) : ( category, character ) {
-					thread ChangeToThisMenu( void function() : ( category, character ) {
-						SetupAlterLoadout_CategoryScreenForCharacter( category, character )
-					} )
-				} )
-			}
-		}
-		else
-		{
-			SetupDevMenu( entry.DEV_name, void function( var unused ) : ( entry ) {
-				thread ChangeToThisMenu( void function() : ( entry ) {
-					SetupAlterLoadout_SlotScreen_ByTier( entry )
-				} )
-			} )
-		}
-	}
+	return
 }
 
 void function SetupAlterLoadout_CategoryScreenForCharacter( string category, string character )
 {
-	array<LoadoutEntry> entries = clone GetAllLoadoutSlots()
-	entries.sort( int function( LoadoutEntry a, LoadoutEntry b ) {
-		if ( a.DEV_name < b.DEV_name )
-			return -1
-		if ( a.DEV_name > b.DEV_name )
-			return 1
-		return 0
-	} )
-
-	array< LoadoutEntry > entriesToUse
-
-	foreach ( LoadoutEntry entry in entries )
-	{
-		if ( entry.category == eLoadoutCategory.ARTIFACT_CONFIGURATIONS )
-			continue
-
-		if ( LOADOUT_CATEGORIES_TO_NAMES_MAP[entry.category] != category )
-			continue
-
-		string entryCharacter = GetCharacterNameFromDEV_name( entry.DEV_name )
-
-		if ( entryCharacter != character )
-			continue
-
-		entriesToUse.append( entry )
-	}
-
-
-	if ( entriesToUse.len() > 1 )
-	{
-		foreach ( LoadoutEntry entry in entriesToUse )
-		{
-			SetupDevMenu( entry.DEV_name, void function( var unused ) : ( entry ) {
-				thread ChangeToThisMenu( void function() : ( entry ) {
-					SetupAlterLoadout_SlotScreen( entry )
-				} )
-			} )
-		}
-	}
-	else if ( entriesToUse.len() == 1 )
-	{
-		LoadoutEntry entry = entriesToUse[ 0 ]
-		SetupAlterLoadout_SlotScreen( entry )
-	}
+	return
 }
 
 string function GetCharacterNameFromDEV_name( string DEV_name )
@@ -1243,107 +1129,9 @@ string function GetCharacterNameFromDEV_name( string DEV_name )
 	return split( DEV_name.slice( prefix.len() ), WHITESPACE_CHARACTERS )[ 0 ]
 }
 
-void function SetupAlterLoadout_SlotScreen_ByTier( LoadoutEntry entry )
-{
-	foreach ( int tier in eLootTier )
-	{
-		if ( tier == eLootTier._count )
-			continue
-
-		int rarity = tier - 1
-
-		string name = DEV_GetEnumStringSafe( "eRarityTier", rarity )
-		SetupDevMenu( name, void function( var unused ) : ( entry, rarity ) {
-			thread ChangeToThisMenu( void function() : ( entry, rarity ) {
-				SetupAlterLoadout_SlotScreen( entry, rarity )
-			} )
-		} )
-	}
-}
-
 void function SetupAlterLoadout_SlotScreen( LoadoutEntry entry, int qualityFilter = -99 )
 {
-	
-	
-	
-	
-	
-	
-	
-
-	array<ItemFlavor> flavors = clone DEV_GetValidItemFlavorsForLoadoutSlotForDev( LocalClientEHI(), entry )
-	flavors.sort( int function( ItemFlavor a, ItemFlavor b ) {
-		string textA = Localize( ItemFlavor_GetLongName( a ) )
-		string textB = Localize( ItemFlavor_GetLongName( b ) )
-
-		if ( ItemFlavor_GetType( a ) > ItemFlavor_GetType( b ) )
-			return 1
-
-		if ( ItemFlavor_GetType( a ) < ItemFlavor_GetType( b ) )
-			return -1
-
-		if ( textA == "" )
-			return -1
-
-		if ( textB == "" )
-			return 1
-
-		
-		if ( textA.slice( 0, 1 ) == "[" && textB.slice( 0, 1 ) != "[" )
-			return -1
-
-		if ( textA.slice( 0, 1 ) != "[" && textB.slice( 0, 1 ) == "[" )
-			return 1
-
-		if ( textA < textB )
-			return -1
-
-		if ( textA > textB )
-			return 1
-
-		return 0
-	} )
-
-	foreach ( ItemFlavor flav in flavors )
-	{
-		if ( qualityFilter != -99 )
-		{
-			if ( !ItemFlavor_HasQuality( flav ) )
-			{
-				if ( qualityFilter != -1 )
-					continue
-			}
-			else
-			{
-				if ( ItemFlavor_GetQuality( flav ) != qualityFilter )
-					continue
-			}
-		}
-
-		{
-			if ( ItemFlavor_GetType( flav ) == eItemType.melee_skin && Artifacts_Loadouts_IsConfigPointerItemFlavor( flav ) )
-			{
-				if ( Artifacts_Loadouts_GetConfigIndex( flav ) > 0 )
-					continue 
-
-				foreach ( string setKey, int themeIndex in eArtifactSetIndex )
-				{
-					if ( themeIndex == eArtifactSetIndex._EMPTY || themeIndex == eArtifactSetIndex.COUNT )
-						continue
-
-					SetupDevFunc( "[" + Localize( ItemFlavor_GetTypeName( flav ) ) + "]  Artifact Dagger: " + setKey + " (Complete Set)", void function( var unused ) : ( entry, flav, themeIndex ) {
-						Artifacts_DEV_RequestEquipSetByIndex( entry, flav, themeIndex )
-					} )
-				}
-
-				continue
-			}
-		}
-
-		SetupDevFunc( "[" + Localize( ItemFlavor_GetTypeName( flav ) ) + "]  " + Localize( ItemFlavor_GetLongName( flav ) ), void function( var unused ) : ( entry, flav ) {
-			DEV_RequestSetItemFlavorLoadoutSlot( LocalClientEHI(), entry, flav )
-		} )
-	}
+	return
 }
 
 void function DevMenu_ToggleBG()
@@ -1888,7 +1676,7 @@ void function DEV_ExecBoundDevMenuCommand()
 }
 
 // ---------------------------------------------------------------------------
-// Survival DevMenu helpers — always in this file (legacy R5VLibrary pattern).
+// Survival DevMenu helpers â€” always in this file (legacy R5VLibrary pattern).
 // Do not rely on DEV-gated rson loads for these symbols.
 // ---------------------------------------------------------------------------
 

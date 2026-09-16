@@ -2018,9 +2018,16 @@ void function ApplyLoadout( entity player )
 	{
 		FreeDM_FFA_GiveForcedWeapons( player )
 	}
-	else if ( LoadoutSelection_IsMenuEnabled() )
+	else if ( LoadoutSelection_IsMenuEnabled() && ( !FreeDM_IsFFA() || LoadoutSelection_HasPlayerSelectedLoadout( player ) ) )
 	{
-		LoadoutSelection_GivePlayerInventoryAndLoadout( player, false, false, true, true )
+		try
+		{
+			LoadoutSelection_GivePlayerInventoryAndLoadout( player, false, false, true, true )
+		}
+		catch ( giveErr )
+		{
+			printt( "[FreeDM] FFA picker give failed " + player.GetPlayerName() + " " + giveErr )
+		}
 	}
 
 	if ( FreeDM_IsFFA() )
@@ -2033,12 +2040,12 @@ void function ApplyLoadout( entity player )
 		FreeDM_GivePlayerFullTactical( player )
 	}
 
-	if ( FreeDM_IsFFA() && !player.IsBot() )
+	if ( FreeDM_IsFFA() )
 	{
 		entity primary0 = player.GetNormalWeapon( WEAPON_INVENTORY_SLOT_PRIMARY_0 )
 		entity primary1 = player.GetNormalWeapon( WEAPON_INVENTORY_SLOT_PRIMARY_1 )
 		if ( !IsValid( primary0 ) && !IsValid( primary1 ) )
-			FreeDM_GiveDefaultWingman( player )
+			FreeDM_FFA_GiveForcedWeapons( player )
 	}
 
 	if ( FreeDM_IsFFA() )
@@ -2055,7 +2062,7 @@ void function ApplyLoadout( entity player )
 			player.DeployWeapon()
 		string gun0 = IsValid( primary0 ) ? primary0.GetWeaponClassName() : "none"
 		string gun1 = IsValid( primary1 ) ? primary1.GetWeaponClassName() : "none"
-		printt( "[FreeDM] FFA ApplyLoadout " + player.GetPlayerName() + " forceWeapons=" + string( FreeDM_FFA_ShouldGiveForcedWeapons() ) + " picker=" + string( LoadoutSelection_IsMenuEnabled() ) + " guns=" + gun0 + "/" + gun1 + " shieldMax=" + string( player.GetShieldHealthMax() ) )
+		printt( "[FreeDM] FFA ApplyLoadout " + player.GetPlayerName() + " forceWeapons=" + string( FreeDM_FFA_ShouldGiveForcedWeapons() ) + " picker=" + string( LoadoutSelection_IsMenuEnabled() ) + " selected=" + string( LoadoutSelection_HasPlayerSelectedLoadout( player ) ) + " guns=" + gun0 + "/" + gun1 + " shieldMax=" + string( player.GetShieldHealthMax() ) )
 	}
 
 	if( file.ArmorOverrideCallback != null )
@@ -2071,35 +2078,6 @@ void function ApplyLoadout( entity player )
 			GivePlayerSettingsMods( player, [ "enable_wallrun" ] )
 	}
        
-}
-
-void function FreeDM_GiveDefaultWingman( entity player )
-{
-	if ( !IsValid( player ) || !IsAlive( player ) )
-		return
-
-	player.TakeNormalWeaponByIndexNow( WEAPON_INVENTORY_SLOT_PRIMARY_0 )
-	player.TakeNormalWeaponByIndexNow( WEAPON_INVENTORY_SLOT_PRIMARY_1 )
-
-	array<string> mods = [ "optic_cq_hcog_classic", "sniper_mag_l1" ]
-	entity weapon = null
-	try
-	{
-		weapon = player.GiveWeapon( "mp_weapon_wingman", WEAPON_INVENTORY_SLOT_PRIMARY_0, mods, false )
-	}
-	catch ( giveErr )
-	{
-		weapon = player.GiveWeapon( "mp_weapon_wingman", WEAPON_INVENTORY_SLOT_PRIMARY_0 )
-	}
-
-	if ( !IsValid( weapon ) )
-		return
-
-	player.SetActiveWeaponBySlot( eActiveInventorySlot.mainHand, WEAPON_INVENTORY_SLOT_PRIMARY_0 )
-	player.DeployWeapon()
-	if ( weapon.UsesClipsForAmmo() )
-		weapon.SetWeaponPrimaryClipCount( weapon.GetWeaponPrimaryClipCountMax() )
-	SetInfiniteAmmoForWeapon( player, weapon, true )
 }
 
 #endif // SERVER
@@ -2178,11 +2156,15 @@ void function FreeDM_FFA_ApplyLoadoutAfterRespawn_THREAD( entity player )
 	PlayerMatchState_Set( player, ePlayerMatchState.NORMAL )
 
 	bool isFirstSpawn = !( player in file.hasPlayerSpawnedOnce )
-	float readyUntil = Time() + 3.0
-	while ( Time() < readyUntil && LoadoutSelection_IsMenuEnabled() && LoadoutSelection_GetAvailableLoadoutCount() > 0 && LoadoutSelection_GetWeaponCountByLoadoutIndex( 0 ) <= 0 )
-		WaitFrame()
-	if ( !IsValid( player ) || !IsAlive( player ) )
-		return
+	if ( LoadoutSelection_IsMenuEnabled() && LoadoutSelection_HasPlayerSelectedLoadout( player ) )
+	{
+		int selectedIndex = LoadoutSelection_GetSelectedLoadoutSlotIndex_Server( player )
+		float readyUntil = Time() + 3.0
+		while ( Time() < readyUntil && LoadoutSelection_GetWeaponCountByLoadoutIndex( selectedIndex ) <= 0 )
+			WaitFrame()
+		if ( !IsValid( player ) || !IsAlive( player ) )
+			return
+	}
 
 	ApplyLoadout( player )
 	file.hasPlayerSpawnedOnce[ player ] <- true

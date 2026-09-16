@@ -255,9 +255,7 @@ global struct ClientPlayerStruct
 
 		ArtifactConfig ornull artifactConfig = null
 
-
-
-
+	bool infiniteAbilities = false
 }
 
 

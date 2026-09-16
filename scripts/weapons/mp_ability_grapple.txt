@@ -133,6 +133,13 @@
 
 		}
 
+		"infinite_abilities_grapple"
+		{
+			"grapple_maxLength" "*2"
+			"grapple_maxLengthVert" "*2"
+
+		}
+
 		"upgrade_reduced_grapple_cooldown"
 		{
 			"ammo_clip_size" "200"

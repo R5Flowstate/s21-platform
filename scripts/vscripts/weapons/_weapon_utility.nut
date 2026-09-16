@@ -42,6 +42,10 @@ global function DoesModExistFromWeaponClassName
 global function CanWeaponAkimbo
 global function IsModActive
 global function PlayerUsedOffhand
+global function DevAbilities_RefillPlayer
+global function DevAbilities_RefillWeapon
+global function DevAbilities_ApplyGrappleRange
+global function DevAbilities_ApplyGrappleRangeForPlayer
 global function GetDistanceString
 global function IsWeaponInSingleShotMode
 global function IsWeaponInBurstMode
@@ -551,6 +555,8 @@ void function WeaponUtility_Init()
 	RegisterSignal( "WeaponSignal_EnemyKilled" )
 
 	RegisterSignal( "GoldMagPerkEnd" )
+	if ( !IsValidSignal( "DevInfiniteAbilities" ) )
+		RegisterSignal( "DevInfiniteAbilities" )
 
 	RegisterSignal( MARKSMANS_TEMPO_FADEOFF_THREAD_ABORT )
 
@@ -3771,6 +3777,9 @@ void function PlayerUsedOffhand( entity player, entity offhandWeapon, bool sendP
 					PIN_PlayerAbility( player, weaponName, ABILITY_TYPE.ULTIMATE, trackedProjectile, pinAdditionalData )
 			}
 
+			if ( player.p.infiniteAbilities )
+				DevAbilities_RefillWeapon( player, offhandWeapon, true )
+
 			return
 		}
 
@@ -3786,6 +3795,99 @@ void function PlayerUsedOffhand( entity player, entity offhandWeapon, bool sendP
 		}
 		Chroma_PlayerUsedAbility( player, offhandWeapon )
 	#endif //CLIENT
+
+	if ( player.p.infiniteAbilities && IsValid( offhandWeapon ) )
+		DevAbilities_RefillWeapon( player, offhandWeapon, true )
+}
+
+void function DevAbilities_RefillWeapon( entity player, entity weapon, bool resetCharge = false )
+{
+	if ( !IsValid( player ) || !IsValid( weapon ) )
+		return
+
+	#if CLIENT
+		if ( !InPrediction() )
+			return
+	#endif
+
+	if ( weapon.GetNextAttackAllowedTime() > Time() )
+		weapon.SetNextAttackAllowedTime( Time() - 1 )
+
+	if ( resetCharge && weapon.IsChargeWeapon() )
+		weapon.SetWeaponChargeFractionForced( 0 )
+
+	int clipMax = weapon.GetWeaponPrimaryClipCountMax()
+	if ( clipMax > 0 && weapon.GetWeaponPrimaryClipCount() < clipMax )
+		weapon.SetWeaponPrimaryClipCount( clipMax )
+
+	int stockMax = weapon.GetWeaponPrimaryAmmoCountMax( AMMOSOURCE_STOCKPILE )
+	if ( stockMax > 0 && weapon.GetWeaponPrimaryAmmoCount( AMMOSOURCE_STOCKPILE ) < stockMax )
+		weapon.SetWeaponPrimaryAmmoCount( AMMOSOURCE_STOCKPILE, stockMax )
+
+	if ( weapon.GetWeaponSettingBool( eWeaponVar.grapple_weapon ) )
+	{
+		if ( weapon.HasMod( "grapple_regen_stop" ) )
+			weapon.RemoveMod( "grapple_regen_stop" )
+		weapon.RegenerateAmmoReset()
+		DevAbilities_ApplyGrappleRange( weapon, true )
+	}
+}
+
+void function DevAbilities_RefillPlayer( entity player, bool resetCharge = false )
+{
+	if ( !IsValid( player ) )
+		return
+
+	array<int> slots = [ OFFHAND_TACTICAL, OFFHAND_ULTIMATE ]
+	foreach ( int slot in slots )
+	{
+		entity weapon = player.GetOffhandWeapon( slot )
+		if ( !IsValid( weapon ) )
+			continue
+		DevAbilities_RefillWeapon( player, weapon, resetCharge )
+	}
+
+	#if SERVER
+		player.SetSuitGrapplePower( 100 )
+	#endif
+}
+
+void function DevAbilities_ApplyGrappleRange( entity weapon, bool enable )
+{
+	if ( !IsValid( weapon ) )
+		return
+	if ( !weapon.GetWeaponSettingBool( eWeaponVar.grapple_weapon ) )
+		return
+
+	#if CLIENT
+		if ( !InPrediction() )
+			return
+	#endif
+
+	if ( enable )
+	{
+		if ( !weapon.HasMod( "infinite_abilities_grapple" ) )
+			weapon.AddMod( "infinite_abilities_grapple" )
+	}
+	else if ( weapon.HasMod( "infinite_abilities_grapple" ) )
+	{
+		weapon.RemoveMod( "infinite_abilities_grapple" )
+	}
+}
+
+void function DevAbilities_ApplyGrappleRangeForPlayer( entity player, bool enable )
+{
+	if ( !IsValid( player ) )
+		return
+
+	array<int> slots = [ OFFHAND_TACTICAL, OFFHAND_ULTIMATE ]
+	foreach ( int slot in slots )
+	{
+		entity weapon = player.GetOffhandWeapon( slot )
+		if ( !IsValid( weapon ) )
+			continue
+		DevAbilities_ApplyGrappleRange( weapon, enable )
+	}
 }
 
 

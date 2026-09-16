@@ -81,7 +81,11 @@ void function RegisterUIVar( string varName, value )
 // Hooked up in code to .ui
 function GetUIVar( obj, string varName )
 {
-	Assert( varName in _uiVars )
+	if ( typeof varName != "string" || !( varName in _uiVars ) )
+	{
+		Warning( "GetUIVar: missing \"" + varName + "\"\n" + GetStack() )
+		return null
+	}
 
 	return _uiVars[varName]
 }
@@ -90,21 +94,32 @@ function GetUIVar( obj, string varName )
 // Hooked up in code to .ui
 void function SetUIVar( table<string,var> obj, string varName, value )
 {
-	Assert( varName in _uiVars )
-	Assert( varName in _uiVarsSetters )
-	Assert( typeof value != "string" )
+	if ( typeof varName != "string" || !( varName in _uiVars ) || !( varName in _uiVarsSetters ) )
+	{
+		Warning( "SetUIVar: skipping \"" + varName + "\" typeofValue=" + typeof value + "\n" + GetStack() )
+		return
+	}
+	if ( typeof value == "string" )
+	{
+		Warning( "SetUIVar: skipping string value for \"" + varName + "\"" )
+		return
+	}
 
 	_uiVars[varName] = value
 	_uiVarsSetters[varName](varName, value)
 
-	// Run change callback if one exists
 	thread UIVarChangedCallbacks( varName )
 }
 #endif // SERVER
 
-// called from client VM
 function UICallback_SetUIVar( string varName, value )
 {
+	if ( typeof varName != "string" || !( varName in _uiVars ) )
+	{
+		Warning( "UICallback_SetUIVar: skipping \"" + varName + "\"\n" + GetStack() )
+		return
+	}
+
 	_uiVars[varName] = value
 
 	UIVarChangedCallbacks(varName)

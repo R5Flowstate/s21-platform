@@ -1492,6 +1492,18 @@ bool function IsItemFlavorGRXUnlockedForLoadoutSlot( EHI playerEHI, ItemFlavor i
 }
 
 
+bool function Loadout_IsHighTierFlavorBlocked( LoadoutEntry entry, ItemFlavor itemFlavor )
+{
+	if ( itemFlavor == entry.defaultItemFlavor )
+		return false
+
+	if ( !ItemFlavor_HasQuality( itemFlavor ) )
+		return false
+
+	return ItemFlavor_GetQuality( itemFlavor ) >= eRarityTier.LEGENDARY
+}
+
+
 array<ItemFlavor> function GetUnlockedItemFlavorsForLoadoutSlot( EHI playerEHI, LoadoutEntry entry, bool shouldIgnoreOtherSlots = false )
 {
 	#if LOADOUTS_DBG
@@ -3238,7 +3250,7 @@ bool function ValidateAndFixLoadoutSlot( EHI playerEHI, LoadoutEntry entry, bool
 		// but the call to IsItemFlavorUnlockedForLoadoutSlot checks to see things about playlist and other stuff...
 		if ( isInitialValidation )
 		{
-			if ( !IsItemFlavorUnlockedForLoadoutSlot( playerEHI, entry, itemFlavor, isInitialValidation ) )
+			if ( !IsItemFlavorUnlockedForLoadoutSlot( playerEHI, entry, itemFlavor, isInitialValidation ) || Loadout_IsHighTierFlavorBlocked( entry, itemFlavor ) )
 			{
 				if ( !shouldReset )
 					printt( "LoadoutsDbg: detected locked persistent loadout slot contents (%s, %s)", string(player), DEV_DescribeLoadoutSlot( entry, slotContentsIndex ) )
@@ -3250,7 +3262,7 @@ bool function ValidateAndFixLoadoutSlot( EHI playerEHI, LoadoutEntry entry, bool
 		{
 			// NOTE: this calls to the special unlock func if defined for the flav -- it's just not super clear on first reading.
 			// TODO: review/clean up for 18.1 -- evaluate how we want this flow to look/work -- https://jiratf.rspn.ad.ea.com/browse/R5DEV-496755
-			if ( !IsItemFlavorGRXUnlockedForLoadoutSlot( playerEHI, itemFlavor ) )
+			if ( !IsItemFlavorGRXUnlockedForLoadoutSlot( playerEHI, itemFlavor ) || Loadout_IsHighTierFlavorBlocked( entry, itemFlavor ) )
 			{
 				if ( !shouldReset )
 					printt( "LoadoutsDbg: detected locked persistent loadout slot contents (%s, %s)", string(player), DEV_DescribeLoadoutSlot( entry, slotContentsIndex ) )
@@ -3718,6 +3730,12 @@ void function ClientCallback_loadouts_set( entity player, int entryIndex, int sl
 	if ( !IsItemFlavorUnlockedForLoadoutSlot( playerEHI, entry, itemFlavor ) )
 	{
 		// This could happen if two people try to select the same character at the same time
+		return
+	}
+
+	if ( Loadout_IsHighTierFlavorBlocked( entry, itemFlavor ) )
+	{
+		Warning( "[LOADOUTS] refused high-tier set from %s -- slot %s", player.GetPlayerName(), entry.id )
 		return
 	}
 

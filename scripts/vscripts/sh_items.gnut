@@ -641,6 +641,16 @@ bool function IsItemFlavorRegistrationFinished()
 //// Global functions ////
 //////////////////////////
 //////////////////////////
+bool function ItemFlavor_AssetPathLooksValid( string assetPath )
+{
+	if ( assetPath.len() < ITEM_FLAV_PREFIX_LEN + ITEM_FLAV_SUFFIX_LEN )
+		return false
+	if ( assetPath.find( ITEM_FLAV_PREFIX ) != 0 )
+		return false
+	return assetPath.slice( assetPath.len() - ITEM_FLAV_SUFFIX_LEN ) == ITEM_FLAV_SUFFIX
+}
+
+
 string function GetCleanAssetPathForItemFlavor( ItemFlavor flavor )
 {
 	// This is the old HumanReadableRef. Still used by:
@@ -652,6 +662,8 @@ string function GetCleanAssetPathForItemFlavor( ItemFlavor flavor )
 	// since the calls to the wrapper function are appropriately sandboxed according to need
 	Assert( IsItemFlavorStructValid( flavor.guid, eValidation.ASSERT ) )
 	string assetPath = string(ItemFlavor_GetAsset( flavor ))
+	if ( !ItemFlavor_AssetPathLooksValid( assetPath ) )
+		return replace( assetPath, "/", "_" )
 	assetPath = assetPath.slice( ITEM_FLAV_PREFIX.len(), assetPath.len() - ITEM_FLAV_SUFFIX.len() )
 	assetPath = replace( assetPath, "/", "_" )
 	return assetPath
@@ -722,7 +734,12 @@ array<asset> function GetBaseItemFlavorsFromArray( string arrayFieldName )
 	{
 		asset entryAsset = GetSettingsBlockAsset( entryBlock, "flavor" )
 		if ( entryAsset != $"" )
+		{
+			string entryPath = string( entryAsset )
+			if ( !ItemFlavor_AssetPathLooksValid( entryPath ) )
+				Warning( "GetBaseItemFlavorsFromArray: bad flavor in \"" + arrayFieldName + "\" path=\"" + entryPath + "\" len=" + entryPath.len() )
 			validAssets.append( entryAsset )
+		}
 	}
 
 	return validAssets
@@ -972,15 +989,10 @@ string function ItemFlavor_GetAssetName( ItemFlavor flavor )
 	// eg. "settings/itemflav/character_skin/bangalore/rare_08.rpak" -> "character_skin/bangalore/rare_08"
 
 	string fullAsset = ItemFlavor_GetAssetString( flavor )
+	if ( !ItemFlavor_AssetPathLooksValid( fullAsset ) )
+		return fullAsset
 
-	// Assert for correct prefix
-	Assert( fullAsset.slice( 0, ITEM_FLAV_PREFIX_LEN ) == ITEM_FLAV_PREFIX )
-
-	// Assert for correct suffix
-	Assert( fullAsset.slice( -ITEM_FLAV_SUFFIX_LEN ) == ITEM_FLAV_SUFFIX )
-
-	string rv = fullAsset.slice( ITEM_FLAV_PREFIX_LEN, -ITEM_FLAV_SUFFIX_LEN )
-	return rv
+	return fullAsset.slice( ITEM_FLAV_PREFIX_LEN, -ITEM_FLAV_SUFFIX_LEN )
 }
 
 
@@ -1591,6 +1603,9 @@ array<ItemFlavor> function RegisterReferencedItemFlavorsFromArray( ItemFlavor pa
 			Warning( "Warning: Asset \"" + ItemFlavor_GetAsset( parentFlavor ) + "\" has an empty entry in array \"" + arrayFieldName + "\"" )
 			continue
 		}
+		string childPath = string( entryAsset )
+		if ( !ItemFlavor_AssetPathLooksValid( childPath ) )
+			Warning( "RegisterReferencedItemFlavorsFromArray: bad child path=\"" + childPath + "\" parent=\"" + string( ItemFlavor_GetAsset( parentFlavor ) ) + "\" array=\"" + arrayFieldName + "\" field=\"" + refFieldName + "\"" )
 		ItemFlavor ornull childFlavorOrNull = RegisterItemFlavorFromSettingsAsset( entryAsset )
 		if ( childFlavorOrNull != null )
 		{
@@ -1644,6 +1659,12 @@ void function MakeItemFlavorSet( array<ItemFlavor> list, table<ItemFlavor, int> 
 ItemFlavor ornull function RegisterItemFlavorFromSettingsAsset( asset settingsAsset )
 {
 	Assert( settingsAsset != $"" )
+	if ( settingsAsset == $"" )
+	{
+		Warning( "RegisterItemFlavorFromSettingsAsset: empty settings asset" )
+		return null
+	}
+
 	#if DEVELOPER
 		fileLevel.DEV_hasItemRegistrationStarted = true
 	#endif
@@ -1660,12 +1681,16 @@ ItemFlavor ornull function RegisterItemFlavorFromSettingsAsset( asset settingsAs
 	}
 
 	string assetPath = string( settingsAsset )
+	if ( !ItemFlavor_AssetPathLooksValid( assetPath ) )
+	{
+		Warning( "RegisterItemFlavorFromSettingsAsset: skipping bad path \"" + assetPath + "\" guid=" + guid + " len=" + assetPath.len() + " map=" + GetMapName() + " playlist=" + GetCurrentPlaylistName() + "\n" + GetStack() )
+		return null
+	}
+
 	Assert( !fileLevel.isItemRegistrationFinished, "Attempted to register item flavor after registration period ended (" + assetPath + ")" )
 
-	// ensure we're loading only assets in settings/itemflav/
 	Assert( assetPath.find( ITEM_FLAV_PREFIX ) == 0 )
 
-	// Use asset path as ref ("settings/itemflav/pilot_ability/cloak.rpak" -> "item_pilot_ability_cloak")
 	string humanReadableRef = assetPath.slice( ITEM_FLAV_PREFIX.len(), assetPath.len() - ITEM_FLAV_SUFFIX.len() )
 	humanReadableRef = replace( humanReadableRef, "/", "_" )
 
