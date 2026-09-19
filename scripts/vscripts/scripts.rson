@@ -2894,3 +2894,26 @@ Scripts:
 [
     client/cl_utility_camera.nut
 ]
+
+// ReMap
+When: "SERVER || CLIENT"
+Scripts:
+[
+	remap/sh_remap.nut
+]
+
+When: "CLIENT"
+Scripts:
+[
+	remap/cl_remap_objects.nut
+	remap/cl_remap_map.nut
+]
+
+When: "SERVER"
+Scripts:
+[
+	remap/sv_remap_map.nut
+	remap/sv_remap_objects.nut
+	remap/sv_remap_ziplines.nut
+]
+
