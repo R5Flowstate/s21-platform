@@ -50,6 +50,8 @@ void function SV_CL_Shared_Init()
 		Client_Init()
 	#endif
 
+	Sh_ReMap_Init()
+
 	RemoteFunctions_Init_Finish()
 
 	#if SERVER
