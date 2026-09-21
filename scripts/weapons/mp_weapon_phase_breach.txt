@@ -194,62 +194,6 @@
 
 		}
 
-		"copycat_mod"
-		{
-			"battle_chatter_event" "bc_copycatKit_AshUlt"
-			"regen_ammo_refill_rate" "*1.20"
-			"weapon_type_flags" "WPT_SURVIVAL"
-
-		}
-
-		"cooldown_reduction_1"
-		{
-			"ammo_clip_size" "140"
-			"ammo_min_to_fire" "140"
-			"ammo_per_shot" "140"
-
-		}
-
-		"cooldown_reduction_2"
-		{
-			"ammo_clip_size" "130"
-			"ammo_min_to_fire" "130"
-			"ammo_per_shot" "130"
-
-		}
-
-		"cooldown_reduction_3"
-		{
-			"ammo_clip_size" "120"
-			"ammo_min_to_fire" "120"
-			"ammo_per_shot" "120"
-
-		}
-
-		"cooldown_reduction_4"
-		{
-			"ammo_clip_size" "110"
-			"ammo_min_to_fire" "110"
-			"ammo_per_shot" "110"
-
-		}
-
-		"cooldown_reduction_5"
-		{
-			"ammo_clip_size" "100"
-			"ammo_min_to_fire" "100"
-			"ammo_per_shot" "100"
-
-		}
-
-		"cooldown_reduction_6"
-		{
-			"ammo_clip_size" "90"
-			"ammo_min_to_fire" "90"
-			"ammo_per_shot" "90"
-
-		}
-
 		"ultimates_charge_over_time_disabled"
 		{
 			"regen_ammo_refill_rate" "0"
@@ -284,6 +228,54 @@
 		{
 			"regen_ammo_refill_rate" "*5.0"
 
+		}
+
+		"upgrade_ult_two"
+		{
+			"ammo_clip_size" "300"
+			"ammo_stockpile_max" "300"
+		}
+
+		"upgrade_ult_reduced_cooldown"
+		{
+			"regen_ammo_refill_rate" "*1.25"
+		}
+
+		"arenas_ammo_regen_off"
+		{
+			"regen_ammo_refill_rate" "*0.0"
+		}
+
+		"survival_armor_cooldown_v2_mod"
+		{
+			"regen_ammo_refill_rate" "*1.33"
+		}
+
+		"matchmod_bonus_speed"
+		{
+			"move_speed_modifier" "*2.0"
+			"reload_time" "*0.50"
+			"reload_time_late1" "*0.50"
+			"reload_time_late2" "*0.50"
+			"reload_time_late3" "*0.50"
+			"reload_time_late4" "*0.50"
+			"reload_time_late5" "*0.50"
+			"reloadempty_time" "*0.50"
+			"reloadempty_time_late1" "*0.50"
+			"reloadempty_time_late2" "*0.50"
+			"reloadempty_time_late3" "*0.50"
+			"reloadempty_time_late4" "*0.50"
+			"reloadempty_time_late5" "*0.50"
+			"charge_cooldown_time" "*0.50"
+			"charge_overheat_cooldown_time" "*0.50"
+			"charge_overheat_cooldown_time_late1" "*0.50"
+			"charge_overheat_cooldown_time_late2" "*0.50"
+			"charge_overheat_cooldown_time_late3" "*0.50"
+		}
+
+		"matchmod_quick_charge"
+		{
+			"regen_ammo_refill_rate" "*2"
 		}
 	}
 

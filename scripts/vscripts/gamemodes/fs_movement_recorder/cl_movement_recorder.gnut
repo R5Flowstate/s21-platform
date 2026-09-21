@@ -1,0 +1,345 @@
+// Movement recorder client: hotkeys, key panel toggle and recorder commands.
+
+global function MovementRecorder_CL_Init
+global function MRec_CL_SyncState
+global function MRec_CL_SyncClear
+global function MRec_CL_SyncSlot
+global function MRec_CL_SyncSlotName
+global function MRec_CL_SyncLegend
+global function MRec_CL_SyncDone
+global function MRec_CL_SlotName
+global function MRec_CL_LegacyBinds
+global function MRec_CL_Enabled
+global function MRec_CL_KeyRecord
+global function MRec_CL_KeyPlay
+global function MRec_CL_KeySlot
+global function MRec_CL_KeyPlayAll
+global function MRec_CL_SetHints
+global function MRec_CL_HintsShown
+global function MRec_CL_ToggleHints
+global function MRec_CL_Legend
+global function MRec_CL_LoopOn
+global function MRec_CL_SlotDurationTenth
+global function MRec_CL_SlotCount
+global function MRec_CL_OnRecStateChanged
+
+struct MRecSlotSync
+{
+	int durationTenth
+	string name
+}
+
+struct
+{
+	bool inited = false
+	bool legacy = false
+	bool recording = false
+	bool loop = true
+	string legend = ""
+	bool hintsShown = false
+	table<int, MRecSlotSync> slots = {}
+} file
+
+const int MREC_LEGACY_SLOT_KEYS = 5
+
+void function MovementRecorder_CL_Init()
+{
+	if ( file.inited )
+		return
+	file.inited = true
+	file.legacy = GetCurrentPlaylistVarBool( "movement_recorder_legacy_binds", false )
+	// The HUD starts visible only where the playlist runs the recorder; a
+	// cheats-enabled recorder elsewhere stays hidden until F1.
+	file.hintsShown = GetCurrentPlaylistVarBool( "movement_recorder_key_hints",
+		GetCurrentPlaylistVarBool( "movement_recorder_enable", false ) )
+
+	if ( file.legacy )
+	{
+		RegisterButtonPressedCallback( KEY_F2, MRec_CL_OnToggleKey )
+		RegisterButtonPressedCallback( KEY_F4, MRec_CL_OnSlotKey1 )
+		RegisterButtonPressedCallback( KEY_F5, MRec_CL_OnSlotKey2 )
+		RegisterButtonPressedCallback( KEY_F6, MRec_CL_OnSlotKey3 )
+		RegisterButtonPressedCallback( KEY_F7, MRec_CL_OnSlotKey4 )
+		RegisterButtonPressedCallback( KEY_F8, MRec_CL_OnSlotKey5 )
+		RegisterButtonPressedCallback( KEY_F9, MRec_CL_OnPlayAllKey )
+	}
+	else
+	{
+		RegisterButtonPressedCallback( KEY_F4, MRec_CL_OnToggleKey )
+		RegisterButtonPressedCallback( KEY_F5, MRec_CL_OnPlayKey )
+	}
+	RegisterButtonPressedCallback( KEY_F1, MRec_CL_OnHintsKey )
+	AddCallback_OnClientScriptInit( MRec_CL_RequestSync )
+	MovementRecorder_HUD_Init()
+	printt( file.legacy ? "[MRec] ClientInit legacy keys F2 record / F4-F8 slots / F9 all"
+		: "[MRec] ClientInit keys F4 record / F5 play" )
+}
+
+bool function MRec_CL_LegacyBinds()
+{
+	return file.legacy
+}
+
+string function MRec_CL_KeyRecord()
+{
+	return file.legacy ? "F2" : "F4"
+}
+
+string function MRec_CL_KeyPlay()
+{
+	return file.legacy ? "F4" : "F5"
+}
+
+string function MRec_CL_KeySlot( int idx )
+{
+	return "F" + string( 4 + idx )
+}
+
+string function MRec_CL_KeyPlayAll()
+{
+	return "F9"
+}
+
+// The playlist turns the recorder on for everyone; sv_cheats turns it on anywhere.
+bool function MRec_CL_Enabled()
+{
+	return GetCurrentPlaylistVarBool( "movement_recorder_enable", false ) || GetConVarBool( "sv_cheats" )
+}
+
+bool function MRec_CL_KeyAllowed()
+{
+	return MRec_CL_Enabled() && IsValid( GetLocalClientPlayer() )
+}
+
+bool function MRec_CL_CrouchHeld()
+{
+	entity player = GetLocalClientPlayer()
+	if ( !IsValid( player ) )
+		return false
+	return player.IsInputCommandHeld( IN_DUCK )
+}
+
+void function MRec_CL_Send( string action )
+{
+	if ( !MRec_CL_KeyAllowed() )
+		return
+	GetLocalClientPlayer().ClientCommand( "mrec " + action )
+}
+
+void function MRec_CL_OnToggleKey( var button )
+{
+	if ( file.legacy && MRec_CL_CrouchHeld() )
+	{
+		MRec_CL_Send( "playrandom" )
+		return
+	}
+	MRec_CL_Send( "toggle" )
+}
+
+void function MRec_CL_OnPlayKey( var button )
+{
+	MRec_CL_Send( "play" )
+}
+
+void function MRec_CL_OnSlotKey( int slot )
+{
+	if ( !( ( slot - 1 ) in file.slots ) )
+		return
+	MRec_CL_Send( ( MRec_CL_CrouchHeld() ? "clear " : "play " ) + string( slot ) )
+}
+
+void function MRec_CL_OnSlotKey1( var button )
+{
+	MRec_CL_OnSlotKey( 1 )
+}
+
+void function MRec_CL_OnSlotKey2( var button )
+{
+	MRec_CL_OnSlotKey( 2 )
+}
+
+void function MRec_CL_OnSlotKey3( var button )
+{
+	MRec_CL_OnSlotKey( 3 )
+}
+
+void function MRec_CL_OnSlotKey4( var button )
+{
+	MRec_CL_OnSlotKey( 4 )
+}
+
+void function MRec_CL_OnSlotKey5( var button )
+{
+	MRec_CL_OnSlotKey( 5 )
+}
+
+void function MRec_CL_OnPlayAllKey( var button )
+{
+	MRec_CL_Send( MRec_CL_CrouchHeld() ? "clear all" : "playall" )
+}
+
+void function MRec_CL_RequestSync( entity player )
+{
+	if ( !IsValid( player ) || player != GetLocalClientPlayer() )
+		return
+	if ( MRec_CL_Enabled() )
+		player.ClientCommand( "mrec sync" )
+	MRecHud_RefreshKeys()
+}
+
+void function MRec_CL_SyncState( int count, int loopFlag, int rateTenth )
+{
+	file.loop = loopFlag == 1
+	MRecHud_RefreshKeys()
+	MRec_CL_PushRecordingToUI()
+	try
+	{
+		RunUIScript( "LabRecorder_SetState", count, loopFlag, rateTenth )
+	}
+	catch ( eUI )
+	{
+		printt( format( "[MRec] SyncState UI failed (restart client): %s", string( eUI ) ) )
+	}
+}
+
+void function MRec_CL_SyncClear()
+{
+	file.slots = {}
+	file.legend = ""
+}
+
+void function MRec_CL_SyncSlot( int idx, int durationTenth )
+{
+	MRecSlotSync slot
+	slot.durationTenth = durationTenth
+	slot.name = ""
+	file.slots[idx] <- slot
+}
+
+string function MRec_CL_UnpackChunk( int packed )
+{
+	string part = ""
+	for ( int k = 0; k < 3; k++ )
+	{
+		int c = ( packed >> ( 7 * k ) ) & 0x7F
+		if ( c >= 32 )
+			part += c.tochar()
+	}
+	return part
+}
+
+void function MRec_CL_SyncSlotName( int idx, int chunk, int packed )
+{
+	if ( !( idx in file.slots ) )
+		return
+	if ( file.slots[idx].name.len() != chunk * 3 )
+		return
+	file.slots[idx].name += MRec_CL_UnpackChunk( packed )
+}
+
+void function MRec_CL_SyncLegend( int idx, int chunk, int packed )
+{
+	if ( file.legend.len() >= 48 )
+		return
+	file.legend += MRec_CL_UnpackChunk( packed )
+}
+
+// The slot list lands as one burst; the UI redraws once the last piece is in.
+void function MRec_CL_SyncDone()
+{
+	try
+	{
+		RunUIScript( "LabRecorder_ClearSlots" )
+		array<int> order = []
+		foreach ( int idx, MRecSlotSync slot in file.slots )
+			order.append( idx )
+		order.sort()
+		foreach ( int idx in order )
+			RunUIScript( "LabRecorder_AddSlot", idx, file.slots[idx].durationTenth, file.slots[idx].name, MRecHud_SlotLoadout( idx ) )
+		RunUIScript( "LabRecorder_SetHints", file.hintsShown )
+	}
+	catch ( eUI )
+	{
+	}
+	MRecHud_OnSlotsSynced( file.slots.len() )
+	MRecHud_RefreshKeys()
+}
+
+string function MRec_CL_SlotName( int idx )
+{
+	if ( !( idx in file.slots ) )
+		return ""
+	return file.slots[idx].name
+}
+
+void function MRec_CL_OnRecStateChanged( bool recording )
+{
+	file.recording = recording
+	MRecHud_RefreshKeys()
+	MRec_CL_PushRecordingToUI()
+}
+
+void function MRec_CL_PushRecordingToUI()
+{
+	try
+	{
+		RunUIScript( "LabRecorder_SetRecording", file.recording )
+	}
+	catch ( eUI )
+	{
+	}
+}
+
+// -- key panel toggle ------------------------------------------------------------
+
+void function MRec_CL_SetHints( bool show )
+{
+	file.hintsShown = show
+	MRecHud_RefreshKeys()
+	try
+	{
+		RunUIScript( "LabRecorder_SetHints", show )
+	}
+	catch ( eUI )
+	{
+	}
+}
+
+void function MRec_CL_ToggleHints()
+{
+	MRec_CL_SetHints( !file.hintsShown )
+}
+
+void function MRec_CL_OnHintsKey( var button )
+{
+	if ( !MRec_CL_KeyAllowed() )
+		return
+	MRec_CL_ToggleHints()
+}
+
+bool function MRec_CL_HintsShown()
+{
+	return file.hintsShown
+}
+
+string function MRec_CL_Legend()
+{
+	return file.legend
+}
+
+bool function MRec_CL_LoopOn()
+{
+	return file.loop
+}
+
+int function MRec_CL_SlotDurationTenth( int idx )
+{
+	if ( !( idx in file.slots ) )
+		return -1
+	return file.slots[idx].durationTenth
+}
+
+int function MRec_CL_SlotCount()
+{
+	return file.slots.len()
+}

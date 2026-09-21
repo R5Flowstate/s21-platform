@@ -4,6 +4,7 @@ global function MapEditor_ClientInit
 global function MapEditor_SetSelectedModel
 global function MapEditor_IsModelOffered
 global function UIToClient_MapEditor_SetModel
+global function ServerCallback_MapEdit_PackLoad
 
 // Physical keys for the editor-only verbs, so they need no bind. Chosen from
 // keys Apex leaves unbound by default -- a key callback fires alongside
@@ -43,10 +44,14 @@ struct
 	bool   smoothValid = false
 	// Catalog ids we PrecacheModel'd this map (client has no ModelIsPrecached).
 	table< int, bool > offeredIds
+	int activePackMask = 0
+	bool netRegistered = false
 } file
 
 void function MapEditor_ClientInit()
 {
+	MapEdit_ClientRegisterNetworking()
+
 	if ( !MapEditor_IsEnabled() )
 		return
 
@@ -63,6 +68,8 @@ void function MapEditor_ClientInit()
 	file.hasPlacement = false
 	file.autoStarted = false
 	file.offeredIds = {}
+	file.activePackMask = 0
+	MapEditorCatalog_SetActivePackMask( 0 )
 	file.smoothValid = false
 
 	// Ghost / SetModel fallback; must always be safe for CreateClientSidePropDynamic.
@@ -215,6 +222,122 @@ int function MapEdit_CompareCatalogId_Client( MapEditorCatalogEntry a, MapEditor
 	if ( a.id > b.id )
 		return 1
 	return 0
+}
+
+// ---------------------------------------------------------------------------
+// Extra map packs -- server sends a catalog bit, the name comes from our own
+// catalog copy. The model browser reads availability live, so updating the
+// mask is the menu refresh.
+// ---------------------------------------------------------------------------
+
+void function MapEdit_ClientRegisterNetworking()
+{
+	if ( file.netRegistered )
+		return
+	file.netRegistered = true
+
+	Remote_RegisterClientFunction( "ServerCallback_MapEdit_PackLoad", "int", 0, 31 )
+	Remote_RegisterServerFunction( "MapEdit_SV_PackReady", "int", 0, 31 )
+}
+
+void function ServerCallback_MapEdit_PackLoad( int bit )
+{
+	MapEditorCatalog_Init()
+
+	if ( bit < 0 || bit > 31 )
+	{
+		printt( "[MAPEDIT] PackLoad: bit out of range" )
+		return
+	}
+
+	string name = MapEditorCatalog_GetMapNameForBit( bit )
+	if ( name == "" )
+	{
+		printt( format( "[MAPEDIT] PackLoad: unknown bit %d", bit ) )
+		return
+	}
+
+	if ( ( file.activePackMask & ( 1 << bit ) ) != 0 )
+	{
+		printt( format( "[MAPEDIT] PackLoad: bit %d (%s) already active", bit, name ) )
+		return
+	}
+
+	if ( !MapEdit_RequestMapPak( name ) )
+	{
+		printt( format( "[MAPEDIT] PackLoad: load rejected for %s", name ) )
+		return
+	}
+
+	printt( format( "[MAPEDIT] PackLoad: loading %s bit=%d", name, bit ) )
+	thread MapEdit_ClientPackLoadThread( bit, name )
+}
+
+void function MapEdit_ClientPackLoadThread( int bit, string name )
+{
+	float deadline = Time() + 60.0
+
+	while ( Time() < deadline )
+	{
+		int status = MapEdit_MapPakStatus( name )
+		if ( status == 1 )
+		{
+			MapEdit_ClientPrecachePack( bit )
+			file.activePackMask = file.activePackMask | ( 1 << bit )
+			MapEditorCatalog_SetActivePackMask( file.activePackMask )
+			RunUIScript( "UI_MapEditor_SetActivePackMask", file.activePackMask )
+
+			if ( file.catalogId == 0 )
+				MapEdit_SelectDefaultModel()
+			MapEdit_RefreshPanel()
+
+			Remote_ServerCallFunction( "MapEdit_SV_PackReady", bit )
+
+			printt( format( "[MAPEDIT] client pack loaded: %s bit=%d mask=%d", name, bit, file.activePackMask ) )
+			return
+		}
+
+		if ( status == -1 )
+		{
+			printt( format( "[MAPEDIT] client pack load failed: %s bit=%d", name, bit ) )
+			return
+		}
+
+		wait 0.25
+	}
+
+	printt( format( "[MAPEDIT] client pack load timed out: %s bit=%d", name, bit ) )
+}
+
+void function MapEdit_ClientPrecachePack( int bit )
+{
+	int flag = 1 << bit
+	int attempted = 0
+
+	foreach ( string category in MapEditorCatalog_GetCategories() )
+	{
+		if ( attempted >= MAPEDIT_PACK_PRECACHE_MAX )
+			break
+
+		foreach ( MapEditorCatalogEntry entry in MapEditorCatalog_GetCategoryEntries( category ) )
+		{
+			if ( attempted >= MAPEDIT_PACK_PRECACHE_MAX )
+				break
+
+			if ( ( entry.mapMask & flag ) == 0 )
+				continue
+
+			if ( entry.id in file.offeredIds )
+				continue
+
+			PrecacheModel( entry.model )
+			file.offeredIds[ entry.id ] <- true
+			attempted++
+		}
+	}
+
+	printt( format( "[MAPEDIT] client pack precache bit=%d attempted=%d cap=%d",
+		bit, attempted, MAPEDIT_PACK_PRECACHE_MAX ) )
 }
 
 // ---------------------------------------------------------------------------

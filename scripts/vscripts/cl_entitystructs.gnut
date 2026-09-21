@@ -27,6 +27,8 @@ global struct BurnMeterHudStruct
 
 global struct ClientEntityStruct
 {
+	bool isJumpGate = false
+	float slideMaxTime = 0.0
 	EHIScriptStruct& ehiss
 
 	
@@ -200,6 +202,7 @@ global struct ClientPlayerStruct
 	
 	
 	table<entity, var> reconScanRUIs
+	table<entity, float> damageHealthBarStartTime
 	
 	
 

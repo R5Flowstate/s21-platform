@@ -17,6 +17,7 @@ global function DevMenu_ToggleBG
 
 global function ServerCallback_OpenDevMenu
 global function AimTrainer_UI_SyncDevMenuState
+global function MovementRecorder_UI_Open
 global function CafeMod_UI_SyncState
 global function CafeMod_UI_ItemsState
 global function UpdateDevMenuServerState
@@ -89,9 +90,17 @@ struct
 	bool aimTrainerReloadKill = true
 	bool aimTrainerDynStats = false
 	bool aimTrainerReconBars = false
+	bool aimTrainerHighlight = true
+	bool aimTrainerStraferFire = false
+	int aimTrainerStraferAim = 50
+	int aimTrainerStrafeWidth = 512
+	bool aimTrainerFixedSpawn = false
 	int  aimTrainerDurationSec = 60
 	bool aimTrainerStraferGod = false
 	int  aimTrainerStrafeSpeedTenth = 10
+	int  aimTrainerDummyShield = 0
+	int  aimTrainerStraferBody = 0
+	int  aimTrainerStraferLegendIdx = -1
 
 	// Main DevMenu toggle labels (UI mirror).
 	bool devNoclip = false
@@ -191,32 +200,49 @@ void function CafeMod_UI_ItemsState( int profileIndex, int physicsOn )
 // Server -> client -> UI: reconcile DevMenu aim-trainer toggle labels.
 // Must live outside #if DEVELOPER: global is always declared; DEVELOPER=0
 // (no -dev) would strip the body and fail UI compile.
-void function AimTrainer_UI_SyncDevMenuState( bool hit, bool shot, bool kill, bool dynStats, bool reconBars, int durationSec, bool straferGod, int strafeSpeedTenth )
+void function AimTrainer_UI_SyncDevMenuState( bool hit, bool shot, bool kill, bool dynStats, bool reconBars, int durationSec, bool straferGod, int strafeSpeedTenth, int dummyShield, int straferBody, int straferLegendIdx, bool highlight = true, bool straferFire = false, int straferAim = 50, int strafeWidth = 512, bool fixedSpawn = false )
 {
 	bool changed = ( file.aimTrainerReloadHit != hit
+		|| file.aimTrainerHighlight != highlight
+		|| file.aimTrainerStraferFire != straferFire
+		|| file.aimTrainerStraferAim != straferAim
+		|| file.aimTrainerStrafeWidth != strafeWidth
+		|| file.aimTrainerFixedSpawn != fixedSpawn
 		|| file.aimTrainerReloadShot != shot
 		|| file.aimTrainerReloadKill != kill
 		|| file.aimTrainerDynStats != dynStats
 		|| file.aimTrainerReconBars != reconBars
 		|| file.aimTrainerStraferGod != straferGod
 		|| ( strafeSpeedTenth > 0 && file.aimTrainerStrafeSpeedTenth != strafeSpeedTenth )
-		|| ( durationSec > 0 && file.aimTrainerDurationSec != durationSec ) )
+		|| ( durationSec > 0 && file.aimTrainerDurationSec != durationSec )
+		|| ( dummyShield >= 0 && file.aimTrainerDummyShield != dummyShield )
+		|| file.aimTrainerStraferBody != straferBody
+		|| file.aimTrainerStraferLegendIdx != straferLegendIdx )
 
 	file.aimTrainerReloadHit = hit
 	file.aimTrainerReloadShot = shot
 	file.aimTrainerReloadKill = kill
 	file.aimTrainerDynStats = dynStats
 	file.aimTrainerReconBars = reconBars
+	file.aimTrainerHighlight = highlight
+	file.aimTrainerStraferFire = straferFire
+	file.aimTrainerStraferAim = straferAim
+	file.aimTrainerStrafeWidth = strafeWidth
+	file.aimTrainerFixedSpawn = fixedSpawn
 	file.aimTrainerStraferGod = straferGod
 	if ( strafeSpeedTenth > 0 )
 		file.aimTrainerStrafeSpeedTenth = strafeSpeedTenth
 	if ( durationSec > 0 )
 		file.aimTrainerDurationSec = durationSec
+	if ( dummyShield >= 0 )
+		file.aimTrainerDummyShield = dummyShield
+	file.aimTrainerStraferBody = straferBody
+	file.aimTrainerStraferLegendIdx = straferLegendIdx
 
-	printt( format( "[AimTrainer] UI SyncDevMenu hit=%s shot=%s kill=%s dyn=%s bars=%s dur=%d god=%s speed=%d",
-		string( hit ), string( shot ), string( kill ), string( dynStats ), string( reconBars ), durationSec, string( straferGod ), strafeSpeedTenth ) )
+	printt( format( "[AimTrainer] UI SyncDevMenu hit=%s shot=%s kill=%s dyn=%s bars=%s dur=%d god=%s speed=%d shield=%d body=%d legIdx=%d",
+		string( hit ), string( shot ), string( kill ), string( dynStats ), string( reconBars ), durationSec, string( straferGod ), strafeSpeedTenth, dummyShield, straferBody, straferLegendIdx ) )
 
-	LabTargets_SetState( hit, shot, kill, dynStats, reconBars, durationSec, straferGod, strafeSpeedTenth )
+	LabTargets_SetState( hit, shot, kill, dynStats, reconBars, durationSec, straferGod, strafeSpeedTenth, dummyShield, straferBody, straferLegendIdx, highlight, straferFire, straferAim, strafeWidth, fixedSpawn )
 
 	// Function-ref compare is unreliable -- refresh any open DevMenu page.
 	if ( changed && GetActiveMenu() == GetMenu( "DevMenu" ) )
@@ -458,6 +484,9 @@ void function SetupDefaultDevCommandsMP()
 	// Legacy: always open DevMenu; pull sv_cheats + player-0 seat from client.
 	RunClientScript( "DEV_SendDevMenuStateToUI" )
 
+	if ( !IsLobby() && ( GetCurrentPlaylistVarBool( "movement_recorder_enable", false ) || GetCheatsState() ) )
+		SetupDevMenu( "Movement Recorder", SetDevMenu_MovementRecorder )
+
 	if ( !GetCheatsState() )
 	{
 		SetupDevCommand( "Cheats are disabled! Type 'sv_cheats 1' in console to enable dev menu if you're the server admin.", "empty" )
@@ -666,6 +695,37 @@ void function SetDevMenu_FlowstateAimTrainer( var _ )
 		wait 0.15
 		ChangeToThisMenu( SetupFlowstateAimTrainerDevMenu )
 	}()
+}
+
+void function SetDevMenu_MovementRecorder( var _ )
+{
+	thread ChangeToThisMenu( SetupMovementRecorderDevMenu )
+}
+
+void function MovementRecorder_UI_Open()
+{
+	CloseAllMenus()
+	AdvanceMenu( GetMenu( "DevMenu" ) )
+	thread function()
+	{
+		WaitFrame()
+		WaitFrame()
+		ChangeToThisMenu( SetupMovementRecorderDevMenu )
+	}()
+}
+
+void function SetupMovementRecorderDevMenu()
+{
+	bool legacy = GetCurrentPlaylistVarBool( "movement_recorder_legacy_binds", false )
+	SetupDevCommand( legacy ? "Start / Stop Recording  [F2]" : "Start / Stop Recording  [F4]", "mrec toggle" )
+	SetupDevCommand( legacy ? "Play Last Recording  [F3-F7 = slots]" : "Play Last Recording  [F5]", "mrec play" )
+	SetupDevCommand( "Play All Recordings", "mrec playall" )
+	SetupDevCommand( "Stop Bots", "mrec stopall" )
+	SetupDevCommand( "List Recordings", "mrec list" )
+	SetupDevCommand( "Loop Playback: On", "mrec loop 1" )
+	SetupDevCommand( "Loop Playback: Off", "mrec loop 0" )
+	SetupDevCommand( "Clear All Recordings", "mrec clear all" )
+	SetupDevCommand( ( legacy ? "F10" : "F3" ) + " opens this menu. Console: mrec <start|stop|play [n]|playall|stopall|clear [n|all]|list|loop 0|1>", "empty" )
 }
 
 void function SetDevMenu_Flowstate1v1( var _ )
@@ -923,26 +983,18 @@ void function DevHud_SetHidden( bool hidden )
 
 void function DevHud_RestoreIntent()
 {
-	if ( GetConVarInt( "rui_drawEnable" ) == 0 )
-		file.devHudHidden = true
 }
 
-// rui_drawEnable 0 skips every RUI. Keep it on while a menu is active so
-// SystemMenu / Lab / DevMenu still draw, then apply the hide on close.
+// The hide itself lives on the server (cinematic HUD flags on the player), so
+// it survives menus, respawns and map changes; this only re-sends the intent.
 void function DevHud_Apply()
 {
-	bool draw = true
-	if ( file.devHudHidden && !IsLobby() && IsFullyConnected() && GetActiveMenu() == null )
-		draw = false
-
-	int want = draw ? 1 : 0
-	if ( GetConVarInt( "rui_drawEnable" ) != want )
-		SetConVarInt( "rui_drawEnable", want )
+	if ( CanRunClientScript() )
+		RunClientScript( "DevHud_ClientSet", file.devHudHidden )
 }
 
 void function DevHud_WatchMenus()
 {
-	DevHud_RestoreIntent()
 	DevHud_Apply()
 	for ( ; ; )
 	{
@@ -1007,6 +1059,7 @@ void function SetupFlowstateAimTrainerDevMenu()
 	else
 		durationLabel = format( "Challenge Duration: %ds", file.aimTrainerDurationSec )
 	SetupDevMenu( durationLabel, SetDevMenu_AimTrainerDuration )
+	SetupDevMenu( "Dummy Armor: " + AimTrainerDummyShieldLabel( file.aimTrainerDummyShield ), SetDevMenu_AimTrainerArmor )
 	SetupDevCommand( "Start Manual Challenge", "dev_aimtrainer start" )
 	SetupDevCommand( "Stop Challenge", "dev_aimtrainer stop" )
 
@@ -1063,6 +1116,46 @@ void function SetupAimTrainerDurationMenu()
 			ClientCommand( format( "dev_aimtrainer duration %d", d ) )
 			file.aimTrainerDurationSec = d
 			// Server also syncs; return to parent with updated duration label.
+			thread ChangeToThisMenu( SetupFlowstateAimTrainerDevMenu )
+		} )
+	}
+}
+
+string function AimTrainerDummyShieldLabel( int setting )
+{
+	switch ( setting )
+	{
+		case 1:
+			return "White"
+		case 2:
+			return "Blue"
+		case 3:
+			return "Purple"
+		case 4:
+			return "Red"
+		case 10:
+			return "Random"
+	}
+	return "White (default)"
+}
+
+void function SetDevMenu_AimTrainerArmor( var _ )
+{
+	thread ChangeToThisMenu( SetupAimTrainerArmorMenu )
+}
+
+void function SetupAimTrainerArmorMenu()
+{
+	array<int> settings = [ 1, 2, 3, 4, 10 ]
+	foreach ( int s in settings )
+	{
+		string mark = ( s == file.aimTrainerDummyShield ) ? " *" : ""
+		string label = AimTrainerDummyShieldLabel( s ) + mark
+
+		SetupDevFunc( label, void function( var unused ) : ( s ) {
+			ClientCommand( format( "dev_aimtrainer armor %d", s ) )
+			file.aimTrainerDummyShield = s
+			// Server also syncs; return to parent with updated armor label.
 			thread ChangeToThisMenu( SetupFlowstateAimTrainerDevMenu )
 		} )
 	}

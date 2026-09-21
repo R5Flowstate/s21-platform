@@ -1012,7 +1012,8 @@ global enum ePlayerMovementEvents
 	BEGIN_WALLHANG,
 	END_WALLHANG,
 	BEGIN_SLIDE,
-	END_SLIDE
+	END_SLIDE,
+	SLIDE_SUPER_JUMP
 }
 /* Valid inputs. Taken from code, pasted here for easy reference
 IN_ATTACK
@@ -2528,6 +2529,7 @@ global const string FIRING_RANGE_COMBAT_DUMMIE_SCRIPT_NAME = "npc_dummie_combat"
 global const int FIRING_RANGE_AI_BUDGET_MAX = 190
 
 global const string COMBATRANGE_DUMMIE_HIGHLIGHT = "enemy_sonar"
+global const string AIMTRAINER_TARGET_HIGHLIGHT = "sp_friendly_hero"
 
                          
 global enum eFRSettingType

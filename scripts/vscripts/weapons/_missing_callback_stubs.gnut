@@ -201,10 +201,8 @@ global function OnWeaponTossPrep_ability_halo
 global function OnWeaponTossPrep_weapon_shield_deconstructor
 global function OnWeaponTossReleaseAnimEvent_AmmoSteal
 global function OnWeaponTossReleaseAnimEvent_GunTurret_v2
-global function OnWeaponTossReleaseAnimEvent_ability_frag_drone
 global function OnWeaponTossReleaseAnimEvent_ability_group_cloak
 global function OnWeaponTossReleaseAnimEvent_ability_halo
-global function OnWeaponTossReleaseAnimEvent_ability_slide_gate
 global function OnWeaponTossReleaseAnimEvent_ability_spectre_drop
 global function OnWeaponTossReleaseAnimEvent_black_egg
 global function OnWeaponTossReleaseAnimEvent_weapon_GenericVFX
@@ -214,7 +212,6 @@ global function OnWeaponTossReleaseAnimEvent_weapon_grenade_barrier
 global function OnWeaponTossReleaseAnimEvent_weapon_ranged_breach
 global function OnWeaponTossReleaseAnimEvent_weapon_shield_deconstructor
 global function OnWeaponTossRelease_ability_horizon_tac_space_elevator
-global function OnWeaponToss_FragDrone
 global function OnWeaponToss_ability_halo
 global function OnWeaponToss_weapon_ranged_breach
 global function PowerSword_OnStartZoomIn
@@ -249,7 +246,6 @@ global function PowerSword_OnWeaponCustomActivityStart
 #if CLIENT
 global function BusterRifle_OnClientAnimEvent
 global function MeleeBat_OnClientAnimEvent
-global function OnClientAnimEvent_DeploySlideGate
 global function OnClientAnimEvent_SoanrDart
 global function OnClientAnimEvent_weapon_agnostic_prorookie_primary
 global function OnClientAnimEvent_weapon_ranged_breach
@@ -1339,12 +1335,6 @@ var function OnWeaponTossReleaseAnimEvent_GunTurret_v2( entity weapon, WeaponPri
 	return 0
 }
 
-var function OnWeaponTossReleaseAnimEvent_ability_frag_drone( entity weapon, WeaponPrimaryAttackParams params )
-{
-	MissingCallbackStub_Note( "OnWeaponTossReleaseAnimEvent_ability_frag_drone" )
-	return 0
-}
-
 var function OnWeaponTossReleaseAnimEvent_ability_group_cloak( entity weapon, WeaponPrimaryAttackParams params )
 {
 	MissingCallbackStub_Note( "OnWeaponTossReleaseAnimEvent_ability_group_cloak" )
@@ -1354,12 +1344,6 @@ var function OnWeaponTossReleaseAnimEvent_ability_group_cloak( entity weapon, We
 var function OnWeaponTossReleaseAnimEvent_ability_halo( entity weapon, WeaponPrimaryAttackParams params )
 {
 	MissingCallbackStub_Note( "OnWeaponTossReleaseAnimEvent_ability_halo" )
-	return 0
-}
-
-var function OnWeaponTossReleaseAnimEvent_ability_slide_gate( entity weapon, WeaponPrimaryAttackParams params )
-{
-	MissingCallbackStub_Note( "OnWeaponTossReleaseAnimEvent_ability_slide_gate" )
 	return 0
 }
 
@@ -1414,12 +1398,6 @@ var function OnWeaponTossReleaseAnimEvent_weapon_shield_deconstructor( entity we
 var function OnWeaponTossRelease_ability_horizon_tac_space_elevator( entity weapon, WeaponPrimaryAttackParams params )
 {
 	MissingCallbackStub_Note( "OnWeaponTossRelease_ability_horizon_tac_space_elevator" )
-	return 0
-}
-
-var function OnWeaponToss_FragDrone( entity weapon, WeaponPrimaryAttackParams params )
-{
-	MissingCallbackStub_Note( "OnWeaponToss_FragDrone" )
 	return 0
 }
 
@@ -1744,10 +1722,6 @@ void function MeleeBat_OnClientAnimEvent( entity weapon, string animEventName )
 #endif
 
 #if CLIENT
-void function OnClientAnimEvent_DeploySlideGate( entity weapon, string animEventName )
-{
-	MissingCallbackStub_Note( "OnClientAnimEvent_DeploySlideGate" )
-}
 #endif
 
 #if CLIENT

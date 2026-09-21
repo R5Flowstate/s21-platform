@@ -201,12 +201,24 @@ bool function SkydiveEmote_IsTheEmpty( ItemFlavor item )
 }
 
 
-ItemFlavor function SkydiveEmote_GetCharacterFlavor( ItemFlavor item )
+ItemFlavor ornull function SkydiveEmote_GetCharacterFlavor( ItemFlavor item )
 {
 	Assert( ItemFlavor_GetType( item ) == eItemType.skydive_emote )
-	Assert( GetGlobalSettingsAsset( ItemFlavor_GetAsset( item ), "parentItemFlavor" ) != "" )
 
-	return GetItemFlavorByAsset( GetGlobalSettingsAsset( ItemFlavor_GetAsset( item ), "parentItemFlavor" ) )
+	asset parentAsset = $""
+	try
+	{
+		parentAsset = GetGlobalSettingsAsset( ItemFlavor_GetAsset( item ), "parentItemFlavor" )
+	}
+	catch ( e )
+	{
+		return null
+	}
+
+	if ( parentAsset == $"" || !IsValidItemFlavorSettingsAsset( parentAsset ) )
+		return null
+
+	return GetItemFlavorByAsset( parentAsset )
 }
 
 

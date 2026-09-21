@@ -47,6 +47,11 @@ void function InitLabPanel( var panel )
 		SetTabBaseWidth( tabDef, 170 )
 	}
 	{
+		TabDef tabDef = AddTab( panel, Hud_GetChild( panel, "LabRecorderPanel" ), "#LAB_TAB_RECORDER" )
+		SetTabBaseWidth( tabDef, 170 )
+		tabDef.new = true
+	}
+	{
 		TabDef tabDef = AddTab( panel, Hud_GetChild( panel, "LabMatchPanel" ), "#LAB_TAB_MATCH" )
 		SetTabBaseWidth( tabDef, 170 )
 	}

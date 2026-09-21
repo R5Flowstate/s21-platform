@@ -21,6 +21,7 @@ struct
 	array<var> aimAssistHeaders
 
 	array<var> sniperAimAssistItems
+	array<var> aimAssistStrengthItems
 } file
 
 
@@ -119,6 +120,17 @@ void function InitAdvancedLookControlsPanel( var panel )
 	var adsHighPowerScopeButton = SetupSettingsButton( Hud_GetChild( contentPanel, "SwchGamepadAimAssistAdsHighPowerScope" ), "#GAMEPADCUSTOM_ASSIST_HIGH_POWER", "#GAMEPADCUSTOM_ASSIST_ADS_HIGH_POWER_DESC", $"" )
 	file.aimAssistItems.append( adsHighPowerScopeButton )
 	file.sniperAimAssistItems.append( adsHighPowerScopeButton )
+
+	file.aimAssistHeaders.append( Hud_GetChild( contentPanel, "CustomAimAssistStrengthHeader" ) )
+	file.aimAssistHeaders.append( Hud_GetChild( contentPanel, "CustomAimAssistStrengthHeaderText" ) )
+	var strengthSlider = Hud_GetChild( contentPanel, "SldGamepadAimAssistStrength" )
+	var strengthAdsSlider = Hud_GetChild( contentPanel, "SldGamepadAimAssistStrengthAds" )
+	SetupSlider( strengthSlider, "#GAMEPADCUSTOM_ASSIST_STRENGTH", "#GAMEPADCUSTOM_ASSIST_STRENGTH_DESC" )
+	SetupSlider( strengthAdsSlider, "#GAMEPADCUSTOM_ASSIST_STRENGTH_ADS", "#GAMEPADCUSTOM_ASSIST_STRENGTH_DESC" )
+	file.aimAssistItems.append( strengthSlider )
+	file.aimAssistItems.append( strengthAdsSlider )
+	file.aimAssistStrengthItems.append( strengthSlider )
+	file.aimAssistStrengthItems.append( strengthAdsSlider )
 
 	
 	ScrollPanel_InitPanel( panel )
@@ -237,8 +249,30 @@ void function Button_Toggle_AimAssistEnabled( var button )
 		foreach ( var item in file.sniperAimAssistItems )
 			Hud_SetVisible( item, isAimAssistSniperScopesEnabled )
 	}
+
+	UpdateAimAssistStrengthLock( isAimAssistEnabled )
+
 	SettingsPanel_SetContentPanelHeight( file.contentPanel )
 	ScrollPanel_Refresh( file.panel )
+}
+
+
+void function UpdateAimAssistStrengthLock( bool isAimAssistEnabled )
+{
+	bool tuneAllowed = AimAssistTuneAllowedByPlaylist()
+	string title = tuneAllowed ? "#GAMEPADCUSTOM_ASSIST_STRENGTH_HEADER" : "#GAMEPADCUSTOM_ASSIST_STRENGTH_LOCKED"
+	Hud_SetText( Hud_GetChild( file.contentPanel, "CustomAimAssistStrengthHeaderText" ), Localize( title ) )
+
+	foreach ( var item in file.aimAssistStrengthItems )
+		Hud_SetEnabled( item, isAimAssistEnabled && tuneAllowed )
+}
+
+
+bool function AimAssistTuneAllowedByPlaylist()
+{
+	if ( IsConnected() )
+		return GetCurrentPlaylistVarBool( "aimassist_player_tune_allowed", false )
+	return GetPlaylistVarBool( LobbyPlaylist_GetSelectedPlaylist(), "aimassist_player_tune_allowed", false )
 }
 
 
@@ -379,6 +413,8 @@ void function RestoreLookControlsDefaults()
 	SetConVarToDefault( "gamepad_aim_assist_hip_high_power_scopes" )
 	SetConVarToDefault( "gamepad_aim_assist_ads_low_power_scopes" )
 	SetConVarToDefault( "gamepad_aim_assist_ads_high_power_scopes" )
+	SetConVarToDefault( "gamepad_custom_assist_strength" )
+	SetConVarToDefault( "gamepad_custom_assist_strength_ads" )
 	RestoreADSAdvancedDefaultsGamePad()
 
 	Button_Toggle_AimAssistEnabled( null )

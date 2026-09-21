@@ -1495,9 +1495,8 @@ void function Dummie_Behavior_Strafe_Thread(  entity dummie, vector homePos, vec
 			{
 				lastGroundedPos = dummie.GetOrigin()
 			}
-			else
+			else if ( !NPC_IsInFlight( dummie ) )
 			{
-				// Off the edge -- snap back rather than hang in fall anim.
 				TrySetOriginInWorld( dummie, lastGroundedPos )
 			}
 
@@ -1600,7 +1599,8 @@ void function Dummie_Behavior_Strafe_Thread(  entity dummie, vector homePos, vec
 
 				if ( !IsValid( dummie.GetGroundEntity() ) )
 				{
-					TrySetOriginInWorld( dummie, lastGroundedPos )
+					if ( !NPC_IsInFlight( dummie ) )
+						TrySetOriginInWorld( dummie, lastGroundedPos )
 					if ( lastActivityPlayed != NO_GROUNDENTITY_ANIM )
 					{
 						dummie.Anim_ScriptedPlayActivityByName( NO_GROUNDENTITY_ANIM , true, 0.25 )

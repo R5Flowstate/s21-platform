@@ -196,6 +196,7 @@ struct {
 	void functionref( entity player ) PlayerPostRespawnOverrideCallback = null
 
 	table< entity, bool > hasPlayerSpawnedOnce
+	int forcedCharacterDepth = 0
 	float lastAirdropTimestamp
 
 	entity                                  musicEntity
@@ -453,6 +454,8 @@ void function FreeDM_GamemodeInitServer()
 		// otherwise race us and wipe the kit after the give.
 		RespawnNearSquad_SetCallback_CanRespawnPlayer( FreeDM_FFA_BlockSpawnNearSquad )
 		FreeDM_FFA_RegisterLegacySpawns()
+		if ( FS_1v1_IsForceCharacter() )
+			Loadout_SetCharacterResetOverride( FS_1v1_CharacterResetOverride )
 		thread FreeDM_FFA_ForcePlaying_THREAD()
 	}
 }
@@ -727,7 +730,15 @@ void function EntitiesDidLoad()
 	//FlagSet( "disable_npcs" )
 
 	if ( FreeDM_IsFFA() )
+	{
 		FreeDM_FFA_BuildRing()
+		if ( !GetCurrentPlaylistVarBool( "flowstateDoorsEnabled", true ) )
+		{
+			foreach ( entity door in GetAllPropDoors() )
+				if ( IsValid( door ) )
+					door.Destroy()
+		}
+	}
 }
 #endif // SERVER
 
@@ -1218,6 +1229,7 @@ void function FreeDM_FFA_OnConnected_THREAD( entity player )
 		SetGameState( eGameState.Playing )
 	}
 
+	FreeDM_FFA_EnsureForcedCharacter( player )
 	player.UnfreezeControlsOnServer()
 	player.p.respawnPodLanded = true
 	player.p.survivalLandedOnGround = true
@@ -1245,7 +1257,7 @@ void function FreeDM_FFA_LatencyFeed_THREAD( entity player )
 
 	for ( ;; )
 	{
-		player.SetPlayerNetInt( "latency", ClampInt( int( player.GetLatency() * 1000 ) - 45, -1, 500 ) )
+		player.SetPlayerNetInt( "latency", ClampInt( int( player.GetLatency() * 1000 ), 0, 500 ) )
 		wait 0.5
 	}
 }
@@ -1276,6 +1288,8 @@ void function FreeDM_FFA_RespawnForRound( entity player )
 {
 	if ( !IsValid( player ) || player.GetTeam() == TEAM_SPECTATOR )
 		return
+
+	FreeDM_FFA_EnsureForcedCharacter( player )
 
 	player.StopObserverMode()
 	ClearPlayerEliminated( player )
@@ -1378,6 +1392,7 @@ void function FreeDM_FFA_SetChampionHudFlags( bool showing )
 
 void function FreeDM_FFA_EndChampionPodium()
 {
+	printt( "[FreeDM] FFA podium end players=" + string( GetPlayerArray().len() ) + " state=" + string( GetGameState() ) )
 	SetChampionShowingState( false )
 	SetGlobalNetTime( "championDisplayEndTime", Time() - 1.0 )
 	SetGlobalNetTime( "pickLoadoutGamestateEndTime", Time() - 1.0 )
@@ -1415,14 +1430,14 @@ void function FreeDM_FFA_PresentChampionPodium()
 	entity champion = FreeDM_FFA_ResolveChampion()
 	foreach ( entity player in GetPlayerArray() )
 	{
-		if ( !IsValid( player ) || player.GetTeam() == TEAM_SPECTATOR )
+		if ( !IsValid( player ) || !IsAlive( player ) || player.GetTeam() == TEAM_SPECTATOR )
 			continue
 		player.HolsterWeapon()
 		player.FreezeControlsOnServer()
 		player.ForceStand()
 		player.Hide()
 	}
-	if ( IsValid( champion ) )
+	if ( IsValid( champion ) && IsAlive( champion ) )
 		champion.Show()
 
 	WaitEndFrame()
@@ -1451,7 +1466,9 @@ void function FreeDM_FFA_PresentChampionPodium()
 	SetGlobalNetTime( "championSquadPresentationStartTime", Time() )
 	FreeDM_FFA_SetChampionHudFlags( true )
 
-	printt( "[FreeDM] FFA champion podium start end=" + string( endTime ) + " dur=" + string( durationSec ) )
+	printt( "[FreeDM] FFA podium start champ=" + ( IsValid( champion ) ? champion.GetPlayerName() : "none" )
+		+ " alive=" + string( IsAlive( champion ) ) + " players=" + string( GetPlayerArray().len() )
+		+ " state=" + string( GetGameState() ) + " end=" + string( endTime ) )
 
 	foreach ( entity player in GetPlayerArray() )
 	{
@@ -1528,6 +1545,22 @@ void function FreeDM_FFA_Persist_THREAD()
 
 		try
 		{
+			if ( GetCurrentPlaylistVarBool( "flowstateEndlessFFAorTDM", false ) )
+			{
+				float endlessStart = Time()
+				float endlessRoundTime = GetCurrentPlaylistVarFloat( "flowstateRoundtime", 300.0 )
+				float endlessEnd = endlessStart + endlessRoundTime
+				SetGlobalNetTime( "flowstate_DMStartTime", endlessStart )
+				SetGlobalNetTime( "flowstate_DMRoundEndTime", endlessEnd )
+				SetGlobalNonRewindNetTime( "matchStartTime", endlessStart )
+				SetGlobalNonRewindNetTime( "matchEndTime", endlessEnd )
+				printt( "[FreeDM] FFA endless window dur=" + string( endlessRoundTime ) )
+				while ( Time() < endlessEnd && GetGameState() == eGameState.Playing )
+					WaitFrame()
+				currentRound++
+				continue
+			}
+
 			bool hasChampion = FreeDM_FFA_PickRoundChampion()
 			float champTime = 0.0
 			if ( hasChampion )
@@ -1901,7 +1934,56 @@ void function FreeDM_OnLoadoutSelected( entity player )
 // Triggers when the player has respawned as a different character
 void function OnPlayerClassChanged( entity player )
 {
+	if ( FreeDM_IsFFA() )
+		FreeDM_FFA_EnsureForcedCharacter( player )
+}
+#endif
 
+#if SERVER
+bool function FreeDM_FFA_HasForcedCharacter( entity player )
+{
+	EHI ehi = ToEHI( player )
+	LoadoutEntry slot = Loadout_Character()
+	if ( !LoadoutSlot_IsReady( ehi, slot ) )
+		return false
+
+	ItemFlavor forced = FS_1v1_GetForcedCharacter( player )
+	if ( LoadoutSlot_GetItemFlavor( ehi, slot ) != forced )
+		return false
+
+	if ( !IsAlive( player ) )
+		return true
+
+	return player.GetPlayerSettings() == CharacterClass_GetSetFile( forced )
+}
+
+void function FreeDM_FFA_EnsureForcedCharacter( entity player )
+{
+	if ( !IsValid( player ) || !player.IsPlayer() )
+		return
+
+	if ( FS_1v1_IsForceCharacter() )
+	{
+		// Character setup fires the class-changed callback, which lands back here.
+		if ( FreeDM_FFA_HasForcedCharacter( player ) )
+			return
+		if ( file.forcedCharacterDepth >= 2 )
+		{
+			printt( "[FFA] forced character never settled for", player, "-- giving up this pass" )
+			return
+		}
+		file.forcedCharacterDepth++
+		FS_1v1_ApplyForcedCharacter( player )
+		file.forcedCharacterDepth--
+		return
+	}
+
+	if ( GetCurrentPlaylistVarBool( "flowstateRandomCharacterOnSpawn", false ) && !player.GetPlayerNetBool( "hasLockedInCharacter" ) )
+	{
+		int randomIndex = RandomIntRangeInclusive( 0, LEGEND_CHARACTER_REFS.len() - 1 )
+		SetItemFlavorLoadoutSlot( ToEHI( player ), Loadout_Character(), FS_1v1_GetCharacterByIndex( randomIndex ) )
+		player.SetPlayerNetBool( "hasLockedInCharacter", true )
+	}
 }
 #endif
 
@@ -2176,6 +2258,7 @@ void function FreeDM_FFA_ApplyLoadoutAfterRespawn_THREAD( entity player )
 			return
 	}
 
+	FreeDM_FFA_EnsureForcedCharacter( player )
 	ApplyLoadout( player )
 	file.hasPlayerSpawnedOnce[ player ] <- true
 
@@ -2360,6 +2443,7 @@ void function FreeDM_FFA_RespawnAfterDeath_THREAD( entity player )
 	player.StopObserverMode()
 	player.p.respawnPodLanded = true
 	player.p.hasMatchParticipationEnded = false
+	FreeDM_FFA_EnsureForcedCharacter( player )
 	DecideRespawnPlayer( player, false )
 }
 #endif // SERVER
@@ -2386,6 +2470,7 @@ void function SetupPlayer( entity player )
 		WaittillGameStateOrHigher( eGameState.Playing )
 		file.hasPlayerSpawnedOnce[ player ] <- true
 		ClearPlayerIntroDropSettings( player )
+		FreeDM_FFA_EnsureForcedCharacter( player )
 		ApplyLoadout( player )
 		if ( isFirstSpawn )
 			GamemodeUtility_SetJIPPlayerIsWaitingForSpawnBonus( player, false )
@@ -3431,6 +3516,9 @@ void function UICallback_FreeDM_OpenCharacterSelect()
 	const bool browseMode = true
 	const bool showLockedCharacters = true
 	bool isJIP = GamemodeUtility_IsJIPPlayerSpawnBonusPending( clientPlayer )
+	if ( FreeDM_IsFFA() && GetCurrentPlaylistVarBool( "flowstateForceCharacter", false ) )
+		return
+
 	HideScoreboard()
 	OpenCharacterSelectMenu( browseMode, showLockedCharacters, isJIP )
 }

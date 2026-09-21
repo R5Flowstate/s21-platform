@@ -54,3 +54,4 @@ sprinting
 updraft
 wallhang
 zipline_vertical
+grenade_cryo

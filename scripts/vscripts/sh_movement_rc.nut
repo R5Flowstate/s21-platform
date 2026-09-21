@@ -1,8 +1,9 @@
-// Helpers only. S21 has no m_recordedAnim* / PlayRecordedAnimation path.
+// Shared movement-recorder helpers (recordings and playback live in fs_movement_recorder).
 
 #if SERVER
 	global function MovementRecorder_GetPlayerActiveWeaponData
 	global function MovementRecorder_ApplyWeaponToDummy
+	global function MovementRecorder_PlayerKey
 #endif
 
 global function MovementRecorder_GetPlayerCharacterRef
@@ -79,6 +80,13 @@ string function MovementRecorder_GetDummyAISettingsFromCharacterRef( string char
 
 	if ( aiName == "" )
 		aiName = "wraith"
+
+	// Only legends with an npc_dummie_<name> aisettings file on this build.
+	array<string> known = [ "ash", "ballistic", "bangalore", "bloodhound", "catalyst", "caustic", "crypto", "gibby", "horizon", "lifeline", "loba", "mirage", "octane", "pathfinder", "rampart", "revenant", "valkyrie", "wattson", "wraith" ]
+	if ( aiName == "gibraltar" )
+		aiName = "gibby"
+	if ( !known.contains( aiName ) )
+		return ""
 
 	return "npc_dummie_" + aiName
 }

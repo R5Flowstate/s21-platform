@@ -51,6 +51,7 @@ global const GRENADE_INDICATOR_TICK_MODEL = $"mdl/hud/grenade_indicator/grenade_
 global const GRENADE_INDICATOR_STALKER_MODEL = $"mdl/hud/grenade_indicator/bang_indicator.rmdl"
 global const GRENADE_INDICATOR_SKULL_MODEL = $"mdl/hud/grenade_indicator/grenade_indicator_skull.rmdl"
 global const GRENADE_INDICATOR_PHASE_DOOR = $"mdl/hud/grenade_indicator/grenade_indicator_alter_portal.rmdl"
+global const GRENADE_INDICATOR_AXLE_ULT = $"mdl/weapons/overdrive_ult_drone/axle_ult_drone_threat_indicator.rmdl"
 global const GRENADE_MODEL = $"mdl/weapons/grenades/m20_f_grenade.rmdl"
 global const DAMAGEARROW_MODEL = $"mdl/weapons/bullets/damage_arrow.rmdl"
 
@@ -66,6 +67,7 @@ global enum eThreatIndicatorID
 	GRENADE_INDICATOR_CLUSTER_BOMB_MODEL,
 	GRENADE_INDICATOR_SKULL_MODEL,
 	GRENADE_INDICATOR_PHASE_DOOR,
+	GRENADE_INDICATOR_AXLE_ULT,
 }
 
 global enum eThreatIndicatorVisibility
@@ -175,6 +177,7 @@ void function Death_Package_Init()
 		PrecacheModel( GRENADE_INDICATOR_STALKER_MODEL )
 		PrecacheModel( GRENADE_INDICATOR_SKULL_MODEL )
 		PrecacheModel( GRENADE_INDICATOR_PHASE_DOOR )
+		PrecacheModel( GRENADE_INDICATOR_AXLE_ULT )
 		PrecacheModel( GRENADE_INDICATOR_CLUSTER_BOMB_MODEL )
 
 		PrecacheModel( DAMAGEARROW_MODEL )

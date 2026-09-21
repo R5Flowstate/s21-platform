@@ -18,18 +18,24 @@ global function MapEditorCatalog_GetCategoriesByTier
 global function MapEditorCatalog_GetCategoryEntries
 global function MapEditorCatalog_Count
 global function MapEditorCatalog_GetMapBit
+global function MapEditorCatalog_GetMapNameForBit
+global function MapEditorCatalog_SetActivePackMask
+global function MapEditorCatalog_GetActivePackMask
 global function MapEditorCatalog_IsAvailableOnMap
+global function MapEditorCatalog_IsModelAvailableOnMap
 global function MapEditorCatalog_GetAvailableCategoryEntries
 global function MapEditorCatalog_GetFirstAvailable
 
 struct
 {
 	table< int, MapEditorCatalogEntry >          byId
+	table< asset, MapEditorCatalogEntry >        byModel
 	table< string, array< MapEditorCatalogEntry > > byCategory
 	table< string, string >                      categoryTier
 	table< string, int >                         mapBits
 	array< string >                              categories
 	bool                                         initialized = false
+	int                                          activePackMask = 0
 } file
 
 void function MapEditorCatalog_Init()
@@ -872,6 +878,7 @@ void function _AddCategory( string category, string tier, array< asset > models,
 		entry.model    = model
 
 		file.byId[ entry.id ] <- entry
+		file.byModel[ model ] <- entry
 		file.byCategory[ category ].append( entry )
 	}
 }
@@ -918,15 +925,41 @@ int function MapEditorCatalog_GetMapBit( string mapName )
 	return -1
 }
 
+string function MapEditorCatalog_GetMapNameForBit( int bit )
+{
+	foreach ( string mapName, int mapBit in file.mapBits )
+	{
+		if ( mapBit == bit )
+			return mapName
+	}
+	return ""
+}
+
+void function MapEditorCatalog_SetActivePackMask( int mask )
+{
+	file.activePackMask = mask
+}
+
+int function MapEditorCatalog_GetActivePackMask()
+{
+	return file.activePackMask
+}
+
 bool function MapEditorCatalog_IsAvailableOnMap( MapEditorCatalogEntry entry, string mapName )
 {
 	int bit = MapEditorCatalog_GetMapBit( mapName )
 	if ( bit < 0 )
-		return true
+		return ( entry.mapMask & 1 ) != 0
 	if ( ( entry.mapMask & 1 ) != 0 )
 		return true
-	int flag = 1 << bit
-	return ( entry.mapMask & flag ) != 0
+	return ( entry.mapMask & ( ( 1 << bit ) | file.activePackMask ) ) != 0
+}
+
+bool function MapEditorCatalog_IsModelAvailableOnMap( asset model, string mapName )
+{
+	if ( !( model in file.byModel ) )
+		return true
+	return MapEditorCatalog_IsAvailableOnMap( file.byModel[ model ], mapName )
 }
 
 array< MapEditorCatalogEntry > function MapEditorCatalog_GetAvailableCategoryEntries( string category, string mapName )

@@ -474,6 +474,13 @@ global struct ServerEntityStruct
 	bool canStickArrows = true
 	bool ignoreJumpPad = false
 
+	bool isJumpGate = false
+	float slideMaxTime = 0.0
+	float axleLaunchTime = 0.0
+	entity axleDroneWeapon
+	entity axleDroneOwner
+	entity axleDroneMover
+
 	float lastJumpPadBounce = 0.0
                         
                           
@@ -541,12 +548,20 @@ global struct ServerPlayerStruct
 	bool aimTrainerAutoReloadOnKill = true
 	bool aimTrainerChallengeActive = false
 	bool aimTrainerDynStatsWanted = false
-	bool aimTrainerReconHealthBars = false
+	bool aimTrainerReconHealthBars = true
+	bool aimTrainerTargetHighlight = true
 	// Challenge length in seconds (30/60/90/120/999 unlimited). 0 = use AIMTRAINER_CHALLENGE_DURATION (60).
 	int aimTrainerChallengeDurationSec = 0
 	// Lab strafer sliders: playback-rate multiplier (0.5-2.0) + infinite health for strafing bots.
 	float aimTrainerStrafeSpeedMult = 1.0
 	bool aimTrainerStraferInfiniteHealth = false
+	bool aimTrainerStraferFire = false
+	int aimTrainerStraferAim = 50
+	int aimTrainerStrafeWidth = 512
+	bool aimTrainerFixedSpawn = false
+	vector aimTrainerFixedSpawnPos = <0, 0, 0>
+	// Lab dummy armor: eDummie_Selector_Shields tier (1-4, 10=random). 0 = default (white).
+	int aimTrainerDummyShield = 0
 	// 0=none, 1=target switch, 2=popcorn -- so hold-R can kill+respawn the same drill.
 	int aimTrainerFreeroamMode = 0
 	// Drill the finished run was on, so the post-challenge prompt can start it again.
@@ -961,6 +976,9 @@ global struct ServerPlayerStruct
 	int         bubbleBunkerStatusEffectId = -1
 
 	float nextAllowPlaneEmoteTime = 0
+
+	float lastEmoteRequestTime = 0
+	float lastQuipBroadcastTime = 0
 
 	bool challenges_shouldMigrateFromStatMarkersToProgressFields = false
 	bool challenges_validateMigrationFromStatMarkersToProgressFields = false

@@ -835,6 +835,15 @@ global enum eIneligibilityCode
 /////////////////////////
 /////////////////////////
 #if SERVER || CLIENT || UI
+ItemFlavor function ShGRX_RegisterCurrency( asset currencyAsset )
+{
+	ItemFlavor ornull flav = RegisterItemFlavorFromSettingsAsset( currencyAsset )
+	if ( flav == null )
+		throw format( "GRX currency failed to register: asset=\"%s\" typeof=%s len=%d", string( currencyAsset ), typeof( currencyAsset ), string( currencyAsset ).len() )
+
+	return expect ItemFlavor( flav )
+}
+
 void function ShGRX_LevelInit()
 {
 	FileStruct_LifetimeLevel newFileLevel
@@ -849,15 +858,15 @@ void function ShGRX_LevelInit()
 
 	AddCallback_RegisterRootItemFlavors( void function() {
 		Assert( GRX_CURRENCY_COUNT == 7 )
-		GRX_CURRENCIES[GRX_CURRENCY_PREMIUM] = expect ItemFlavor(RegisterItemFlavorFromSettingsAsset( $"settings/itemflav/grx_currency/premium.rpak" )) // GRX_CURRENCY_PREMIUM
-		GRX_CURRENCIES[GRX_CURRENCY_CREDITS] = expect ItemFlavor(RegisterItemFlavorFromSettingsAsset( $"settings/itemflav/grx_currency/credits.rpak" )) // GRX_CURRENCY_CREDITS
-		GRX_CURRENCIES[GRX_CURRENCY_CRAFTING] = expect ItemFlavor(RegisterItemFlavorFromSettingsAsset( $"settings/itemflav/grx_currency/crafting.rpak" )) // GRX_CURRENCY_CRAFTING
-		GRX_CURRENCIES[GRX_CURRENCY_HEIRLOOM] = expect ItemFlavor(RegisterItemFlavorFromSettingsAsset( $"settings/itemflav/grx_currency/heirloom.rpak" )) // GRX_CURRENCY_HEIRLOOM
-		GRX_CURRENCIES[GRX_CURRENCY_EXOTIC] = expect ItemFlavor(RegisterItemFlavorFromSettingsAsset( $"settings/itemflav/grx_currency/exotic.rpak" )) // GRX_CURRENCY_EXOTIC
-		GRX_CURRENCIES[GRX_CURRENCY_ESCROW] = expect ItemFlavor(RegisterItemFlavorFromSettingsAsset( $"settings/itemflav/grx_currency/escrow.rpak" )) // GRX_CURRENCY_ESCROW
+		GRX_CURRENCIES[GRX_CURRENCY_PREMIUM] = ShGRX_RegisterCurrency( $"settings/itemflav/grx_currency/premium.rpak" ) // GRX_CURRENCY_PREMIUM
+		GRX_CURRENCIES[GRX_CURRENCY_CREDITS] = ShGRX_RegisterCurrency( $"settings/itemflav/grx_currency/credits.rpak" ) // GRX_CURRENCY_CREDITS
+		GRX_CURRENCIES[GRX_CURRENCY_CRAFTING] = ShGRX_RegisterCurrency( $"settings/itemflav/grx_currency/crafting.rpak" ) // GRX_CURRENCY_CRAFTING
+		GRX_CURRENCIES[GRX_CURRENCY_HEIRLOOM] = ShGRX_RegisterCurrency( $"settings/itemflav/grx_currency/heirloom.rpak" ) // GRX_CURRENCY_HEIRLOOM
+		GRX_CURRENCIES[GRX_CURRENCY_EXOTIC] = ShGRX_RegisterCurrency( $"settings/itemflav/grx_currency/exotic.rpak" ) // GRX_CURRENCY_EXOTIC
+		GRX_CURRENCIES[GRX_CURRENCY_ESCROW] = ShGRX_RegisterCurrency( $"settings/itemflav/grx_currency/escrow.rpak" ) // GRX_CURRENCY_ESCROW
 
 		// this is simply a fallback value in case we don't have an active event shop -- see event_shop.nut for where this gets dynamically set
-		GRX_CURRENCIES[GRX_CURRENCY_EVENT] = expect ItemFlavor(RegisterItemFlavorFromSettingsAsset( $"settings/itemflav/grx_currency/s19me01_coin.rpak" )) // GRX_CURRENCY_EVENT
+		GRX_CURRENCIES[GRX_CURRENCY_EVENT] = ShGRX_RegisterCurrency( $"settings/itemflav/grx_currency/s19me01_coin.rpak" ) // GRX_CURRENCY_EVENT
 
 		foreach ( int currencyIndex, ItemFlavor flav in GRX_CURRENCIES )
 		{

@@ -351,6 +351,25 @@ array function FreeroamWeaponsMenu_GetCategoryWeapons()
 		result.append( crateCat )
 	}
 
+	array akimboWeapons
+	table<string, string> akimboNames = {
+		mp_weapon_semipistol = "#WPN_P2011_AKIMBO",
+		mp_weapon_shotgun_pistol = "#WPN_SHOTGUN_PISTOL_AKIMBO",
+	}
+	foreach ( string baseClass, string nameToken in akimboNames )
+	{
+		table arow
+		arow.classname <- baseClass
+		arow.display <- FreeroamWeaponsMenu_LocalizeOrRaw( nameToken, baseClass + " (akimbo)" )
+		arow.akimbo <- true
+		akimboWeapons.append( arow )
+	}
+	table akimboCat
+	akimboCat.id <- "akimbo"
+	akimboCat.label <- FreeroamWeaponsMenu_LocalizeOrRaw( "#WPN_CATEGORY_AKIMBO", "Akimbo" )
+	akimboCat.weapons <- akimboWeapons
+	result.append( akimboCat )
+
 	// Cafe-only ports (no ItemFlavor). Same freeform give path as *_crate.
 	// Parked: raygun is the only cafe port; restore the row when it is packed.
 	array cafeWeapons

@@ -319,6 +319,7 @@ mp_weapon_pdw_crate
        
                
 	mp_ability_conduit_shield_mines
+	mp_ability_overdrive_tac_slide_gate
        
              
                  
@@ -982,6 +983,7 @@ void function DamageTypes_Init()
 
 		               
 			[ eDamageSourceId.mp_ability_conduit_shield_mines ] = "#ABL_CONDUIT_ULTIMATE",
+			[ eDamageSourceId.mp_ability_overdrive_tac_slide_gate ] = "#ABL_TAC_SLIDE_GATE",
         
 
                   

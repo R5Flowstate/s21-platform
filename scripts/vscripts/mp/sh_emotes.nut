@@ -218,6 +218,8 @@ struct
 const string CMD_REQUEST_EMOTE_START 			= "ClientCallback_RequestEmote"
 const string CMD_REQUEST_EMOTE_STOP 			= "ClientCallback_RequestStopEmote"
 
+const float EMOTE_REQUEST_DEBOUNCE = 1.0
+
 //---------------------
 // Init
 //---------------------
@@ -716,6 +718,9 @@ void function ClientCallback_PlayerPerformPodiumScreenEmote( entity player, int 
 
 	entity performingPlayerEnt = FromEHI( EncodedEHandleToEHI( performingPlayerEHI ) )
 
+	if ( performingPlayerEnt != player )
+		return
+
 	PIN_EmoteUse ( player, ItemFlavor_GetHumanReadableRefForPIN_Slow( GetItemFlavorByGUID( emoteGUID ) ), player.GetOrigin(), EMOTE_PIN_ACTION_BEGIN )
 
 	foreach ( entity otherPlayer in GetPlayerArrayIncludingSpectators() )
@@ -797,7 +802,7 @@ void function ClientCallback_PlayerPerformPodiumScreenFlourish( entity callingPl
 {
 	entity performingPlayerEnt = FromEHI( EncodedEHandleToEHI( performingPlayerEHI ) )
 
-	if ( !performingPlayerEnt )
+	if ( !performingPlayerEnt || performingPlayerEnt != callingPlayer )
 		return
 
 	foreach ( entity otherPlayer in GetPlayerArrayIncludingSpectators() )
@@ -1060,8 +1065,32 @@ bool function Emote_FlavorMatchesCharacter( ItemFlavor flavor, ItemFlavor charac
 	if ( ItemFlavor_GetType( flavor ) != eItemType.character_emote )
 		return true
 
+	asset parentAsset = $""
+	try
+	{
+		parentAsset = GetGlobalSettingsAsset( ItemFlavor_GetAsset( flavor ), "parentItemFlavor" )
+	}
+	catch ( e )
+	{
+		return false
+	}
+
+	if ( parentAsset == $"" || !IsValidItemFlavorSettingsAsset( parentAsset ) )
+		return false
+
 	ItemFlavor ornull owner = CharacterQuip_GetCharacterFlavor( flavor )
 	return owner == null || expect ItemFlavor( owner ) == character
+}
+
+bool function Emote_IsUnlockedForPlay( entity player, ItemFlavor flavor )
+{
+	if ( ItemFlavor_GetType( flavor ) != eItemType.character_emote )
+		return true
+
+	if ( !ItemFlavor_HasQuality( flavor ) || ItemFlavor_GetQuality( flavor, eRarityTier.COMMON ) < eRarityTier.LEGENDARY )
+		return true
+
+	return GRX_IsItemOwnedByPlayer_AllowOutOfDateData( flavor, player )
 }
 
 ItemFlavor function Emote_GetFallbackForCharacter( EHI playerEHI, ItemFlavor character )
@@ -1349,6 +1378,10 @@ void function ClientCallback_RequestEmote( entity player, int flavorGUID )
 	if ( !IsValidItemFlavorGUID( flavorGUID ) )
 		return
 
+	if ( player.p.lastEmoteRequestTime > 0 && Time() - player.p.lastEmoteRequestTime < EMOTE_REQUEST_DEBOUNCE )
+		return
+	player.p.lastEmoteRequestTime = Time()
+
 	ItemFlavor flavor = GetItemFlavorByGUID( flavorGUID )
 	if ( ItemFlavor_GetType( flavor ) != eItemType.character_emote )
 		return
@@ -1415,12 +1448,15 @@ void function RequestPlayerPerformEmote( entity player, ItemFlavor flavor )
 		return
 
 	ItemFlavor character = LoadoutSlot_GetItemFlavor( ToEHI( player ), Loadout_Character() )
-	if ( !Emote_FlavorMatchesCharacter( flavor, character ) )
+	if ( !Emote_FlavorMatchesCharacter( flavor, character ) || !Emote_IsUnlockedForPlay( player, flavor ) )
 	{
 		ItemFlavor fallback = Emote_GetFallbackForCharacter( ToEHI( player ), character )
 		printt( "[EMOTE] " + player.GetPlayerName() + " asked for " + ItemFlavor_GetHumanReadableRef( flavor ) + " while playing " + ItemFlavor_GetHumanReadableRef( character ) + " -- remapped to " + ItemFlavor_GetHumanReadableRef( fallback ) )
 		flavor = fallback
 	}
+
+	if ( !Emote_IsUnlockedForPlay( player, flavor ) )
+		return
 
 	if ( GetPlayerIsEmoting( player ) )
 	{
@@ -1457,7 +1493,7 @@ void function PlayerPerformEmote( entity player, ItemFlavor flavor )
 	EndSignal( player, SIGNAL_END_EMOTE_PERFORMANCE )
 
 	ItemFlavor character = LoadoutSlot_GetItemFlavor( ToEHI( player ), Loadout_Character() )
-	if ( !Emote_FlavorMatchesCharacter( flavor, character ) )
+	if ( !Emote_FlavorMatchesCharacter( flavor, character ) || !Emote_IsUnlockedForPlay( player, flavor ) )
 		return
 
 	string anim3p = CharacterQuip_GetAnim3p( flavor, character )
@@ -1547,7 +1583,7 @@ void function PlayerPerformEmote( entity player, ItemFlavor flavor )
 	const float CAM_FOLLOW_DISTANCE_AT_MAX_FOV = 70
 
 	float cameraHeightOffset = CharacterQuip_GetCameraHeightOffset( flavor )
-	float trackDist = GraphCapped( DEFAULT_FOV, MIN_PLAYER_FOV, MAX_PLAYER_FOV, CAM_FOLLOW_DISTANCE_AT_MIN_FOV, CAM_FOLLOW_DISTANCE_AT_MAX_FOV ) // GetDefaultFOV() not in S3
+	float trackDist = GraphCapped( player.GetDefaultFOV(), MIN_PLAYER_FOV, MAX_PLAYER_FOV, CAM_FOLLOW_DISTANCE_AT_MIN_FOV, CAM_FOLLOW_DISTANCE_AT_MAX_FOV )
 
 	if ( !wasAlreadyInShoulderMode )
 	{
@@ -1698,6 +1734,12 @@ void function EmoteTransitionToLoop( entity player, ItemFlavor flavor, float sta
 
 		if ( flourishSeq == "" )
 			break;
+
+		if ( player.LookupSequence( flourishSeq ) == -1 )
+		{
+			Emote_StopEmoteNow( player )
+			return
+		}
 
 		float flourishTime = DEV_CharacterEmote_GetCustomAnimSequenceTime( flourishSeq )
 		if ( flourishTime < 0 )

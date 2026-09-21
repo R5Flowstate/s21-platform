@@ -14,6 +14,7 @@ global function FS_1v1_ApplyCharacter
 global function FS_1v1_ApplyForcedCharacter
 global function FS_1v1_ApplyPlayerCamo
 global function FS_1v1_ForcedCharacterIndex
+global function FS_1v1_GetForcedCharacter
 global function FS_1v1_ResolveCharacter
 global function FS_1v1_CharacterResetOverride
 global function FS_1v1_OnCharacterSlotChanged
@@ -76,9 +77,26 @@ int function FS_1v1_ForcedCharacterIndex( entity player )
 		chosen = FS_1V1_DEFAULT_LEGEND_INDEX
 
 	if ( IsValid( player ) && FlowState_ForceAdminCharacter() && IsAdmin( player ) )
-		chosen = FlowState_ChosenAdminCharacter()
+	{
+		int adminChosen = FlowState_ChosenAdminCharacter()
+		if ( adminChosen >= 0 && adminChosen < LEGEND_CHARACTER_REFS.len() )
+			chosen = adminChosen
+	}
 
 	return chosen
+}
+
+// flowstateChosenCharacterRef names a legend the index table does not carry.
+ItemFlavor function FS_1v1_GetForcedCharacter( entity player )
+{
+	string ref = strip( GetCurrentPlaylistVarString( "flowstateChosenCharacterRef", "" ) )
+	if ( ref != "" )
+	{
+		if ( IsValidItemFlavorCharacterRef( ref ) )
+			return GetItemFlavorByCharacterRef( ref )
+		printt( "[FS-1V1][LEGEND] flowstateChosenCharacterRef '" + ref + "' is not a registered character ref -- using flowstateChosenCharacter" )
+	}
+	return FS_1v1_GetCharacterByIndex( FS_1v1_ForcedCharacterIndex( player ) )
 }
 
 // Never blocks. LoadoutSlot_WaitForItemFlavor parks until the slot publishes, and
@@ -87,7 +105,7 @@ int function FS_1v1_ForcedCharacterIndex( entity player )
 ItemFlavor function FS_1v1_ResolveCharacter( entity player, int index )
 {
 	if ( FS_1v1_IsForceCharacter() )
-		return FS_1v1_GetCharacterByIndex( FS_1v1_ForcedCharacterIndex( player ) )
+		return FS_1v1_GetForcedCharacter( player )
 
 	if ( ValidLegendRange( index ) )
 		return FS_1v1_GetCharacterByIndex( index )

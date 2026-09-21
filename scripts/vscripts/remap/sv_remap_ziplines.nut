@@ -30,12 +30,20 @@ const asset REMAP_ZIPLINE_MODEL_SUPPORT = $"mdl/industrial/security_fence_post.r
 struct
 {
 	array< entity > entities
+	bool armAvailable = false
+	bool supportAvailable = false
 } file
 
 void function ReMap_PrecacheZiplines()
 {
-	PrecacheModel( REMAP_ZIPLINE_MODEL_ARM )
-	PrecacheModel( REMAP_ZIPLINE_MODEL_SUPPORT )
+	MapEditorCatalog_Init()
+	string mapName = GetMapName()
+	file.armAvailable = MapEditorCatalog_IsModelAvailableOnMap( REMAP_ZIPLINE_MODEL_ARM, mapName )
+	file.supportAvailable = MapEditorCatalog_IsModelAvailableOnMap( REMAP_ZIPLINE_MODEL_SUPPORT, mapName )
+	if ( file.armAvailable )
+		PrecacheModel( REMAP_ZIPLINE_MODEL_ARM )
+	if ( file.supportAvailable )
+		PrecacheModel( REMAP_ZIPLINE_MODEL_SUPPORT )
 }
 
 void function ReMap_ClearZiplines()
@@ -111,6 +119,11 @@ void function ReMap_CreateZipline( vector startOrigin, vector startAngles, vecto
 vector function ReMap_CreateZiplineEndModel( int profile, vector origin, vector angles, float armHeight = 180.0 )
 {
 	vector armAngles = <angles.x, angles.y + 90.0, angles.z>
+	if ( profile == REMAP_ZIPLINE_END_SUPPORT && !file.supportAvailable )
+		profile = REMAP_ZIPLINE_END_ARM
+	if ( profile == REMAP_ZIPLINE_END_ARM && !file.armAvailable )
+		profile = REMAP_ZIPLINE_END_NONE
+
 	if ( profile == REMAP_ZIPLINE_END_ARM )
 	{
 		ReMap_CreateProp( REMAP_ZIPLINE_MODEL_ARM, origin, armAngles )

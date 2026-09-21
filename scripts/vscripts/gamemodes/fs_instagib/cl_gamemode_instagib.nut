@@ -37,6 +37,7 @@ void function Cl_GamemodeInstagib_Init()
 	AddCallback_LocalClientPlayerSpawned( FS_IG_OnLocalPlayerSpawned )
 
 	thread FS_IG_HudBind_THREAD()
+	thread FS_IG_ApplyMovementWhenReady_THREAD()
 	thread FS_IG_WorkInProgressSplash_THREAD()
 
 	printt( "[FS-IG] Cl_GamemodeInstagib_Init" )
@@ -215,4 +216,27 @@ void function ServerCallback_Instagib_Score( int kills, int deaths )
 void function FS_IG_OnLocalPlayerSpawned( entity player )
 {
 	FS_Instagib_ApplyMovement( player )
+}
+
+// First spawn can land before this init registers the callback, or while the
+// local slot / settings block is not ready yet (refused, sticky stays empty).
+void function FS_IG_ApplyMovementWhenReady_THREAD()
+{
+	float deadline = Time() + 30.0
+	entity player = GetLocalClientPlayer()
+	while ( Time() < deadline && ( !IsValid( player ) || !player.IsPlayer() || !IsAlive( player ) ) )
+	{
+		wait 0.5
+		player = GetLocalClientPlayer()
+	}
+
+	if ( !IsValid( player ) || !player.IsPlayer() || !IsAlive( player ) )
+		return
+
+	FS_Instagib_ApplyMovement( player )
+
+	wait 1.0
+
+	if ( IsValid( player ) && player.IsPlayer() && IsAlive( player ) )
+		FS_Instagib_ApplyMovement( player )
 }

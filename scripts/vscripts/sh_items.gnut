@@ -1168,8 +1168,11 @@ string function ItemFlavor_GetRewardShortDescription( ItemFlavor flav )
 			return Localize( "#itemtype_loadscreen_NAME" )
 
 		case eItemType.skydive_emote:
-			ItemFlavor ref = SkydiveEmote_GetCharacterFlavor( flav )
-			return Localize( "#REWARD_SKYDIVE_EMOTE", Localize( ItemFlavor_GetLongName( ref ) ) )
+			ItemFlavor ornull ref = SkydiveEmote_GetCharacterFlavor( flav )
+			if ( ref == null )
+				return Localize( ItemFlavor_GetTypeName( flav ) )
+
+			return Localize( "#REWARD_SKYDIVE_EMOTE", Localize( ItemFlavor_GetLongName( expect ItemFlavor( ref ) ) ) )
 
 		case eItemType.weapon_charm:
 		case eItemType.sticker:
@@ -1662,6 +1665,7 @@ ItemFlavor ornull function RegisterItemFlavorFromSettingsAsset( asset settingsAs
 	if ( settingsAsset == $"" )
 	{
 		Warning( "RegisterItemFlavorFromSettingsAsset: empty settings asset" )
+		printf( "[ITEMFLAV] refused: empty settings asset (typeof=%s)", typeof( settingsAsset ) )
 		return null
 	}
 
@@ -1692,9 +1696,10 @@ ItemFlavor ornull function RegisterItemFlavorFromSettingsAsset( asset settingsAs
 	else
 	{
 		Warning( "RegisterItemFlavorFromSettingsAsset: nonstandard path \"" + assetPath + "\" guid=" + guid + " len=" + assetPath.len() + "\n" + GetStack() )
+		printf( "[ITEMFLAV] nonstandard path \"%s\" typeof=%s len=%d guid=%d", assetPath, typeof( settingsAsset ), assetPath.len(), guid )
 		if ( assetPath.len() < ITEM_FLAV_PREFIX_LEN + ITEM_FLAV_SUFFIX_LEN )
 			return null
-		humanReadableRef = format( "guid_%d", guid )
+		humanReadableRef = "guid_" + replace( string( guid ), "-", "n" )
 	}
 
 	Assert( !fileLevel.isItemRegistrationFinished, "Attempted to register item flavor after registration period ended (" + assetPath + ")" )
@@ -1709,6 +1714,7 @@ ItemFlavor ornull function RegisterItemFlavorFromSettingsAsset( asset settingsAs
 	if ( !(itemType in eItemType) )
 	{
 		Warning( "RegisterItemFlavorFromSettingsAsset: unknown itemType \"" + itemType + "\" path=\"" + assetPath + "\" guid=" + guid + "\n" + GetStack() )
+		printf( "[ITEMFLAV] unknown itemType \"%s\" path=\"%s\" guid=%d", itemType, assetPath, guid )
 		return null
 	}
 	flavor.typeIndex = eItemType[itemType]
@@ -1720,6 +1726,7 @@ ItemFlavor ornull function RegisterItemFlavorFromSettingsAsset( asset settingsAs
 			printt( "Item flavor disabled by dev-only playlist vars: " + humanReadableRef + " | " + guidString )
 		#else
 			Warning( "Item flavor disabled by dev-only playlist vars: " + humanReadableRef + " | " + guidString )
+			printf( "[ITEMFLAV] playlist-disabled %s | %s", humanReadableRef, guidString )
 		#endif
 
 		#if DEBUG_ITEM_FLAVOR_REGISTRATION

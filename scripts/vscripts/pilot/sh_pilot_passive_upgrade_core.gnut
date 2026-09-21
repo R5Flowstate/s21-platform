@@ -784,6 +784,10 @@ void function UpgradeCore_OnPlayerClassChanged( entity ent )
 	if( ent in file.playerToCharacterClass )
 	{
 		ItemFlavor characterItemFlavor = LoadoutSlot_GetItemFlavor( ToEHI( ent ), Loadout_Character() )
+		printt( format( "[UPGRADE-SV] %s class changed: last=%s slot=%s settings=%s selected=0x%X",
+			ent.GetPlayerName(), ItemFlavor_GetHumanReadableRef( file.playerToCharacterClass[ent] ),
+			ItemFlavor_GetHumanReadableRef( characterItemFlavor ), string( ent.GetPlayerSettings() ),
+			ent.GetPlayerNetInt( UPGRADE_CORE_SELECTED_UPGRADES ) ) )
 		if( file.playerToCharacterClass[ent] != characterItemFlavor )
 		{
 			ent.SetPlayerNetInt( UPGRADE_CORE_SELECTED_UPGRADES, 0 )
@@ -2226,6 +2230,10 @@ void function Server_UpgradeCore_HandleSelection( entity player, int upgradeInde
 	int selectedUpgrades = player.GetPlayerNetInt( UPGRADE_CORE_SELECTED_UPGRADES )
 	selectedUpgrades = SetBitFlag( selectedUpgrades, ( 1 << upgradeIndex ) )
 	player.SetPlayerNetInt( UPGRADE_CORE_SELECTED_UPGRADES, selectedUpgrades )
+	printt( format( "[UPGRADE-SV] %s selected index=%d passive=%d mod='%s' slot=%s settings=%s selected=0x%X",
+		player.GetPlayerName(), upgradeIndex, upgrade.passiveIndex, upgrade.passiveWeaponMod,
+		ItemFlavor_GetHumanReadableRef( file.playerToCharacterClass[player] ),
+		string( player.GetPlayerSettings() ), selectedUpgrades ) )
 	Server_UpgradeCore_ApplyUpgrade( player, upgrade, false )
 	Remote_CallFunction_Replay( player, FUNCNAME_ServerToClient_AcknowledgeUpgradeSelection, upgradeIndex )
 	LiveAPI_OnUpgradeCoreSelected( player, upgradeIndex )

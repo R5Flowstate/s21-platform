@@ -19,6 +19,9 @@
 global function ReMap_ClearProps
 global function ReMap_ConfigureEntProps
 global function ReMap_CreateProp
+global function ReMap_LiveProp
+global function ReMap_LiveMove
+global function ReMap_LiveDelete
 global function ReMap_CreateDoor
 global function ReMap_OpenEntDoorAtSpawn
 global function ReMap_CreateLootBin
@@ -105,6 +108,7 @@ struct
 	int nextTextInfoPanelId = 1000000
 	int nextTextInfoPanelDelivery = 0
 	bool textInfoPanelCallbackRegistered = false
+	table< string, entity > liveProps
 } file
 
 void function ReMap_ConfigureEntProps()
@@ -130,6 +134,7 @@ void function ReMap_ClearProps()
 	}
 
 	file.props.clear()
+	file.liveProps.clear()
 	file.jumpPadDoubleJump.clear()
 	file.respawnHeals.clear()
 }
@@ -226,6 +231,12 @@ entity function ReMap_CreateWindowHint( vector origin, float halfHeight, float h
 
 entity function ReMap_CreateProp( asset model, vector origin, vector angles, bool allowMantle = true, float fadeDistance = 50000.0, int realmId = -1, float scale = 1.0 )
 {
+	if ( !ModelIsPrecached( model ) && !MapEdit_PrecacheModel( model ) )
+	{
+		Warning( "ReMap_CreateProp: could not precache " + string( model ) )
+		return null
+	}
+
 	entity prop = CreatePropDynamic( model, origin, angles, SOLID_VPHYSICS, fadeDistance )
 	prop.kv.fadedist = fadeDistance
 	prop.kv.rendermode = 0
@@ -246,6 +257,36 @@ entity function ReMap_CreateProp( asset model, vector origin, vector angles, boo
 
 	file.props.append( prop )
 	return prop
+}
+
+entity function ReMap_LiveProp( string liveId, asset model, vector origin, vector angles, bool allowMantle = true, float scale = 1.0 )
+{
+	ReMap_LiveDelete( liveId )
+	entity prop = ReMap_CreateProp( model, origin, angles, allowMantle, 50000.0, -1, scale )
+	if ( prop != null )
+		file.liveProps[ liveId ] <- prop
+	return prop
+}
+
+void function ReMap_LiveMove( string liveId, vector origin, vector angles )
+{
+	if ( !( liveId in file.liveProps ) || !IsValid( file.liveProps[ liveId ] ) )
+		return
+	file.liveProps[ liveId ].SetOrigin( origin )
+	file.liveProps[ liveId ].SetAngles( angles )
+}
+
+void function ReMap_LiveDelete( string liveId )
+{
+	if ( !( liveId in file.liveProps ) )
+		return
+	entity prop = file.liveProps[ liveId ]
+	delete file.liveProps[ liveId ]
+	if ( IsValid( prop ) )
+	{
+		file.props.fastremovebyvalue( prop )
+		prop.Destroy()
+	}
 }
 
 void function ReMap_CreateDoor( vector origin, vector angles, int type = REMAP_DOOR_SINGLE, bool gold = false, bool spawnOpen = false )

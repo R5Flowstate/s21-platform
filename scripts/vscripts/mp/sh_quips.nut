@@ -47,6 +47,7 @@ global function ItemFlavor_CanEquipToWheel
 
 #if SERVER
 const float PLANE_QUIP_DEBOUNCE = 5.0
+const float QUIP_BROADCAST_DEBOUNCE = 1.0
 #endif
 
 global const int MAX_QUIPS_EQUIPPED = 8
@@ -209,7 +210,14 @@ string function CharacterQuip_GetAliasSubName( ItemFlavor flavor )
 {
 	AssertEmoteIsValid( flavor )
 
-	return GetGlobalSettingsString( ItemFlavor_GetAsset( flavor ), "quickchatAliasSubName" )
+	try
+	{
+		return GetGlobalSettingsString( ItemFlavor_GetAsset( flavor ), "quickchatAliasSubName" )
+	}
+	catch ( e )
+	{
+		return ""
+	}
 }
 
 bool function CharacterQuip_IsTheEmpty( ItemFlavor flavor )
@@ -371,7 +379,15 @@ string function CharacterQuip_GetAnim3p( ItemFlavor quip, ItemFlavor character )
 	if ( ItemFlavor_GetType( quip ) != eItemType.character_emote )
 		return ""
 
-	string anim3p = GetGlobalSettingsString( ItemFlavor_GetAsset( quip ), ANIM_3P_KEY )
+	string anim3p = ""
+	try
+	{
+		anim3p = GetGlobalSettingsString( ItemFlavor_GetAsset( quip ), ANIM_3P_KEY )
+	}
+	catch ( e )
+	{
+		return ""
+	}
 
 	foreach ( var overridePair in IterateSettingsAssetArray( ItemFlavor_GetAsset( quip ), OVERRIDE_ANIMS_ARRAY_KEY ) )
 	{
@@ -448,7 +464,14 @@ bool function CharacterQuip_UseHoloProjector( ItemFlavor flavor )
 {
 	AssertEmoteIsValid( flavor )
 
-	return ( GetGlobalSettingsBool( ItemFlavor_GetAsset( flavor ), "useHoloProjector" ) )
+	try
+	{
+		return ( GetGlobalSettingsBool( ItemFlavor_GetAsset( flavor ), "useHoloProjector" ) )
+	}
+	catch ( e )
+	{
+		return false
+	}
 }
 
 void function AssertEmoteIsValid( ItemFlavor flavor )
@@ -478,11 +501,22 @@ void function ClientCallback_BroadcastQuip( entity player, int quipGUID )
 	if ( itemType != eItemType.character_emote && itemType != eItemType.emote_icon )
 		return
 
+	if ( player.p.lastQuipBroadcastTime > 0 && Time() - player.p.lastQuipBroadcastTime < QUIP_BROADCAST_DEBOUNCE )
+		return
+	player.p.lastQuipBroadcastTime = Time()
+
 	thread BroadcastQuip( player, quip )
 }
 
 void function ClientCallback_BroadcastFavoredQuip( entity player, int quip )
 {
+	if ( !IsAlive( player ) )
+		return
+
+	if ( player.p.lastQuipBroadcastTime > 0 && Time() - player.p.lastQuipBroadcastTime < QUIP_BROADCAST_DEBOUNCE )
+		return
+	player.p.lastQuipBroadcastTime = Time()
+
 	thread BroadcastFavoredQuipAtIndex( player, quip )
 }
 
@@ -508,7 +542,7 @@ void function BroadcastFavoredQuipAtIndex( entity player, int index )
 	if ( !IsAlive( player ) )
 		return
 
-	if ( index >= MAX_FAVORED_QUIPS )
+	if ( index < 0 || index >= MAX_FAVORED_QUIPS )
 		return
 
 	EHI playerEHI = ToEHI( player )
@@ -659,7 +693,18 @@ ItemFlavor ornull function CharacterQuip_GetCharacterFlavor( ItemFlavor item )
 	if ( fileLevel.universalQuips.contains( item ) )
 		return null
 
-	Assert( GetGlobalSettingsAsset( ItemFlavor_GetAsset( item ), "parentItemFlavor" ) != "" )
+	asset parentAsset = $""
+	try
+	{
+		parentAsset = GetGlobalSettingsAsset( ItemFlavor_GetAsset( item ), "parentItemFlavor" )
+	}
+	catch ( e )
+	{
+		return null
+	}
 
-	return GetItemFlavorByAsset( GetGlobalSettingsAsset( ItemFlavor_GetAsset( item ), "parentItemFlavor" ) )
+	if ( parentAsset == $"" || !IsValidItemFlavorSettingsAsset( parentAsset ) )
+		return null
+
+	return GetItemFlavorByAsset( parentAsset )
 }

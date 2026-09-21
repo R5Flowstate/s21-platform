@@ -143,6 +143,9 @@
 	"update_player_last_fire_time" "0"
 	"offhand_match_player_skin" "1"
 
+	"grenade_drop_to_ground_on_bounce" "1"
+	"grenade_drop_to_ground_bounce_vel_frac" "0.8"
+	"grenade_drop_velocity" "1650"
 	"Mods"
 	{
 
@@ -162,12 +165,6 @@
 			"ammo_clip_size" "*2"
 			"ammo_default_total" "*2"
 			"ammo_stockpile_max" "*2"
-
-		}
-
-		"copycat_mod"
-		{
-			"weapon_type_flags" "WPT_SURVIVAL"
 
 		}
 
@@ -193,6 +190,39 @@
 		{
 			"regen_ammo_refill_rate" "*5.0"
 
+		}
+
+		"arenas_tac_max_cooldown"
+		{
+			"ammo_regen_takes_from_stockpile" "1"
+			"ammo_stockpile_max" "10000"
+		}
+
+		"survival_armor_cooldown_v2_mod"
+		{
+			"regen_ammo_refill_rate" "*1.33"
+		}
+
+		"matchmod_bonus_speed"
+		{
+			"move_speed_modifier" "*2.0"
+			"reload_time" "*0.50"
+			"reload_time_late1" "*0.50"
+			"reload_time_late2" "*0.50"
+			"reload_time_late3" "*0.50"
+			"reload_time_late4" "*0.50"
+			"reload_time_late5" "*0.50"
+			"reloadempty_time" "*0.50"
+			"reloadempty_time_late1" "*0.50"
+			"reloadempty_time_late2" "*0.50"
+			"reloadempty_time_late3" "*0.50"
+			"reloadempty_time_late4" "*0.50"
+			"reloadempty_time_late5" "*0.50"
+			"charge_cooldown_time" "*0.50"
+			"charge_overheat_cooldown_time" "*0.50"
+			"charge_overheat_cooldown_time_late1" "*0.50"
+			"charge_overheat_cooldown_time_late2" "*0.50"
+			"charge_overheat_cooldown_time_late3" "*0.50"
 		}
 	}
 }

@@ -60,6 +60,7 @@ global function ReconScan_ResolveArmorTiers
 
 global function DumpEntityHighlight
 global function AddCallback_HighlightContextChanged
+global function AddCallback_HighlightFlagsUpdated
 global function Highlight_SetAllianceProximityDrawFunc
 
 // Pure spectator
@@ -125,11 +126,18 @@ struct
 	bool                                        registeringHighlights = false
 	int                                         colorblindMode
 	array<void functionref( entity, int, int )> highlightChangedCallbacks
+	array<void functionref( entity, int )>      highlightFlagsUpdatedCallbacks
 } file
 
 void function AddCallback_HighlightContextChanged( void functionref( entity, int, int ) callbackFunc )
 {
 	file.highlightChangedCallbacks.append( callbackFunc )
+}
+
+// Runs after every flag/param reset, so a param override placed here survives.
+void function AddCallback_HighlightFlagsUpdated( void functionref( entity, int ) callbackFunc )
+{
+	file.highlightFlagsUpdatedCallbacks.append( callbackFunc )
 }
 
 void function Highlight_Init()
@@ -608,6 +616,12 @@ void function ManageHighlightEntity( entity ent, float distanceSqr = 0.0 )
 	}
 
 	ClHighlight_UpdateHighlightFlags( ent, result.contextId, result.genericType )
+
+	if ( result.contextId != HIGHLIGHT_INVALID_ID )
+	{
+		foreach ( callbackFunc in file.highlightFlagsUpdatedCallbacks )
+			callbackFunc( ent, result.contextId )
+	}
 }
 
 void function ClHighlight_UpdateHighlightFlags( entity ent, int contextId, int type )

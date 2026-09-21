@@ -280,7 +280,7 @@
                 labelText				"CHARACTER"
             }
 
-            SwitchLegend
+            SwitchLegendGroup
             {
                 ControlName				RuiButton
                 InheritProperties		SwitchButton
@@ -291,6 +291,22 @@
                     "..."	0
                 }
                 pin_to_sibling			CharacterHeader
+                pin_corner_to_sibling	TOP_LEFT
+                pin_to_sibling_corner	BOTTOM_LEFT
+                childGroupAlways        MultiChoiceButtonAlways
+            }
+
+            SwitchLegend
+            {
+                ControlName				RuiButton
+                InheritProperties		SwitchButton
+                className               "SettingScrollSizer"
+                style					DialogListButton
+                list
+                {
+                    "..."	0
+                }
+                pin_to_sibling			SwitchLegendGroup
                 pin_corner_to_sibling	TOP_LEFT
                 pin_to_sibling_corner	BOTTOM_LEFT
                 childGroupAlways        MultiChoiceButtonAlways

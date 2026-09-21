@@ -59,7 +59,7 @@ void function LabPlayer_BindRows()
 		"SwitchGodMode", "SwitchNoClip", "SwitchInfiniteAmmo", "SwitchInfiniteAbilities",
 		"SwitchAutoRespawn", "ButtonRecharge", "ButtonRespawnMe", "ButtonKillSelf",
 		"SwitchThirdPerson", "SwitchHud", "SwitchSkyboxView",
-		"SwitchLegend", "SwitchBodyModel", "ButtonAlterLoadout"
+		"SwitchLegendGroup", "SwitchLegend", "SwitchBodyModel", "ButtonAlterLoadout"
 	]
 
 	foreach ( string name in names )
@@ -86,6 +86,8 @@ void function LabPlayer_BindRows()
 	Lab_SetupRow( LabPlayer_Row( "SwitchHud" ), "#LAB_PLAYER_HUDVIS", "#LAB_PLAYER_HUDVIS_DESC" )
 	Lab_SetupRow( LabPlayer_Row( "SwitchSkyboxView" ), "#LAB_PLAYER_SKYBOX",
 		"#LAB_PLAYER_SKYBOX_DESC" )
+	Lab_SetupRow( LabPlayer_Row( "SwitchLegendGroup" ), "#LAB_PLAYER_LEGENDGROUP",
+		"#LAB_PLAYER_LEGENDGROUP_DESC" )
 	Lab_SetupRow( LabPlayer_Row( "SwitchLegend" ), "#LAB_PLAYER_LEGEND",
 		"#LAB_PLAYER_LEGEND_DESC", true )
 	Lab_SetupRow( LabPlayer_Row( "SwitchBodyModel" ), "#LAB_PLAYER_BODYMODEL",
@@ -103,6 +105,7 @@ void function LabPlayer_BindRows()
 	AddButtonEventHandler( LabPlayer_Row( "SwitchThirdPerson" ), UIE_CHANGE, LabPlayer_OnThirdPerson )
 	AddButtonEventHandler( LabPlayer_Row( "SwitchHud" ), UIE_CHANGE, LabPlayer_OnHud )
 	AddButtonEventHandler( LabPlayer_Row( "SwitchSkyboxView" ), UIE_CHANGE, LabPlayer_OnSkyboxView )
+	AddButtonEventHandler( LabPlayer_Row( "SwitchLegendGroup" ), UIE_CHANGE, LabPlayer_OnLegendGroup )
 	AddButtonEventHandler( LabPlayer_Row( "SwitchLegend" ), UIE_CHANGE, LabPlayer_OnLegend )
 	AddButtonEventHandler( LabPlayer_Row( "SwitchBodyModel" ), UIE_CHANGE, LabPlayer_OnBodyModel )
 
@@ -143,6 +146,57 @@ void function LabPlayer_BuildDynamicLists()
 {
 	LabPlayer_BuildBodyModelList()
 
+	LabPlayer_BuildLegendGroupList()
+	LabPlayer_BuildLegendListForGroup( LabPlayer_DefaultLegendGroup() )
+}
+
+// The list popup shows a handful of rows; legends are grouped by class so no
+// single list overflows.
+int function LabPlayer_DefaultLegendGroup()
+{
+	for ( int role = 0; role < eCharacterClassRole._COUNT; role++ )
+	{
+		string title = ""
+		try
+		{
+			title = Localize( CharacterClass_GetRoleTitle( role ) )
+		}
+		catch ( eTitle )
+		{
+		}
+		if ( title != "" )
+			return role
+	}
+	return 0
+}
+
+void function LabPlayer_BuildLegendGroupList()
+{
+	var button = LabPlayer_Row( "SwitchLegendGroup" )
+	Hud_DialogList_ClearList( button )
+	int first = -1
+	for ( int role = 0; role < eCharacterClassRole._COUNT; role++ )
+	{
+		string title = ""
+		try
+		{
+			title = Localize( CharacterClass_GetRoleTitle( role ) )
+		}
+		catch ( eTitle )
+		{
+		}
+		if ( title == "" )
+			continue
+		if ( first < 0 )
+			first = role
+		Hud_DialogList_AddListItem( button, title, string( role ) )
+	}
+	if ( first >= 0 )
+		Hud_SetDialogListSelectionValue( button, string( first ) )
+}
+
+void function LabPlayer_BuildLegendListForGroup( int role )
+{
 	var button = LabPlayer_Row( "SwitchLegend" )
 	Hud_DialogList_ClearList( button )
 	file.legendRefs.clear()
@@ -152,6 +206,16 @@ void function LabPlayer_BuildDynamicLists()
 	{
 		string ref = ItemFlavor_GetCharacterRef( character )
 		if ( HIDDEN_CHARACTER_REFS.len() > 0 && HIDDEN_CHARACTER_REFS.contains( ref ) )
+			continue
+		int charRole = -1
+		try
+		{
+			charRole = CharacterClass_GetRole( character )
+		}
+		catch ( eRole )
+		{
+		}
+		if ( charRole != role )
 			continue
 
 		string label = Localize( ItemFlavor_GetLongName( character ) )
@@ -164,6 +228,21 @@ void function LabPlayer_BuildDynamicLists()
 
 	if ( file.legendRefs.len() == 0 )
 		Hud_DialogList_AddListItem( button, LAB_LEGEND_NONE, "0" )
+}
+
+void function LabPlayer_OnLegendGroup( var button )
+{
+	int role = LabPlayer_DefaultLegendGroup()
+	try
+	{
+		role = int( Hud_GetDialogListSelectionValue( button ) )
+	}
+	catch ( eInt )
+	{
+	}
+	file.applyingValues = true
+	LabPlayer_BuildLegendListForGroup( role )
+	file.applyingValues = false
 }
 
 void function LabPlayer_BuildBodyModelList()

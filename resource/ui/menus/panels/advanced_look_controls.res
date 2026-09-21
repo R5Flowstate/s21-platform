@@ -538,6 +538,7 @@
         className               "SettingScrollSizer"
         style					DialogListButton
         navUp					SwchGamepadAimAssistAdsLowPowerScope
+        navDown					SldGamepadAimAssistStrength
         ConVar					"gamepad_aim_assist_ads_high_power_scopes"
         list
         {
@@ -548,6 +549,61 @@
         pin_corner_to_sibling	TOP_LEFT
         pin_to_sibling_corner	BOTTOM_LEFT
         childGroupAlways        ChoiceButtonAlways
+    }
+	CustomAimAssistStrengthHeader
+	{
+		ControlName				ImagePanel
+		InheritProperties		SubheaderBackgroundWide
+        className               "SettingScrollSizer"
+		ypos					32
+        pin_to_sibling			SwchGamepadAimAssistAdsHighPowerScope
+        pin_corner_to_sibling	TOP_LEFT
+        pin_to_sibling_corner	BOTTOM_LEFT
+        use_pin_locale_direction    1
+	}
+	CustomAimAssistStrengthHeaderText
+	{
+		ControlName				Label
+		InheritProperties		SubheaderText
+		pin_to_sibling			CustomAimAssistStrengthHeader
+		pin_corner_to_sibling	LEFT
+		pin_to_sibling_corner	LEFT
+        use_pin_locale_direction    1
+		labelText				"#GAMEPADCUSTOM_ASSIST_STRENGTH_HEADER"
+	}
+    SldGamepadAimAssistStrength
+    {
+        ControlName				SliderControl
+        InheritProperties		SliderControl
+        className               "SettingScrollSizer"
+        pin_to_sibling			CustomAimAssistStrengthHeader
+        pin_corner_to_sibling	TOP_LEFT
+        pin_to_sibling_corner	BOTTOM_LEFT
+        use_pin_locale_direction    1
+        navUp					SwchGamepadAimAssistAdsHighPowerScope
+        navDown					SldGamepadAimAssistStrengthAds
+        conCommand				"gamepad_custom_assist_strength"
+        minValue				0.0
+        maxValue				2.0
+        stepSize				0.05
+        inverseFill             0
+        showLabel               3
+    }
+    SldGamepadAimAssistStrengthAds
+    {
+        ControlName				SliderControl
+        InheritProperties		SliderControl
+        className               "SettingScrollSizer"
+        pin_to_sibling			SldGamepadAimAssistStrength
+        pin_corner_to_sibling	TOP_LEFT
+        pin_to_sibling_corner	BOTTOM_LEFT
+        navUp					SldGamepadAimAssistStrength
+        conCommand				"gamepad_custom_assist_strength_ads"
+        minValue				0.0
+        maxValue				2.0
+        stepSize				0.05
+        inverseFill             0
+        showLabel               3
     }
     ///////////////////////////////////////
 	// Bottom Panel
@@ -563,7 +619,7 @@
 		visible					1
 		enabled 				0
 
-        pin_to_sibling			SwchGamepadAimAssistAdsHighPowerScope
+        pin_to_sibling			SldGamepadAimAssistStrengthAds
         pin_corner_to_sibling	TOP_LEFT
         pin_to_sibling_corner	TOP_LEFT
 	}

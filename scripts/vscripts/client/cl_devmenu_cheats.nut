@@ -26,6 +26,12 @@ void function DevHud_ClientSet( bool hidden )
 {
 	file.hudHidden = hidden
 	DevHud_ClientRegister()
+
+	entity player = GetLocalClientPlayer()
+	if ( IsValid( player ) )
+		player.ClientCommand( "dev_hud " + ( hidden ? "1" : "0" ) )
+
+	Obituary_SetEnabled( !hidden )
 }
 
 void function DevHud_ClientOnUIScriptReset()

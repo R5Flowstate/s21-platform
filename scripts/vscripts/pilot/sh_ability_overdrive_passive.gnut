@@ -1,0 +1,221 @@
+global function ShPassiveOverdrive_Init
+
+#if CLIENT
+global function ServerToClient_DisplaySlideReloadRui
+#endif
+
+global const string OVERDRIVE_SLIDE_CONTROL_PASSIVE		= "overdrive_slide_control_passive"
+const string OVERDRIVE_SLIDE_AMMO_SUPPLY_PASSIVE	= "ammo_direct_from_supply"
+
+const string NEW_SLIDE_START	= "passive_overdrive_new_slide_start"
+const string SLIDE_STOPPED		= "passive_overdrive_detect_stop"
+
+
+struct
+{
+#if SERVER
+	table<entity, float> slideStartTimes = {}
+	table<entity, float> slideStopTimes = {}
+	table<entity, int> slideShotBudget = {}
+#endif
+} file
+
+struct
+{
+	float min_speed_threshold = 200.0
+	float sliding_shooter_extra_bullets_frac = 0.5
+	float sliding_shooter_buffer_window = 1.0
+} tuning
+
+void function ShPassiveOverdrive_Init()
+{
+
+	RegisterSignal( NEW_SLIDE_START )
+	RegisterSignal( SLIDE_STOPPED )
+
+	Remote_RegisterClientFunction( "ServerToClient_DisplaySlideReloadRui", "entity" )
+
+	AddCallback_OnPassiveChanged( ePassives.PAS_OVERDRIVE, PassiveOverdrive_OnPassiveChanged )
+	AddCallback_OnPassiveChanged( ePassives.PAS_PAS_UPGRADE_ONE, PassiveOverdrive_OnPassiveUpgradeOneChanged )
+
+#if SERVER
+	AddCallback_OnWeaponAttack( PassiveOverdrive_OnWeaponAttack )
+#endif
+
+#if CLIENT
+	AddCallback_OnPrimaryWeaponStatusUpdate( OnPrimaryWeaponStatusUpdate )
+#endif
+}
+
+void function PassiveOverdrive_OnPassiveChanged( entity player, int passive, bool didHave, bool nowHas )
+{
+#if SERVER
+	if ( !IsValid( player ) )
+		return
+
+	if ( nowHas )
+	{
+		array<string> mods = player.GetPlayerSettingsMods()
+		if ( !mods.contains( OVERDRIVE_SLIDE_CONTROL_PASSIVE ) )
+			GivePlayerSettingsMods( player, [ OVERDRIVE_SLIDE_CONTROL_PASSIVE ] )
+		AddPlayerMovementEventCallback( player, ePlayerMovementEvents.BEGIN_SLIDE, PassiveOverdrive_OnSlideStart )
+	}
+	else if ( didHave )
+	{
+		TakePlayerSettingsMods( player, [ OVERDRIVE_SLIDE_CONTROL_PASSIVE ] )
+		if ( HasPlayerMovementEventCallback( player, ePlayerMovementEvents.BEGIN_SLIDE, PassiveOverdrive_OnSlideStart ) )
+			RemovePlayerMovementEventCallback( player, ePlayerMovementEvents.BEGIN_SLIDE, PassiveOverdrive_OnSlideStart )
+		if ( player in file.slideStartTimes )
+			delete file.slideStartTimes[ player ]
+		if ( player in file.slideStopTimes )
+			delete file.slideStopTimes[ player ]
+		if ( player in file.slideShotBudget )
+			delete file.slideShotBudget[ player ]
+	}
+#endif
+
+#if CLIENT
+	if ( !IsValid( GetLocalClientPlayer() ) || player != GetLocalClientPlayer() )
+		return
+#endif
+}
+
+void function PassiveOverdrive_OnPassiveUpgradeOneChanged( entity player, int passive, bool didHave, bool nowHas )
+{
+	if ( !DoesPlayerHaveOverdrivePassive( player ) )
+		return
+
+	if ( nowHas )
+	{
+#if CLIENT
+		if( player == GetLocalClientPlayer()  )
+		{
+			OnPrimaryWeaponStatusUpdate( player.GetActiveWeapon( eActiveInventorySlot.mainHand ), ClWeaponStatus_GetWeaponHudRui( player ) )
+		}
+#endif
+	}
+	if ( didHave )
+	{
+
+	}
+}
+
+#if SERVER
+void function PassiveOverdrive_OnSlideStart( entity player )
+{
+	if ( !IsValid( player ) )
+		return
+
+	file.slideStartTimes[ player ] <- Time()
+	if ( player in file.slideShotBudget )
+		delete file.slideShotBudget[ player ]
+	player.Signal( NEW_SLIDE_START )
+	thread PassiveOverdrive_WatchSlideEnd( player )
+}
+
+void function PassiveOverdrive_WatchSlideEnd( entity player )
+{
+	player.EndSignal( "OnDestroy" )
+	player.EndSignal( "OnDeath" )
+	player.EndSignal( NEW_SLIDE_START )
+
+	while ( player.IsSliding() )
+		WaitFrame()
+
+	file.slideStopTimes[ player ] <- Time()
+	player.Signal( SLIDE_STOPPED )
+}
+
+bool function PassiveOverdrive_IsSlideShooting( entity player )
+{
+	if ( player.IsSliding() )
+		return Length2D( player.GetVelocity() ) > tuning.min_speed_threshold
+
+	return player in file.slideStopTimes && Time() - file.slideStopTimes[ player ] <= tuning.sliding_shooter_buffer_window
+}
+
+void function PassiveOverdrive_OnWeaponAttack( entity player, entity weapon, string weaponName, int ammoUsed, vector attackOrigin, vector attackDir )
+{
+	if ( !IsValid( player ) || !IsValid( weapon ) )
+		return
+
+	if ( !player.IsPlayer() || !IsAlive( player ) )
+		return
+
+	if ( !DoesPlayerHaveOverdrivePassive( player ) )
+		return
+
+	if ( !PlayerHasPassive( player, ePassives.PAS_PAS_UPGRADE_ONE ) )
+		return
+
+	if ( !PassiveOverdrive_IsSlideShooting( player ) )
+		return
+
+	if ( !IsBitFlagSet( weapon.GetWeaponTypeFlags(), WPT_PRIMARY ) )
+		return
+
+	if ( !weapon.UsesClipsForAmmo() )
+		return
+
+	if ( !(player in file.slideShotBudget) )
+		file.slideShotBudget[ player ] <- int( ceil( float( weapon.GetWeaponPrimaryClipCountMax() ) * tuning.sliding_shooter_extra_bullets_frac ) )
+
+	int refund = minint( ammoUsed, file.slideShotBudget[ player ] )
+	if ( refund <= 0 )
+		return
+	file.slideShotBudget[ player ] -= refund
+
+	int source = weapon.GetActiveAmmoSource()
+	int stockpile = weapon.GetWeaponPrimaryAmmoCount( source )
+	if ( stockpile <= 0 )
+		return
+
+	int take = minint( refund, stockpile )
+	weapon.SetWeaponPrimaryAmmoCount( source, stockpile - take )
+	weapon.SetWeaponPrimaryClipCount( weapon.GetWeaponPrimaryClipCount() + take )
+
+	Remote_CallFunction_Replay( player, "ServerToClient_DisplaySlideReloadRui", weapon )
+}
+#endif
+
+#if CLIENT
+void function ServerToClient_DisplaySlideReloadRui( entity weapon )
+{
+	entity player = GetLocalViewPlayer()
+
+	if ( IsValid( weapon ) && player == GetLocalClientPlayer() )
+		OnPrimaryWeaponStatusUpdate( player.GetActiveWeapon( eActiveInventorySlot.mainHand ), ClWeaponStatus_GetWeaponHudRui( player ) )
+}
+
+
+void function OnPrimaryWeaponStatusUpdate( entity selectedWeapon, var weaponRui )
+{
+	if ( !IsValid( selectedWeapon ) )
+		return
+
+	entity player = GetLocalViewPlayer()
+
+	if ( !DoesPlayerHaveOverdrivePassive( player ) )
+		return
+
+	if ( !PlayerHasPassive( player, ePassives.PAS_PAS_UPGRADE_ONE ) )
+		return
+
+	entity weaponInSlot0	= player.GetNormalWeapon( WEAPON_INVENTORY_SLOT_PRIMARY_0 )
+	entity weaponInSlot1 	= player.GetNormalWeapon( WEAPON_INVENTORY_SLOT_PRIMARY_1 )
+	bool noWeapon        	= !IsValid( weaponInSlot0 ) && !IsValid( weaponInSlot1 )
+
+	if ( !noWeapon )
+	{
+		RuiSetBool( weaponRui, "showPassiveBonusIconWeapon", true )
+		RuiSetImage( weaponRui, "passiveBonusIconWeapon", $"rui/hud/character_abilities/overdrive_passive_dongle" )
+	}
+	else
+	{
+		{
+			RuiSetBool( weaponRui, "showPassiveBonusIconWeapon", false )
+			RuiSetImage( weaponRui, "passiveBonusIconWeapon", $"" )
+		}
+	}
+}
+#endif

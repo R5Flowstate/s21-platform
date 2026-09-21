@@ -5,6 +5,7 @@
       
 global function OnWeaponPrimaryAttack_weapon_shotgun_pistol
 global function OnProjectileCollision_weapon_shotgun_pistol
+global function OnWeaponAkimboStateChanged_weapon_shotgun_pistol
 
 #if SERVER
 global function OnWeaponNpcPrimaryAttack_weapon_shotgun_pistol
@@ -26,6 +27,17 @@ global function OnWeaponNpcPrimaryAttack_weapon_shotgun_pistol
 
  
       
+
+void function OnWeaponAkimboStateChanged_weapon_shotgun_pistol( entity weapon, entity player, int currentAkimboState )
+{
+	#if CLIENT
+		if ( player != GetLocalViewPlayer() || weapon.IsAkimboAlthand() )
+			return
+
+		PrimaryWeapon_UpdateFireSelectHUD( weapon )
+		OnPrimaryWeaponStatusUpdate_Akimbo( weapon, GetWeaponRui() )
+	#endif
+}
 
 var function OnWeaponPrimaryAttack_weapon_shotgun_pistol( entity weapon, WeaponPrimaryAttackParams attackParams )
 {

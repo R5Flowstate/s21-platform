@@ -1,0 +1,796 @@
+// Movement recorder HUD: one fullscreen RUI on the left rail. Header, status
+// line (recording readout / saved toast), key rows, playback rows.
+
+global function MovementRecorder_HUD_Init
+global function MRec_CL_RecState
+global function MRec_CL_RecSaved
+global function MRec_CL_RecDiscarded
+global function MRec_CL_Bot
+global function MRec_CL_SyncSlotLoad
+global function MRecHud_OnSlotsSynced
+global function MRecHud_SlotLoadout
+global function MRecHud_RefreshKeys
+
+const float MREC_HUD_TOAST_HOLD = 4.0
+const float MREC_HUD_TICK = 0.1
+const int MREC_HUD_INPUT_CAP = 9000
+const float MREC_HUD_INPUT_RATE = 20.0
+const int MREC_HUD_ROWS = 8
+const float MREC_HUD_ROW_H = 28.0
+const float MREC_HUD_DONE_LINGER = 3.0
+const float MREC_HUD_DEAD_LINGER = 2.0
+
+// Panel geometry mirrors the RUI: fixed top, the bottom edge follows the content.
+const float MREC_PANEL_X = 48.0
+const float MREC_PANEL_Y = 312.0
+const float MREC_PANEL_W = 400.0
+const float MREC_PANEL_KEYS_FULL = 332.0
+const float MREC_PANEL_KEYS_SHORT = 196.0
+const float MREC_PANEL_BAR_Y = 380.0
+
+const int MREC_BOT_GONE = 0
+const int MREC_BOT_PREP = 1
+const int MREC_BOT_PLAYING = 2
+const int MREC_BOT_RESPAWNING = 3
+const int MREC_BOT_DEAD = 4
+const int MREC_BOT_DONE = 5
+
+struct MRecHudBot
+{
+	entity bot
+	int recIdx
+	int state
+	int loopCur
+	bool loopMode
+	float rate
+	float duration
+	float startTime
+	float lingerUntil
+	var tagRui
+}
+
+struct MRecHudSlotLoad
+{
+	string loadout
+}
+
+struct
+{
+	var panel
+	int lastSaved = -1
+	bool recording = false
+	float recordStart = 0.0
+	float toastUntil = 0.0
+	string toastText = ""
+	vector toastColor = <1, 1, 1>
+	array<MRecHudBot> rows
+	table<int, MRecHudSlotLoad> loads
+	int recordingCount = 0
+	bool inited = false
+	float keysEnd = 0.0
+} file
+
+const vector C_REC = <0.878, 0.224, 0.184>
+const vector C_PLAY = <0.208, 0.761, 0.839>
+const vector C_AMBER = <0.949, 0.663, 0.231>
+const vector C_GREEN = <0.424, 0.753, 0.439>
+const vector C_GREY = <0.541, 0.580, 0.604>
+const vector C_TEXT = <0.949, 0.949, 0.949>
+const vector C_SUB = <0.722, 0.753, 0.773>
+const vector C_WHITE = <1.0, 1.0, 1.0>
+const vector C_BOX = <0.227, 0.259, 0.286>
+
+void function MovementRecorder_HUD_Init()
+{
+	if ( file.inited )
+		return
+	file.inited = true
+	RegisterSignal( "MRecHud_RecordEnd" )
+	RegisterSignal( "MRecHud_ToastEnd" )
+	RegisterSignal( "MRecHud_RowsTick" )
+	AddCallback_OnPlayerLifeStateChanged( MRecHud_OnLifeState )
+}
+
+void function MRecHud_OnLifeState( entity player, int oldState, int newState )
+{
+	if ( player != GetLocalViewPlayer() || newState == LIFE_ALIVE )
+		return
+	if ( file.recording )
+		MRecHud_StopRecordingVisuals()
+}
+
+// -- rui helpers ---------------------------------------------------------------
+
+var function MRecHud_Create( string name )
+{
+	var rui = null
+	try
+	{
+		asset a = GetKeyValueAsAsset( { kn = "ui/" + name + ".rpak" }, "kn" )
+		rui = CreateCockpitPostFXRui( a, 0 )
+	}
+	catch ( eCreate )
+	{
+		printt( format( "[MRecHud] %s create failed: %s", name, string( eCreate ) ) )
+		rui = null
+	}
+	return rui
+}
+
+void function MRecHud_Destroy( var rui )
+{
+	if ( rui == null )
+		return
+	try
+	{
+		RuiDestroyIfAlive( rui )
+	}
+	catch ( eDestroy )
+	{
+	}
+}
+
+void function SetCol( var rui, string name, vector rgb, float a )
+{
+	if ( rui == null )
+		return
+	try
+	{
+		RuiSetColorAlpha( rui, name, SrgbToLinear( rgb ), a )
+	}
+	catch ( eCol )
+	{
+	}
+}
+
+void function SetStr( var rui, string name, string v )
+{
+	if ( rui == null )
+		return
+	try
+	{
+		RuiSetString( rui, name, v )
+	}
+	catch ( eStr )
+	{
+	}
+}
+
+void function SetPx( var rui, string name, float x, float y )
+{
+	if ( rui == null )
+		return
+	try
+	{
+		RuiSetFloat2( rui, name, <x / 1920.0, y / 1080.0, 0> )
+	}
+	catch ( ePos )
+	{
+	}
+}
+
+void function SetOff( var rui, string name )
+{
+	SetPx( rui, name, -3840.0, -2160.0 )
+}
+
+var function MRecHud_Panel()
+{
+	if ( file.panel == null )
+	{
+		if ( !MRec_CL_Enabled() || !MRec_CL_HintsShown() )
+			return null
+		file.panel = MRecHud_Create( "fs_mrec_panel" )
+		if ( file.panel != null )
+		{
+			SetStr( file.panel, "toggleKey", MRecHud_Glyph( "F1" ) )
+			SetOff( file.panel, "barEnd" )
+			MRecHud_HideRows()
+		}
+	}
+	return file.panel
+}
+
+string function MRecHud_Glyph( string key )
+{
+	return "%" + key + "%"
+}
+
+string function MRecHud_Abbr( string name )
+{
+	string up = name.toupper()
+	if ( up.len() >= 2 )
+		return up.slice( 0, 2 )
+	return up
+}
+
+string function MRecHud_Clock( float t )
+{
+	if ( t < 0.0 )
+		t = 0.0
+	int mins = int( t / 60.0 )
+	float secs = t - float( mins ) * 60.0
+	return format( "%02d:%04.1f", mins, secs )
+}
+
+// -- recording -----------------------------------------------------------------
+
+void function MRec_CL_RecState( int state )
+{
+	MRec_CL_OnRecStateChanged( state == 1 )
+	if ( state == 1 )
+	{
+		file.recording = true
+		file.recordStart = Time()
+		file.toastUntil = 0.0
+		MRecHud_RefreshKeys()
+		thread MRecHud_RecordThread()
+		return
+	}
+	MRecHud_StopRecordingVisuals()
+}
+
+void function MRecHud_StopRecordingVisuals()
+{
+	file.recording = false
+	Signal( clGlobal.signalDummy, "MRecHud_RecordEnd" )
+	MRecHud_RefreshKeys()
+}
+
+void function MRecHud_RecordThread()
+{
+	Signal( clGlobal.signalDummy, "MRecHud_RecordEnd" )
+	EndSignal( clGlobal.signalDummy, "MRecHud_RecordEnd" )
+	var r = MRecHud_Panel()
+	while ( file.recording && r != null )
+	{
+		float elapsed = Time() - file.recordStart
+		int inputs = int( elapsed * MREC_HUD_INPUT_RATE )
+		if ( inputs > MREC_HUD_INPUT_CAP )
+			inputs = MREC_HUD_INPUT_CAP
+		float frac = float( inputs ) / float( MREC_HUD_INPUT_CAP )
+		vector accent = frac >= 0.95 ? C_AMBER : C_REC
+		SetStr( r, "statusText", "REC  " + MRecHud_Clock( elapsed ) + "   " + string( inputs ) + " inputs" )
+		SetCol( r, "statusColor", accent, 1.0 )
+		SetCol( r, "stateColor", accent, 1.0 )
+		SetCol( r, "edgeColor", accent, 1.0 )
+		SetCol( r, "dotColor", accent, ( int( elapsed * 2.0 ) % 2 == 0 ) ? 1.0 : 0.35 )
+		SetCol( r, "barTrack", C_WHITE, 0.12 )
+		SetCol( r, "barFill", frac >= 0.8 ? C_AMBER : C_REC, 1.0 )
+		SetPx( r, "barEnd", MREC_PANEL_X + 16.0 + ( MREC_PANEL_W - 32.0 ) * frac, MREC_PANEL_BAR_Y )
+		WaitFrame()
+	}
+}
+
+void function MRec_CL_RecSaved( int idx, int durTenth, int inputs )
+{
+	file.recording = false
+	Signal( clGlobal.signalDummy, "MRecHud_RecordEnd" )
+	string load = ( idx in file.loads ) ? MRecHud_LoadoutDisplay( file.loads[idx].loadout ) : ""
+	file.toastText = Localize( "#MREC_HUD_TOAST_SAVED", MRecHud_SlotTitle( idx ), format( "%.1f", float( durTenth ) / 10.0 ), string( inputs ) )
+	if ( load != "" )
+		file.toastText += "   " + load
+	file.toastColor = C_GREEN
+	file.toastUntil = Time() + MREC_HUD_TOAST_HOLD
+	file.lastSaved = idx
+	thread MRecHud_ToastThread( file.toastUntil )
+	MRecHud_RefreshKeys()
+}
+
+void function MRec_CL_RecDiscarded( int reason )
+{
+	file.recording = false
+	Signal( clGlobal.signalDummy, "MRecHud_RecordEnd" )
+	string why = Localize( "#MREC_HUD_WHY_EMPTY" )
+	if ( reason == 1 )
+		why = Localize( "#MREC_HUD_WHY_SLOTS" )
+	else if ( reason == 2 )
+		why = Localize( "#MREC_HUD_WHY_CAP" )
+	file.toastText = Localize( "#MREC_HUD_TOAST_DISCARDED", why )
+	file.toastColor = C_GREY
+	file.toastUntil = Time() + MREC_HUD_TOAST_HOLD
+	thread MRecHud_ToastThread( file.toastUntil )
+	MRecHud_RefreshKeys()
+}
+
+void function MRecHud_ToastThread( float until )
+{
+	Signal( clGlobal.signalDummy, "MRecHud_ToastEnd" )
+	EndSignal( clGlobal.signalDummy, "MRecHud_ToastEnd" )
+	wait MREC_HUD_TOAST_HOLD
+	if ( file.toastUntil != until )
+		return
+	file.toastUntil = 0.0
+	MRecHud_RefreshKeys()
+}
+
+// -- slots (names and loadouts come from the list sync) -------------------------
+
+void function MRec_CL_SyncSlotLoad( int idx, int chunk, int packed )
+{
+	if ( chunk == 0 || !( idx in file.loads ) )
+	{
+		MRecHudSlotLoad l
+		l.loadout = ""
+		file.loads[idx] <- l
+	}
+	if ( file.loads[idx].loadout.len() != chunk * 3 )
+		return
+	string part = ""
+	for ( int k = 0; k < 3; k++ )
+	{
+		int c = ( packed >> ( 7 * k ) ) & 0x7F
+		if ( c >= 32 )
+			part += c.tochar()
+	}
+	file.loads[idx].loadout += part
+}
+
+void function MRecHud_OnSlotsSynced( int count )
+{
+	file.recordingCount = count
+	array<int> stale = []
+	foreach ( int idx, MRecHudSlotLoad l in file.loads )
+	{
+		if ( idx >= count )
+			stale.append( idx )
+	}
+	foreach ( int idx in stale )
+		delete file.loads[idx]
+	MRecHud_RefreshRows()
+}
+
+// "wraith|RSPN101|WINGMAN" -> "Wraith, R-301 / Wingman"
+string function MRecHud_LoadoutDisplay( string raw )
+{
+	if ( raw == "" )
+		return ""
+	array<string> parts = split( raw, "|" )
+	string legend = ""
+	try
+	{
+		ItemFlavor character = GetItemFlavorByCharacterRef( "character_" + parts[0] )
+		legend = Localize( ItemFlavor_GetShortName( character ) )
+	}
+	catch ( eLegend )
+	{
+		legend = parts[0]
+	}
+	string weapons = ""
+	for ( int i = 1; i < parts.len(); i++ )
+	{
+		string w = Localize( "#WPN_" + parts[i] + "_SHORT" )
+		if ( w.find( "#" ) == 0 )
+			continue
+		weapons += ( weapons == "" ? "" : " / " ) + w
+	}
+	if ( weapons == "" )
+		return legend
+	return legend + ", " + weapons
+}
+
+string function MRecHud_SlotLoadout( int idx )
+{
+	if ( !( idx in file.loads ) )
+		return ""
+	return MRecHud_LoadoutDisplay( file.loads[idx].loadout )
+}
+
+string function MRecHud_SlotTitle( int idx )
+{
+	string name = MRec_CL_SlotName( idx )
+	if ( name != "" )
+		return name
+	return Localize( "#MREC_HUD_SLOT_TITLE", string( idx + 1 ) )
+}
+
+// -- playback rows -----------------------------------------------------------
+
+void function MRec_CL_Bot( entity bot, int recIdx, int state, int loopCur, int loopMode, int rateTenth, int durTenth, float t )
+{
+	int found = -1
+	for ( int i = 0; i < file.rows.len(); i++ )
+	{
+		if ( file.rows[i].bot == bot )
+		{
+			found = i
+			break
+		}
+	}
+	if ( state == MREC_BOT_GONE )
+	{
+		if ( found < 0 )
+			return
+		// DEAD and DONE rows linger and expire on their own
+		if ( file.rows[found].state == MREC_BOT_DEAD || file.rows[found].state == MREC_BOT_DONE )
+			return
+		MRecHud_DropRow( found )
+		MRecHud_RefreshRows()
+		return
+	}
+	if ( !IsValid( bot ) )
+		return
+	if ( found < 0 )
+	{
+		if ( file.rows.len() >= MREC_HUD_ROWS )
+			return
+		MRecHudBot fresh
+		fresh.bot = bot
+		fresh.tagRui = null
+		fresh.lingerUntil = 0.0
+		file.rows.append( fresh )
+		found = file.rows.len() - 1
+	}
+	MRecHudBot row = file.rows[found]
+	row.recIdx = recIdx
+	row.state = state
+	row.loopCur = loopCur
+	row.loopMode = loopMode == 1
+	row.rate = float( rateTenth ) / 10.0
+	row.duration = float( durTenth ) / 10.0
+	row.startTime = t
+	row.lingerUntil = 0.0
+	if ( state == MREC_BOT_DONE )
+		row.lingerUntil = Time() + MREC_HUD_DONE_LINGER
+	else if ( state == MREC_BOT_DEAD )
+		row.lingerUntil = Time() + MREC_HUD_DEAD_LINGER
+	MRecHud_EnsureTag( row )
+	MRecHud_RefreshRows()
+	thread MRecHud_RowsThread()
+}
+
+void function MRecHud_EnsureTag( MRecHudBot row )
+{
+	if ( row.tagRui != null || !IsValid( row.bot ) || !MRec_CL_HintsShown() || !MRec_CL_Enabled() )
+		return
+	try
+	{
+		var tag = RuiCreate( $"ui/winning_squad_member_overhead_name.rpak", clGlobal.topoFullScreen, RUI_DRAW_HUD, 0 )
+		RuiTrackFloat3( tag, "position", row.bot, RUI_TRACK_OVERHEAD_FOLLOW )
+		row.tagRui = tag
+	}
+	catch ( eTag )
+	{
+		row.tagRui = null
+	}
+	MRecHud_UpdateTag( row )
+}
+
+void function MRecHud_UpdateTag( MRecHudBot row )
+{
+	if ( row.tagRui == null )
+		return
+	string name = ""
+	try
+	{
+		name = row.bot.GetPlayerName()
+	}
+	catch ( eName )
+	{
+	}
+	string label = name + "  " + MRecHud_SlotTitle( row.recIdx )
+	if ( row.state == MREC_BOT_RESPAWNING )
+		label = name + "  RESPAWNING"
+	SetStr( row.tagRui, "playerName", label )
+}
+
+void function MRecHud_DropRow( int i )
+{
+	MRecHud_Destroy( file.rows[i].tagRui )
+	file.rows.remove( i )
+}
+
+string function MRecHud_BotLegend( entity bot )
+{
+	try
+	{
+		ItemFlavor character = LoadoutSlot_GetItemFlavor( ToEHI( bot ), Loadout_Character() )
+		return Localize( ItemFlavor_GetShortName( character ) )
+	}
+	catch ( eLegend )
+	{
+	}
+	return ""
+}
+
+void function MRecHud_HideRows()
+{
+	var r = file.panel
+	SetCol( r, "botsHdrColor", C_PLAY, 0.0 )
+	SetCol( r, "botsRule", C_WHITE, 0.0 )
+	SetStr( r, "botsHdrText", "" )
+	SetOff( r, "botsHdrPos" )
+	SetOff( r, "botsRulePos" )
+	for ( int i = 0; i < MREC_HUD_ROWS; i++ )
+		MRecHud_HideRow( i )
+}
+
+void function MRecHud_HideRow( int i )
+{
+	var r = file.panel
+	string p = "r" + string( i )
+	SetCol( r, p + "Box", C_BOX, 0.0 )
+	SetCol( r, p + "State", C_PLAY, 0.0 )
+	foreach ( string s in [ "Abbr", "Name", "Rec", "StateText", "Time" ] )
+		SetStr( r, p + s, "" )
+	foreach ( string s in [ "BoxPos", "AbbrPos", "NamePos", "RecPos", "TimePos", "StatePos" ] )
+		SetOff( r, p + s )
+}
+
+void function MRecHud_RefreshRows()
+{
+	for ( int i = file.rows.len() - 1; i >= 0; i-- )
+	{
+		MRecHudBot row = file.rows[i]
+		bool expired = row.lingerUntil > 0.0 && Time() > row.lingerUntil
+		if ( !IsValid( row.bot ) || expired )
+			MRecHud_DropRow( i )
+	}
+	MRecHud_RefreshKeys()
+}
+
+// Playback rows stack under the visible key rows; the panel bottom follows.
+void function MRecHud_LayoutRows()
+{
+	var r = MRecHud_Panel()
+	if ( r == null )
+		return
+	float x = MREC_PANEL_X
+	float w = MREC_PANEL_W
+	float y = file.keysEnd
+	if ( file.rows.len() == 0 )
+	{
+		MRecHud_HideRows()
+		MRecHud_SetPanelBottom( y )
+		return
+	}
+	SetPx( r, "botsRulePos", x + 16.0, y )
+	SetCol( r, "botsRule", C_WHITE, 0.10 )
+	SetPx( r, "botsHdrPos", x + 16.0, y + 16.0 )
+	SetCol( r, "botsHdrColor", C_PLAY, 1.0 )
+	SetStr( r, "botsHdrText", "PLAYBACK  " + string( file.rows.len() ) + " OF " + string( MREC_HUD_ROWS ) )
+	float top = y + 30.0
+	for ( int i = 0; i < MREC_HUD_ROWS; i++ )
+	{
+		if ( i >= file.rows.len() )
+		{
+			MRecHud_HideRow( i )
+			continue
+		}
+		MRecHudBot row = file.rows[i]
+		string p = "r" + string( i )
+		float ry = top + float( i ) * MREC_HUD_ROW_H
+		float ly = ry + MREC_HUD_ROW_H / 2.0
+		string botName = ""
+		try
+		{
+			botName = row.bot.GetPlayerName()
+		}
+		catch ( eBotName )
+		{
+		}
+		SetPx( r, p + "BoxPos", x + 16.0, ly - 10.0 )
+		SetPx( r, p + "AbbrPos", x + 26.0, ly )
+		SetPx( r, p + "NamePos", x + 44.0, ly )
+		SetPx( r, p + "RecPos", x + 150.0, ly )
+		SetPx( r, p + "TimePos", x + w - 100.0, ly )
+		SetPx( r, p + "StatePos", x + w - 16.0, ly )
+		SetCol( r, p + "Box", C_BOX, 1.0 )
+		SetStr( r, p + "Abbr", MRecHud_Abbr( MRecHud_BotLegend( row.bot ) ) )
+		SetStr( r, p + "Name", botName )
+		SetStr( r, p + "Rec", MRecHud_SlotTitle( row.recIdx ) )
+		MRecHud_UpdateTag( row )
+	}
+	MRecHud_TickRows()
+	MRecHud_SetPanelBottom( top + float( file.rows.len() ) * MREC_HUD_ROW_H + 8.0 )
+}
+
+void function MRecHud_SetPanelBottom( float bottom )
+{
+	var r = file.panel
+	SetPx( r, "panelBL", MREC_PANEL_X, bottom )
+	SetPx( r, "panelBR", MREC_PANEL_X + MREC_PANEL_W, bottom )
+	SetPx( r, "panelBL1", MREC_PANEL_X, bottom - 1.0 )
+}
+
+void function MRecHud_TickRows()
+{
+	var r = file.panel
+	if ( r == null )
+		return
+	for ( int i = 0; i < file.rows.len(); i++ )
+	{
+		MRecHudBot row = file.rows[i]
+		string p = "r" + string( i )
+		vector stateCol = C_PLAY
+		string stateText = Localize( "#MREC_HUD_PLAYING" )
+		if ( row.state == MREC_BOT_PLAYING )
+		{
+			float elapsed = ( Time() - row.startTime ) * ( row.rate > 0.05 ? row.rate : 1.0 )
+			if ( elapsed > row.duration )
+				elapsed = row.duration
+			if ( elapsed < 0.0 )
+				elapsed = 0.0
+			SetStr( r, p + "Time", format( "%.1f / %.1fs", elapsed, row.duration ) )
+		}
+		else if ( row.state == MREC_BOT_RESPAWNING )
+		{
+			stateCol = C_AMBER
+			float left = row.startTime - Time()
+			if ( left < 0.0 )
+				left = 0.0
+			stateText = Localize( "#MREC_HUD_RESPAWNING" )
+			SetStr( r, p + "Time", left > 0.05 ? Localize( "#MREC_HUD_BACK_IN", format( "%.1f", left ) ) : Localize( "#MREC_HUD_BACK_NOW" ) )
+		}
+		else if ( row.state == MREC_BOT_DEAD )
+		{
+			stateCol = C_GREY
+			stateText = Localize( "#MREC_HUD_DEAD" )
+			SetStr( r, p + "Time", format( "%.1fs", row.duration ) )
+		}
+		else if ( row.state == MREC_BOT_DONE )
+		{
+			stateCol = C_GREY
+			stateText = Localize( "#MREC_HUD_DONE" )
+			SetStr( r, p + "Time", format( "%.1fs", row.duration ) )
+		}
+		else
+		{
+			stateCol = C_SUB
+			stateText = Localize( "#MREC_HUD_SPAWNING" )
+			SetStr( r, p + "Time", format( "0.0 / %.1fs", row.duration ) )
+		}
+		SetCol( r, p + "State", stateCol, 1.0 )
+		SetStr( r, p + "StateText", stateText )
+	}
+}
+
+void function MRecHud_RowsThread()
+{
+	Signal( clGlobal.signalDummy, "MRecHud_RowsTick" )
+	EndSignal( clGlobal.signalDummy, "MRecHud_RowsTick" )
+	while ( file.rows.len() > 0 )
+	{
+		bool prune = false
+		foreach ( MRecHudBot row in file.rows )
+		{
+			if ( !IsValid( row.bot ) || ( row.lingerUntil > 0.0 && Time() > row.lingerUntil ) )
+				prune = true
+		}
+		if ( prune )
+			MRecHud_RefreshRows()
+		else
+			MRecHud_TickRows()
+		wait MREC_HUD_TICK
+	}
+}
+
+// -- header, status, key rows --------------------------------------------------
+
+bool function MRecHud_Active()
+{
+	return file.recording || file.rows.len() > 0 || file.recordingCount > 0 || file.toastUntil > Time()
+}
+
+int function MRecHud_PlayingSlot()
+{
+	foreach ( MRecHudBot row in file.rows )
+	{
+		if ( row.state == MREC_BOT_PLAYING || row.state == MREC_BOT_PREP )
+			return row.recIdx
+	}
+	return -1
+}
+
+void function MRecHud_RefreshStatus()
+{
+	var r = file.panel
+	FR_DynStats_SetSuppressed( MRecHud_Active() )
+	if ( file.recording )
+		return
+	SetCol( r, "barTrack", C_WHITE, 0.0 )
+	SetCol( r, "barFill", C_REC, 0.0 )
+	SetOff( r, "barEnd" )
+	if ( file.toastUntil > Time() )
+	{
+		SetStr( r, "statusText", file.toastText )
+		SetCol( r, "statusColor", file.toastColor, 1.0 )
+		return
+	}
+	string status = ""
+	if ( file.rows.len() > 0 )
+		status = Localize( "#MREC_HUD_STATUS_PLAYING", string( file.recordingCount ), string( file.rows.len() ) )
+	else if ( file.recordingCount == 0 )
+		status = Localize( "#MREC_HUD_NO_RECORDINGS" )
+	else
+		status = Localize( "#MREC_HUD_STATUS_IDLE", string( file.recordingCount ) )
+	SetStr( r, "statusText", status )
+	SetCol( r, "statusColor", C_SUB, 1.0 )
+}
+
+void function MRecHud_KeysRow( string row, string key, string verb, vector col, bool dim = false, string val = "", vector valCol = <0.541, 0.580, 0.604> )
+{
+	var r = file.panel
+	SetStr( r, row + "Glyph", key == "" ? "" : MRecHud_Glyph( key ) )
+	SetStr( r, row + "Verb", verb )
+	SetCol( r, row + "GlyphColor", col, 1.0 )
+	SetCol( r, row + "VerbColor", dim ? C_GREY : C_TEXT, 1.0 )
+	if ( row.find( "s" ) == 0 )
+	{
+		SetStr( r, row + "Val", val )
+		SetCol( r, row + "ValColor", valCol, 1.0 )
+	}
+}
+
+// F1 / the Lab switch hides the whole recorder HUD: panel and overhead tags.
+void function MRecHud_RefreshKeys()
+{
+	bool shown = MRec_CL_HintsShown()
+	if ( !MRec_CL_Enabled() || !shown )
+	{
+		MRecHud_Destroy( file.panel )
+		file.panel = null
+		foreach ( MRecHudBot row in file.rows )
+		{
+			MRecHud_Destroy( row.tagRui )
+			row.tagRui = null
+		}
+		FR_DynStats_SetSuppressed( false )
+		return
+	}
+	var r = MRecHud_Panel()
+	if ( r == null )
+		return
+	bool legacy = MRec_CL_LegacyBinds()
+	SetStr( r, "toggleText", Localize( "#MREC_HUD_HIDE" ) )
+	foreach ( MRecHudBot row in file.rows )
+		MRecHud_EnsureTag( row )
+	if ( file.recording )
+	{
+		SetStr( r, "stateText", Localize( "#MREC_HUD_REC" ) )
+	}
+	else
+	{
+		bool playing = file.rows.len() > 0
+		vector col = playing ? C_PLAY : C_GREY
+		SetStr( r, "stateText", Localize( playing ? "#MREC_HUD_PLAYING" : "#MREC_HUD_IDLE" ) )
+		SetCol( r, "stateColor", col, 1.0 )
+		SetCol( r, "edgeColor", col, 1.0 )
+		SetCol( r, "dotColor", col, playing ? 1.0 : 0.0 )
+	}
+	MRecHud_RefreshStatus()
+	foreach ( string row in [ "rec", "s0", "s1", "s2", "s3", "s4", "all" ] )
+		MRecHud_KeysRow( row, "", "", C_TEXT, true )
+	MRecHud_KeysRow( "rec", MRec_CL_KeyRecord(), Localize( file.recording ? "#MREC_HUD_STOP_SAVE" : "#MREC_HUD_RECORD" ), file.recording ? C_REC : C_TEXT )
+	if ( !legacy )
+	{
+		bool any = file.recordingCount > 0
+		MRecHud_KeysRow( "s0", MRec_CL_KeyPlay(), Localize( any ? "#MREC_HUD_PLAY_LAST" : "#MREC_HUD_PLAY_NONE" ), any ? C_TEXT : C_GREY, !any )
+		file.keysEnd = MREC_PANEL_Y + MREC_PANEL_KEYS_SHORT
+		MRecHud_LayoutRows()
+		return
+	}
+	int playing = MRecHud_PlayingSlot()
+	for ( int i = 0; i < 5; i++ )
+	{
+		string row = "s" + string( i )
+		string key = MRec_CL_KeySlot( i )
+		int durTenth = MRec_CL_SlotDurationTenth( i )
+		if ( durTenth < 0 )
+		{
+			MRecHud_KeysRow( row, key, Localize( "#MREC_HUD_EMPTY_SLOT", string( i + 1 ) ), C_GREY, true )
+			continue
+		}
+		string name = MRecHud_SlotTitle( i )
+		string dur = format( "%.1fs", float( durTenth ) / 10.0 )
+		if ( i == playing )
+			MRecHud_KeysRow( row, key, name, C_PLAY, false, Localize( "#MREC_HUD_PLAYING" ), C_PLAY )
+		else if ( i == file.lastSaved )
+			MRecHud_KeysRow( row, key, name, C_GREEN, false, dur, C_GREEN )
+		else
+			MRecHud_KeysRow( row, key, name, C_TEXT, false, dur )
+	}
+	MRecHud_KeysRow( "all", MRec_CL_KeyPlayAll(), Localize( "#MREC_HUD_PLAY_ALL" ), file.recordingCount > 0 ? C_TEXT : C_GREY, file.recordingCount == 0 )
+	file.keysEnd = MREC_PANEL_Y + MREC_PANEL_KEYS_FULL
+	MRecHud_LayoutRows()
+}

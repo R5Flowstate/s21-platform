@@ -2,6 +2,7 @@ global function OnWeaponActivate_weapon_semipistol
 global function OnWeaponDeactivate_weapon_semipistol
 global function OnWeaponReload_weapon_semipistol
 global function OnProjectileCollision_weapon_semipistol
+global function OnWeaponAkimboStateChanged_weapon_semipistol
 
 void function OnWeaponActivate_weapon_semipistol( entity weapon )
 {
@@ -26,6 +27,17 @@ void function OnWeaponDeactivate_weapon_semipistol( entity weapon )
                    
                                          
        
+}
+
+void function OnWeaponAkimboStateChanged_weapon_semipistol( entity weapon, entity player, int currentAkimboState )
+{
+	#if CLIENT
+		if ( player != GetLocalViewPlayer() || weapon.IsAkimboAlthand() )
+			return
+
+		PrimaryWeapon_UpdateFireSelectHUD( weapon )
+		OnPrimaryWeaponStatusUpdate_Akimbo( weapon, GetWeaponRui() )
+	#endif
 }
 
 void function OnWeaponReload_weapon_semipistol ( entity weapon, int milestoneIndex )

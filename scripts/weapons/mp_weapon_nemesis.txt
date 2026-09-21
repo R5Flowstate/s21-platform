@@ -85,14 +85,10 @@
 	"ammo_per_shot" "1"
 	"ammo_min_to_fire" "1"
 	"low_ammo_fraction" "0.400000"
-	"ammo_default_total" "0"
+	"ammo_default_total" "80"
 	"ammo_stockpile_max" "60"
 	"ammo_no_remove_from_stockpile" "0"
 	"uses_ammo_pool" "0"
-	"regen_ammo_refill_rate"		"18"
-	"regen_ammo_refill_start_delay"		"0.100000"
-	"regen_ammo_stockpile_max_fraction"		"1.000000"
-	"regen_ammo_while_firing"		"0"
 	"ammo_clip_random_loss_on_npc_drop_chunksize" "4"
 	"damage_near_value" "17"
 	"damage_far_value" "17"
@@ -452,24 +448,28 @@
 		"energy_mag_l1"
 		{
 			"ammo_clip_size" "++4"
+			"ammo_stockpile_max" "++12"
 
 		}
 
 		"energy_mag_l2"
 		{
 			"ammo_clip_size" "++8"
+			"ammo_stockpile_max" "++24"
 
 		}
 
 		"energy_mag_l3"
 		{
 			"ammo_clip_size" "++12"
+			"ammo_stockpile_max" "++36"
 
 		}
 
 		"energy_mag_l4"
 		{
 			"ammo_clip_size" "++12"
+			"ammo_stockpile_max" "++36"
 
 		}
 

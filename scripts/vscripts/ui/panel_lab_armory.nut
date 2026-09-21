@@ -28,6 +28,7 @@ struct LabItem
 	string display
 	int    tier
 	bool   isWeapon
+	bool   isAkimbo
 }
 
 struct
@@ -237,6 +238,7 @@ void function LabArmory_BuildWeaponCatalog()
 			item.display = string( row.display )
 			item.tier = 0
 			item.isWeapon = true
+			item.isAkimbo = ( "akimbo" in row )
 			file.items.append( item )
 		}
 	}
@@ -419,7 +421,8 @@ void function LabArmory_OnTileClick( var tile )
 
 	if ( item.isWeapon && file.deliverSlot < 2 )
 	{
-		ClientCommand( format( "CC_MenuGiveAimTrainerWeapon kit %d %s %s", file.deliverSlot, item.ref, file.kitTier ) )
+		string mode = item.isAkimbo ? "akimbo" : "kit"
+		ClientCommand( format( "CC_MenuGiveAimTrainerWeapon %s %d %s %s", mode, file.deliverSlot, item.ref, file.kitTier ) )
 		return
 	}
 

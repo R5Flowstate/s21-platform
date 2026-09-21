@@ -25,6 +25,8 @@
 	"does_not_interrupt_cloak" "1"
 	"fire_in_real_world_while_phased" "1"
 	"projectile_ricochet_max_count" "2"
+	"OnWeaponActivate" "OnWeaponActivate_ability_frag_drone"
+	"OnWeaponDeactivate" "OnWeaponDeactivate_ability_frag_drone"
 	"OnWeaponToss" "OnWeaponToss_FragDrone"
 	"OnWeaponTossReleaseAnimEvent" "OnWeaponTossReleaseAnimEvent_ability_frag_drone"
 	"OnWeaponRegenEnd" "OnWeaponRegenEndGeneric"

@@ -34,6 +34,8 @@ struct
 	bool scoreboardKeysBound = false
 	bool enemyMinimapStarted = false
 	bool roundEndLock = false
+	float roundEndLockDeadline = 0.0
+	float lastUICloseTime = -100.0
 	table<entity, var> enemyMinimapRuis
 } file
 
@@ -587,9 +589,13 @@ void function FS_Hud_PushLeaderboard()
 		int deaths = FS_Hud_NetInt( p, "deaths" )
 		float kd = deaths > 0 ? float( kills ) / float( deaths ) : float( kills )
 
+		int ping = Scoreboard_GetConnectionPingMs( p )
+		if ( ping <= 0 )
+			ping = FS_Hud_NetInt( p, "latency" )
+
 		RunUIScript( "Leaderboard_ReceivePlayerData",
 			p.GetPlayerName(), kills, kills, deaths,
-			kd, FS_Hud_Damage( p ), FS_Hud_NetInt( p, "latency" ), ( p == localPlayer ) ? 1 : 0, 0 )
+			kd, FS_Hud_Damage( p ), ping, ( p == localPlayer ) ? 1 : 0, 0 )
 	}
 
 	RunUIScript( "Leaderboard_Refresh" )
@@ -597,8 +603,14 @@ void function FS_Hud_PushLeaderboard()
 
 void function FS_Hud_ToggleLeaderboard( entity player )
 {
-	if ( player != GetLocalClientPlayer() )
+	if ( !IsValid( player ) || player != GetLocalClientPlayer() )
 		return
+
+	if ( file.roundEndLock && Time() > file.roundEndLockDeadline )
+	{
+		file.roundEndLock = false
+		printt( "[FS-HUD] roundEndLock expired" )
+	}
 
 	if ( file.roundEndLock )
 		return
@@ -618,6 +630,9 @@ void function FS_Hud_ToggleLeaderboard( entity player )
 		return
 	}
 
+	if ( Time() - file.lastUICloseTime < 0.25 )
+		return
+
 	file.leaderboardOpen = true
 	RunUIScript( "OpenMatchLeaderboard" )
 	FS_Hud_PushLeaderboard()
@@ -630,6 +645,9 @@ void function FS_Hud_LeaderboardFromMenu()
 	if ( !IsValid( player ) )
 		return
 
+	if ( file.roundEndLock )
+		return
+
 	// The System menu is the active menu; OpenMatchLeaderboard closes it.
 	file.leaderboardOpen = false
 	FS_Hud_ToggleLeaderboard( player )
@@ -639,9 +657,8 @@ void function FS_Hud_LeaderboardFromMenu()
 // to their own handler instead; this must not reach into them.
 void function FS_Hud_LeaderboardClosedFromUI()
 {
-	if ( file.roundEndLock )
-		return
-
+	file.lastUICloseTime = Time()
+	file.roundEndLock = false
 	file.leaderboardOpen = false
 	entity player = GetLocalClientPlayer()
 	if ( IsValid( player ) )
@@ -658,6 +675,7 @@ void function FS_Hud_OpenRoundEndLeaderboard()
 		RegisterSignal( "FS_Hud_LeaderboardWatch" )
 
 	file.roundEndLock = true
+	file.roundEndLockDeadline = Time() + 30.0
 	file.leaderboardOpen = true
 	player.Signal( "FS_Hud_LeaderboardWatch" )
 	RunUIScript( "Leaderboard_SetRoundEndMode", 1 )

@@ -2840,6 +2840,7 @@ void function InitMenus()
 	AddPanel( labPanel, "LabPlayerPanel", InitLabPlayerPanel )
 	AddPanel( labPanel, "LabArmoryPanel", InitLabArmoryPanel )
 	AddPanel( labPanel, "LabTargetsPanel", InitLabTargetsPanel )
+	AddPanel( labPanel, "LabRecorderPanel", InitLabRecorderPanel )
 	AddPanel( labPanel, "LabMatchPanel", InitLabMatchPanel )
 	AddPanel( labPanel, "LabModsPanel", InitLabModsPanel )
 

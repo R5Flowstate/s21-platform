@@ -522,6 +522,7 @@ void function InitAbilityScripts()
 	MpWeaponAshDataknife_Init()							// Ash Passive
 	MpWeaponArcBolt_Init()								// Ash Tac
 	MpWeaponPhaseBreach_Init()							// Ash Ult
+	MpAbilityAshDash_Init()								// Ash Passive
 	MpMaggieCommon_Init()								// Mad Maggie
 	ShPassiveWarlordsIre_Init()							// Mad Maggie Passive
 	MpWeaponRiotDrill_Init()							// Mad Maggie Tac
@@ -551,6 +552,9 @@ void function InitAbilityScripts()
 		MpAbilityConduitArcFlash_Init()					// Conduit Tac
 		Mp_ability_shield_mines_init()					// Conduit Ult
 		Mp_ability_shield_mines_line_init()				// Conduit Ult
+		ShPassiveOverdrive_Init()					// Axle Passive
+		MpAbilitySlideGate_Init()					// Axle Tac
+		MpAbilityFragDrone_Init()					// Axle Ult
        
 
 	                    
@@ -6951,7 +6955,7 @@ void function GivePlayerSettingsMods( entity player, array<string> additionalMod
 	}
 
 	#if SERVER
-		if ( IsAlive( player ) )
+		if ( IsAlive( player ) && oldMaxHealth > 0 )
 		{
 			player.SetMaxHealth( oldMaxHealth )
 			player.SetHealth( oldHealth )
@@ -6990,7 +6994,7 @@ void function TakePlayerSettingsMods( entity player, array<string> modsToTake, b
 
 
 	#if SERVER
-		if ( IsAlive( player ) && isHealthReset )
+		if ( IsAlive( player ) && isHealthReset && oldMaxHealth > 0 )
 		{
 			player.SetMaxHealth( oldMaxHealth )
 			player.SetHealth( oldHealth )

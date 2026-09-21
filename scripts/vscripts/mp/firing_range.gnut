@@ -267,6 +267,7 @@ global function FR_DynTimer_Hide_RUI
 global function FR_DynTimer_Show_RUI
 global function FR_DynStats_Hide_RUI
 global function FR_DynStats_Show_RUI
+global function FR_DynStats_SetSuppressed
 global function FRSettings_Client_Update
 global function ServerCallback_FRSettings_Update_RUI
 global function ServerCallback_FRSettings_Restore_RUI
@@ -358,6 +359,7 @@ struct
 			var timerCountdownRUI = null
 
 			bool dynamicStatsIsVisible = false
+			bool dynamicStatsSuppressed = false
 			bool dynamicTimerIsVisible = false
 
 			int shotsFired = 0
@@ -4747,7 +4749,7 @@ void function FR_DymicStats_OnReloadHoldResetStatsPC( entity player )
 
 void function FR_DynStats_Show_RUI()
 {
-	if (file.dynamicStatsIsVisible)
+	if (file.dynamicStatsIsVisible || file.dynamicStatsSuppressed)
 		return
 
 	if ( file.dynamicStatsRui == null )
@@ -4764,6 +4766,23 @@ void function FR_DynStats_Show_RUI()
 	bool isDynTimerEnabled = FRS_PVar_Get_Bool( player, eFRSettingType.SHOWDYNTIMER )
 	if ( isDynTimerEnabled )
 		SCB_ShowDynTimer_ByPVar()
+}
+
+void function FR_DynStats_SetSuppressed( bool suppressed )
+{
+	if ( file.dynamicStatsSuppressed == suppressed || frS_Bits.len() == 0 )
+		return
+
+	file.dynamicStatsSuppressed = suppressed
+	if ( suppressed )
+	{
+		FR_DynTimer_Hide_RUI()
+		FR_DynStats_Hide_RUI()
+		return
+	}
+
+	if ( IsValid( GetLocalViewPlayer() ) )
+		SCB_ShowDynStats_ByPVar()
 }
 
 bool function FR_DynStats_Hide_RUI()

@@ -991,6 +991,8 @@ void function OnPlayerKilled_DropLoot( entity player, entity attacker, var damag
 	// Don't drop player loot upon death for Firing Range.
 	if ( GameModeVariant_IsActive( eGameModeVariants.SURVIVAL_FIRING_RANGE ) )
 		return
+	if ( LegendBot_IsBot( player ) )
+		return
 
 	if ( GetGameState() >= eGameState.Playing )
 		thread SURVIVAL_Death_DropLoot( player, damageInfo )
@@ -4425,8 +4427,7 @@ void function FiringRange_SwitchCharacterPresentation_Thread( entity player, Ite
 	wasAlreadyInShoulderMode.value = IsValid( player.GetTrackEntity() )
 
 	float cameraHeightOffset = 24
-	// GetDefaultFOV not on S3; 70 == MIN_PLAYER_FOV S21 mid.
-	float trackDist = GraphCapped( 70.0, MIN_PLAYER_FOV, MAX_PLAYER_FOV, CAM_FOLLOW_DISTANCE_AT_MIN_FOV, CAM_FOLLOW_DISTANCE_AT_MAX_FOV )
+	float trackDist = GraphCapped( player.GetDefaultFOV(), MIN_PLAYER_FOV, MAX_PLAYER_FOV, CAM_FOLLOW_DISTANCE_AT_MIN_FOV, CAM_FOLLOW_DISTANCE_AT_MAX_FOV )
 	weaponsAndMovements_WereDisabled.value = false
 
 	//If player has melee equipped, try equip another weapon before switching character.

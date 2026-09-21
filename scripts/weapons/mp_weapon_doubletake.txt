@@ -68,13 +68,10 @@
 	"projectile_spread_choke_frac_3" "0.250000"
 	"projectile_spread_choke_frac_4" "0.010000"
 	"ammo_clip_size" "6"
-	"ammo_default_total" "0"
-	"ammo_no_remove_from_stockpile" "1"
+	"ammo_stockpile_max" "12"
+	"ammo_default_total" "18"
+	"ammo_no_remove_from_stockpile" "0"
 	"uses_ammo_pool" "0"
-	"regen_ammo_refill_rate"		"18"
-	"regen_ammo_refill_start_delay"		"0.100000"
-	"regen_ammo_stockpile_max_fraction"		"1.000000"
-	"regen_ammo_while_firing"		"0"
 	"ammo_pool_type" "special"
 	"ammo_per_shot" "1"
 	"ammo_min_to_fire" "1"
@@ -757,24 +754,28 @@
 		"energy_mag_l1"
 		{
 			"ammo_clip_size" "++1"
+			"ammo_stockpile_max" "++2"
 
 		}
 
 		"energy_mag_l2"
 		{
 			"ammo_clip_size" "++2"
+			"ammo_stockpile_max" "++4"
 
 		}
 
 		"energy_mag_l3"
 		{
 			"ammo_clip_size" "++4"
+			"ammo_stockpile_max" "++8"
 
 		}
 
 		"energy_mag_l4"
 		{
 			"ammo_clip_size" "++4"
+			"ammo_stockpile_max" "++8"
 
 		}
 

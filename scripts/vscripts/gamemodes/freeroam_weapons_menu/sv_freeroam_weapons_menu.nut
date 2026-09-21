@@ -8,6 +8,7 @@ global function FreeroamWeaponsMenu_OnSelectSlot
 global function FreeroamWeaponsMenu_OnCloseSelector
 global function FreeroamWeaponsMenu_GiveKit
 global function FreeroamWeaponsMenu_GiveFreeform
+global function FreeroamWeaponsMenu_GiveAkimbo
 global function FreeroamWeaponsMenu_Refill
 global function FreeroamWeaponsMenu_Strip
 global function FreeroamWeaponsMenu_ApplyLoadoutCosmetics
@@ -177,6 +178,21 @@ void function FreeroamWeaponsMenu_OnGiveCommand( entity player, array<string> ar
 			FreeroamWeaponsMenu_GiveFreeform( player, baseRef, slot, mods )
 			return
 		}
+		case "akimbo":
+		{
+			if ( args.len() < 3 )
+			{
+				printt( "[FreeroamWM] akimbo usage: akimbo <slot> <base> [tier]" )
+				return
+			}
+			int slot = FreeroamWeaponsMenu_SlotFromArg( args[1] )
+			string baseRef = args[2]
+			string tier = FREEROAM_WM_TIER_BARE
+			if ( args.len() >= 4 )
+				tier = FreeroamWeaponsMenu_TierFromArg( args[3] )
+			FreeroamWeaponsMenu_GiveAkimbo( player, baseRef, slot, tier )
+			return
+		}
 		case "refill":
 			FreeroamWeaponsMenu_Refill( player )
 			return
@@ -273,6 +289,36 @@ entity function FreeroamWeaponsMenu_GiveKit( entity player, string baseWeapon, i
 
 	// Items Weapon: stamp profile onto this entity when Give was opened from Items menu.
 	CafeItems_OnWeaponGiven( player, weapon )
+	return weapon
+}
+
+// Same pair the loot path builds from a second pickup: main in <slot>, partner in the dual slot.
+entity function FreeroamWeaponsMenu_GiveAkimbo( entity player, string baseWeapon, int slot, string tier = FREEROAM_WM_TIER_BARE )
+{
+	entity weapon
+	if ( tier == FREEROAM_WM_TIER_BARE )
+		weapon = FreeroamWeaponsMenu_GiveFreeform( player, baseWeapon, slot, [] )
+	else
+		weapon = FreeroamWeaponsMenu_GiveKit( player, baseWeapon, slot, tier )
+	if ( !IsValid( weapon ) )
+		return null
+
+	if ( !CanWeaponAkimbo( weapon.GetWeaponClassName() ) )
+	{
+		printt( format( "[FreeroamWM] akimbo REJECT %s is not an akimbo weapon", weapon.GetWeaponClassName() ) )
+		return weapon
+	}
+
+	int dualslot = weapon.GetInventoryIndex() + WEAPON_INVENTORY_SLOT_DUALPRIMARY_0
+	FreeroamWeaponsMenu_TakeSlot( player, dualslot )
+	entity partner = player.GiveWeapon( weapon.GetWeaponClassName(), dualslot, weapon.GetMods(), false )
+	if ( IsValid( partner ) )
+	{
+		FreeroamWeaponsMenu_ApplyLoadoutCosmetics( player, partner )
+		player.ClearFirstDeployForAllWeapons()
+		player.SetActiveWeaponBySlot( eActiveInventorySlot.altHand, dualslot )
+	}
+	printt( format( "[FreeroamWM] akimbo %s slot=%d partner=%s", weapon.GetWeaponClassName(), slot, IsValid( partner ) ? "ok" : "FAILED" ) )
 	return weapon
 }
 

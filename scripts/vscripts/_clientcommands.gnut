@@ -11,6 +11,8 @@ global function DevRespawnGetPlayerEliminationOverride
 // Legacy names still called from freelance / sh_dev_tests.
 global function DEV_RespawnPlayersBySpecifiers
 global function DevRespawnPlayer
+global function DevAutoRespawn_IsEnabled
+global function DevAutoRespawn_SetEnabled
 
 const float DEV_AUTO_RESPAWN_DELAY = 3.0
 
@@ -60,6 +62,25 @@ void function ClientCommands_Init()
 	AddClientCommandCallback( "lab_carepackage", ClientCommand_lab_carepackage )
 	AddClientCommandCallback( "lab_summon", ClientCommand_lab_summon )
 	AddClientCommandCallback( "lab_skybox", ClientCommand_lab_skybox )
+	AddClientCommandCallback( "dev_hud", ClientCommand_dev_hud )
+}
+
+// Only ever touches the issuer's own HUD flags.
+void function ClientCommand_dev_hud( entity player, array<string> args )
+{
+	if ( !IsValid( player ) || !player.IsPlayer() || args.len() < 1 )
+		return
+
+	if ( args[0] == "1" )
+	{
+		AddCinematicFlag( player, CE_FLAG_HIDE_MAIN_HUD_INSTANT )
+		AddCinematicFlag( player, CE_FLAG_HIDE_PERMANENT_HUD )
+	}
+	else
+	{
+		RemoveCinematicFlag( player, CE_FLAG_HIDE_MAIN_HUD_INSTANT )
+		RemoveCinematicFlag( player, CE_FLAG_HIDE_PERMANENT_HUD )
+	}
 }
 
 // Lab > Armory ground delivery. The ref must name a real loot entry, and the
@@ -407,13 +428,17 @@ void function ClientCommand_spawn_fake_player( entity player, array<string> args
 	vector angles = <0.0, (eyeAngles.y + 180.0), 0.0>
 	if ( !TrySetOriginInWorld( bot, origin ) )
 	{
-		if ( !TrySetOriginInWorld( bot, player.GetOrigin() ) )
+		origin = player.GetOrigin()
+		if ( !TrySetOriginInWorld( bot, origin ) )
 		{
 			printt( format( "[Dev] spawn_fake_player: illegal origin %s", string( origin ) ) )
 			return
 		}
 	}
 	bot.SetAngles( angles )
+	MRec_BindBotRealms( bot, player )
+	thread LegendBot_Place( bot, origin, angles )
+	thread AimTrainer_HighlightAfterSpawn( player, bot )
 
 	printt( format( "[Dev] spawn_fake_player ok name=%s edict=%d team=%d alive=%s origin=%s",
 		botName, edict, team, string( IsAlive( bot ) ), string( origin ) ) )
@@ -480,7 +505,11 @@ void function ClientCommand_noclip( entity player, array<string> args )
 	if ( player.IsPhaseShifted() )
 		return
 
-	if ( player.IsNoclipping() )
+	bool enable = DevToggle_Wanted( args, !player.IsNoclipping() )
+	if ( enable == player.IsNoclipping() )
+		return
+
+	if ( !enable )
 	{
 		player.SetPhysics( MOVETYPE_WALK )
 		DevToggle_AlertAll( "#FS_NOCLIP_OFF" )
@@ -492,12 +521,31 @@ void function ClientCommand_noclip( entity player, array<string> args )
 	}
 }
 
+// Toggle commands take an optional 1|0 (on|off) so a preset can pin a state
+// instead of flipping whatever was there.
+bool function DevToggle_Wanted( array<string> args, bool toggled )
+{
+	if ( args.len() < 1 )
+		return toggled
+
+	string a = args[0].tolower()
+	if ( a == "1" || a == "on" )
+		return true
+	if ( a == "0" || a == "off" )
+		return false
+	return toggled
+}
+
 void function ClientCommand_demigod( entity player, array<string> args )
 {
 	if ( GetConVarInt( "sv_cheats" ) != 1 )
 		return
 
-	if ( IsDemigod( player ) )
+	bool enable = DevToggle_Wanted( args, !IsDemigod( player ) )
+	if ( enable == IsDemigod( player ) )
+		return
+
+	if ( !enable )
 	{
 		DisableDemigod( player )
 		DevToggle_AlertAll( "#FS_GODMODE_OFF" )
@@ -564,7 +612,10 @@ void function ClientCommand_infinite_ammo( entity player, array<string> args )
 	if ( GetConVarInt( "sv_cheats" ) != 1 )
 		return
 
-	bool enable = !player.p.infiniteAmmo
+	bool enable = DevToggle_Wanted( args, !player.p.infiniteAmmo )
+	if ( enable == player.p.infiniteAmmo )
+		return
+
 	SetInfiniteAmmoForPlayer( player, enable, [], true, true )
 	DevToggle_AlertAll( enable ? "#FS_INFINITE_AMMO_ON" : "#FS_INFINITE_AMMO_OFF" )
 }
@@ -608,7 +659,20 @@ void function ClientCommand_auto_respawn( entity player, array<string> args )
 	if ( GetConVarInt( "sv_cheats" ) != 1 )
 		return
 
-	file.autoRespawnEnabled = !file.autoRespawnEnabled
+	DevAutoRespawn_SetEnabled( DevToggle_Wanted( args, !file.autoRespawnEnabled ) )
+}
+
+bool function DevAutoRespawn_IsEnabled()
+{
+	return file.autoRespawnEnabled
+}
+
+void function DevAutoRespawn_SetEnabled( bool enable )
+{
+	if ( enable == file.autoRespawnEnabled )
+		return
+
+	file.autoRespawnEnabled = enable
 
 	if ( file.autoRespawnEnabled && !file.autoRespawnCallbackInstalled )
 	{

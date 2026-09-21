@@ -318,6 +318,13 @@ void function UICodeCallback_UIInit()
 	UtilityUI_Init()
 
 	Settings_Init() 
+	// Minimal Visual Clutter is the ship default; an archived Full from an
+	// older build is migrated once.
+	if ( GetConVarInt( "cl_visual_clutter_ship" ) < 1 )
+	{
+		SetConVarInt( "cl_visual_clutter", 1 )
+		SetConVarInt( "cl_visual_clutter_ship", 1 )
+	}
 	GameModes_Init()
 	UIVars_Init()
 

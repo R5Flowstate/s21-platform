@@ -509,6 +509,7 @@ const float FLOWSTATE_HARD_COMMIT_MAX = 0.6
 const int FLOWSTATE_HARD_UNSTUCK_DEPTH_AFTER = 2 // pure reverse twice -> try depth instead
 // Ground plant: scripted root-motion has no gravity -- only rewrite Z under current XY
 const float FLOWSTATE_GROUND_TRACE_UP = 40.0
+const float NPC_IN_FLIGHT_SPEED = 50.0
 const float FLOWSTATE_GROUND_TRACE_DOWN = 512.0 // find floor under modest ledges
 const float FLOWSTATE_GROUND_STEP_UP = 48.0 // max rise per slice (ramps / stairs)
 const float FLOWSTATE_GROUND_DROP_PER_SLICE = 56.0 // soft fall rate (~560 u/s), not a teleport
@@ -758,9 +759,20 @@ void function FlowstateDummy_FaceTargetYawOnly( entity bot, entity target )
 // the floor under the CURRENT XY each slice -- never rewrite X/Y so anim locomotion
 // stays authoritative. Soft-drops tall ledges instead of teleporting.
 // true = ground found in range (planted or mid-drop toward it)
+// Airborne with real velocity = launched (jump pad, knockback) or falling under gravity.
+// Only a dummy hanging in the air with no velocity needs a ground plant.
+bool function NPC_IsInFlight( entity npc )
+{
+	if ( IsValid( npc.GetGroundEntity() ) )
+		return false
+	return LengthSqr( npc.GetVelocity() ) > NPC_IN_FLIGHT_SPEED * NPC_IN_FLIGHT_SPEED
+}
+
 bool function FlowstateDummy_ConformToGround( entity bot )
 {
 	if ( !IsValid( bot ) )
+		return false
+	if ( NPC_IsInFlight( bot ) )
 		return false
 
 	vector pos = bot.GetOrigin()
@@ -1344,13 +1356,16 @@ void function BotHardStrafeMovementPatternThread( entity bot, entity target )
 //          Recreates StartStraferDummyChallenge spawn+strafe setup as a one-shot
 //          crosshair spawn (same pattern as other DEV_Spawn*AtCrosshair helpers).
 //-----------------------------------------------------------------------------
-entity function DEV_SpawnFlowstateDummyAtCrosshair( entity player, int shieldLevel = 3 )
+entity function DEV_SpawnFlowstateDummyAtCrosshair( entity player, int shieldLevel = -1 )
 {
 	if ( !IsValid( player ) )
 	{
 		printt( "[FlowstateDummy] DEV_SpawnFlowstateDummyAtCrosshair: invalid player" )
 		return null
 	}
+
+	if ( shieldLevel < 0 )
+		shieldLevel = AimTrainer_ResolveDummyShieldLevel( player )
 
 	vector origin = GetPlayerCrosshairOrigin( player )
 	vector eyeAngles = player.EyeAngles()
@@ -1365,13 +1380,16 @@ entity function DEV_SpawnFlowstateDummyAtCrosshair( entity player, int shieldLev
 	return npc
 }
 
-entity function DEV_SpawnFlowstateHardDummyAtCrosshair( entity player, int shieldLevel = 3 )
+entity function DEV_SpawnFlowstateHardDummyAtCrosshair( entity player, int shieldLevel = -1 )
 {
 	if ( !IsValid( player ) )
 	{
 		printt( "[FlowstateDummy] DEV_SpawnFlowstateHardDummyAtCrosshair: invalid player" )
 		return null
 	}
+
+	if ( shieldLevel < 0 )
+		shieldLevel = AimTrainer_ResolveDummyShieldLevel( player )
 
 	vector origin = GetPlayerCrosshairOrigin( player )
 	vector eyeAngles = player.EyeAngles()
@@ -1470,30 +1488,57 @@ void function FlowstateAutospawnDummyLoop( entity player, vector origin, vector 
 
 // Autospawn freeroam: one strafer in front of the player; respawn after kill (safe plant each time).
 const float AIM_FREEROAM_AUTOSPAWN_DIST = 400.0
-const int AIM_FREEROAM_AUTOSPAWN_SHIELD = 3
 
-void function DEV_AimFreeroam_Autospawn( entity player )
+// asChallenge: timed run with the aim-trainer clock and results. Otherwise the
+// strafer just keeps respawning until the player clears it.
+void function DEV_AimFreeroam_Autospawn( entity player, bool asChallenge = false )
 {
 	if ( !IsValid( player ) )
 		return
 
 	AimTrainer_StopPlayerSession( player )
 	player.p.aimTrainerFreeroamMode = AIMTRAINER_FREEROAM_AUTOSPAWN
-	AimTrainer_BeginTimedChallenge( player, true )
-	thread AimFreeroam_AutospawnLoop( player, false )
-	printt( format( "[AimFreeroam] Autospawn started for %s", player.GetPlayerName() ) )
+	if ( asChallenge )
+		AimTrainer_BeginTimedChallenge( player, true )
+	else
+		AimTrainer_EnterMode( player )
+	AimFreeroam_StartAutospawnLoop( player, false )
+	printt( format( "[AimFreeroam] Autospawn started for %s challenge=%s", player.GetPlayerName(), string( asChallenge ) ) )
 }
 
-void function DEV_AimFreeroam_AutospawnHard( entity player )
+void function DEV_AimFreeroam_AutospawnHard( entity player, bool asChallenge = false )
 {
 	if ( !IsValid( player ) )
 		return
 
 	AimTrainer_StopPlayerSession( player )
 	player.p.aimTrainerFreeroamMode = AIMTRAINER_FREEROAM_AUTOSPAWN_HARD
-	AimTrainer_BeginTimedChallenge( player, true )
-	thread AimFreeroam_AutospawnLoop( player, true )
-	printt( format( "[AimFreeroam] Autospawn Hard started for %s", player.GetPlayerName() ) )
+	if ( asChallenge )
+		AimTrainer_BeginTimedChallenge( player, true )
+	else
+		AimTrainer_EnterMode( player )
+	AimFreeroam_StartAutospawnLoop( player, true )
+	printt( format( "[AimFreeroam] Autospawn Hard started for %s challenge=%s", player.GetPlayerName(), string( asChallenge ) ) )
+}
+
+// Legend body pref owns the autospawn shape: fake-player strafers instead of NPC dummies.
+void function AimFreeroam_StartAutospawnLoop( entity player, bool smartHard )
+{
+	if ( !IsValid( player ) )
+		return
+	bool legendBody = false
+	try
+	{
+		legendBody = LegendBot_GetBodyIsLegend( player )
+	}
+	catch ( eBody )
+	{
+		legendBody = false
+	}
+	if ( legendBody )
+		thread LegendBot_AutospawnLoop( player, smartHard )
+	else
+		thread AimFreeroam_AutospawnLoop( player, smartHard )
 }
 
 void function AimFreeroam_AutospawnLoop( entity player, bool smartHard )
@@ -1525,9 +1570,11 @@ void function AimFreeroam_AutospawnLoop( entity player, bool smartHard )
 
 		vector origin = player.GetOrigin() + AnglesToForward( player.GetAngles() ) * AIM_FREEROAM_AUTOSPAWN_DIST
 		vector groundPos = GetGroundPosition( origin + <0, 0, 32>, origin + <0, 0, -512>, [ player ] ).endPos
+		if ( player.p.aimTrainerFixedSpawn )
+			groundPos = player.p.aimTrainerFixedSpawnPos
 		vector angles = <0.0, VectorToAngles( player.GetOrigin() - groundPos ).y, 0.0>
 
-		entity npc = FlowstateDummy_SpawnAt( player, groundPos, angles, AIM_FREEROAM_AUTOSPAWN_SHIELD, waitMin, waitMax, smartHard )
+		entity npc = FlowstateDummy_SpawnAt( player, groundPos, angles, AimTrainer_ResolveDummyShieldLevel( player ), waitMin, waitMax, smartHard )
 		if ( !IsValid( npc ) )
 		{
 			wait 0.5
@@ -1560,7 +1607,6 @@ const float AIM_FREEROAM_TS_MAX_Z_DELTA = 350.0
 const int AIM_FREEROAM_TS_SPAWN_TRIES = 32
 // Yaw jitter inside each FOV sector when filling slot N of MAX.
 const float AIM_FREEROAM_TS_SECTOR_JITTER = 6.0
-const int AIM_FREEROAM_TS_SHIELD = 50
 // Target switch: normal playback (matches Flowstate StartSwapFocusDummy ~0.4s phases)
 const float AIM_FREEROAM_TS_PLAYRATE = 1.0
 const float AIM_FREEROAM_TS_PHASE = 0.4
@@ -1696,6 +1742,7 @@ void function AimFreeroam_RestartScenario( entity player )
 	int mode = player.p.aimTrainerFreeroamMode
 	// Caller (RestartChallengeFull) already FX-despawned; this is the safety for other entry points.
 	AimTrainer_DestroyPlayerDummies( player )
+	LegendBot_KickAll( player )
 	player.Signal( "AimFreeroam_Stop" )
 
 	if ( mode == AIMTRAINER_FREEROAM_TARGET_SWITCH )
@@ -1723,12 +1770,12 @@ void function AimFreeroam_RestartScenario( entity player )
 	}
 	else if ( mode == AIMTRAINER_FREEROAM_AUTOSPAWN )
 	{
-		thread AimFreeroam_AutospawnLoop( player, false )
+		AimFreeroam_StartAutospawnLoop( player, false )
 		printt( format( "[AimFreeroam] Restart Autospawn for %s", player.GetPlayerName() ) )
 	}
 	else if ( mode == AIMTRAINER_FREEROAM_AUTOSPAWN_HARD )
 	{
-		thread AimFreeroam_AutospawnLoop( player, true )
+		AimFreeroam_StartAutospawnLoop( player, true )
 		printt( format( "[AimFreeroam] Restart Autospawn Hard for %s", player.GetPlayerName() ) )
 	}
 	else
@@ -1776,8 +1823,9 @@ void function AimFreeroam_TargetSwitchLoop( entity player )
 
 			vector pos = AimFreeroam_PickTargetSwitchFovPos( player, live )
 			vector angles = <0.0, VectorToAngles( player.GetOrigin() - pos ).y, 0.0>
-			// shieldLevel 2 = blue skin; HP clamped to 50 below (not random strafer skin).
-			entity npc = SpawnNPCTrainingDummy( pos, angles, 2 )
+			// Shield tier follows the FR shield setting in FR, else the player's Lab armor pref.
+			// SetNPCShieldLevel inside the spawn owns skin + pool + grade together.
+			entity npc = SpawnNPCTrainingDummy( pos, angles, AimTrainer_ResolveDummyShieldLevel( player ) )
 			if ( !IsValid( npc ) )
 				break
 
@@ -1806,9 +1854,6 @@ void function AimFreeroam_TargetSwitchLoop( entity player )
 			npc.EnableNPCFlag( NPC_IGNORE_ALL | NPC_DISABLE_SENSING | NPC_NO_WEAPON_DROP )
 			npc.SetTitle( "" )
 			npc.SetAimAssistAllowed( true )
-			npc.SetShieldHealthMax( AIM_FREEROAM_TS_SHIELD )
-			npc.SetShieldHealth( AIM_FREEROAM_TS_SHIELD )
-			// Keep SetNPCShieldLevel blue skin (Dummy_SetStraferSkin would randomize it away).
 
 			live.append( npc )
 			thread AimFreeroam_TargetSwitchWatcher( npc, player, live )
@@ -2040,7 +2085,7 @@ entity function AimFreeroam_SpawnPopcornDummy( entity player, array<entity> live
 	vector angles = <0.0, VectorToAngles( player.GetOrigin() - groundPos ).y, 0.0>
 
 	// autoPlantGround=false -- plant thread SetOrigin fights native hop velocity.
-	entity npc = SpawnNPCTrainingDummy( groundPos, angles, 3, false, false )
+	entity npc = SpawnNPCTrainingDummy( groundPos, angles, AimTrainer_ResolveDummyShieldLevel( player ), false, false )
 	if ( !IsValid( npc ) )
 		return null
 
@@ -2298,7 +2343,7 @@ entity function AimFreeroam_SpawnFloatingDummy( entity player )
 	vector angles = <0.0, VectorToAngles( player.GetOrigin() - origin ).y, 0.0>
 
 	// autoPlantGround=false -- velocity kicks must not fight plant SetOrigin.
-	entity npc = SpawnNPCTrainingDummy( origin, angles, 3, false, false )
+	entity npc = SpawnNPCTrainingDummy( origin, angles, AimTrainer_ResolveDummyShieldLevel( player ), false, false )
 	if ( !IsValid( npc ) )
 		return null
 
@@ -2409,7 +2454,7 @@ entity function AimFreeroam_SpawnSkydivingDummy( entity player )
 	vector highPos = player.GetOrigin() + <0, 0, AIM_FREEROAM_SKY_HEIGHT> + AIM_FREEROAM_SKY_HIGH_RADIUS * <sin( r ), cos( r ), 0.0>
 	vector angles = <0.0, VectorToAngles( player.GetOrigin() - highPos ).y, 0.0>
 
-	entity npc = SpawnNPCTrainingDummy( highPos, angles, 3, false, false )
+	entity npc = SpawnNPCTrainingDummy( highPos, angles, AimTrainer_ResolveDummyShieldLevel( player ), false, false )
 	if ( !IsValid( npc ) )
 		return null
 
@@ -2662,7 +2707,7 @@ entity function AimFreeroam_SpawnSmoothbotDummy( entity player )
 	vector origin = AimFreeroam_SmoothbotLocalToWorld( player.EyePosition(), ang.y, ang.x, localPos )
 	vector angles = <0.0, VectorToAngles( player.GetOrigin() - origin ).y, 0.0>
 
-	entity npc = SpawnNPCTrainingDummy( origin, angles, 3, false, false )
+	entity npc = SpawnNPCTrainingDummy( origin, angles, AimTrainer_ResolveDummyShieldLevel( player ), false, false )
 	if ( !IsValid( npc ) )
 		return null
 

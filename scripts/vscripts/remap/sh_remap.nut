@@ -24,8 +24,8 @@ global function Sh_ReMap_PrecacheMap
 
 void function Sh_ReMap_Init()
 {
-	if( !GetCurrentPlaylistVarBool( "remap_enable", true ) ) 
-    	return
+	if ( !GetCurrentPlaylistVarBool( "remap_enable", true ) )
+		return
 
 #if SERVER
 	ReMap_PrecacheZiplines()

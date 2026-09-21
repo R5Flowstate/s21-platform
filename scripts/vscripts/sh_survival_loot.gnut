@@ -336,13 +336,13 @@ global const array<string> WEAPON_SET_STRINGS_FOR_TIER = [ "", WEAPON_LOCKEDSET_
 
 global const string WEAPON_LOCKEDSET_SUFFIX_PAINTBALL = "_paintball"
 global const string WEAPON_LOCKEDSET_MOD_PAINTBALL = "paintball"
+global const string WEAPON_LOCKEDSET_MOD_AKIMBO = "locked_akimbo"
 global const string WEAPON_LOCKEDSET_MOD_BLUEPAINTBALL = "bluepaintball"
 global const string WEAPON_LOCKEDSET_MOD_PURPLEPAINTBALL = "purplepaintball"
 global const string WEAPON_LOCKEDSET_MOD_GOLDPAINTBALL = "goldpaintball"
 
-global const string WEAPON_LOCKEDSET_MOD_AKIMBO = "locked_akimbo"
 global const string WEAPON_SUFFIX_AKIMBO = "_akimbo"
-global const bool AKIMBO_DUALWIELD_ENABLED = false
+global const bool AKIMBO_DUALWIELD_ENABLED = true
 
               
                                                                  

@@ -27,6 +27,9 @@ playlists
                 aimassist_filter_plv_aim_coefficient 0.05
                 aimassist_filter_plv_threshold_aim_enabled 1
                 aimassist_filter_plv_threshold_aim_coefficient 0.05
+                aimassist_player_tune_allowed 1
+                aimassist_player_tune_min 0.5
+                aimassist_player_tune_max 1.0
 
                 ///////////////////////////////////////////////////////////////////////////////////
                 //// Character Configurations
@@ -682,6 +685,10 @@ playlists
         fs_1v1
         {
             inherit defaults
+            vars
+            {
+                aimassist_player_tune_allowed 0
+            }
         }
 
         fs_instagib
@@ -1867,9 +1874,29 @@ playlists
 
                 fullmap_enabled 0
                 match_time_limit -1
-                flowstateRoundtime 600
+                // Round length in seconds. flowstateEndlessFFAorTDM 1 = no round
+                // reset, no podium, scores persist (the timer only redraws).
+                flowstateRoundtime 3600
+                flowstateEndlessFFAorTDM 0
                 endgame_delay 6
                 match_ending_enabled 0
+
+                // Legend force (1v1 index table: 0 Bang 1 Bloodhound 2 Caustic 3 Gibby
+                // 4 Lifeline 5 Mirage 6 Octane 7 Pathy 8 Wraith 9 Watty 10 Crypto ...).
+                flowstateForceCharacter 1
+                flowstateChosenCharacter 8
+                // Non-empty ref outranks the index (character_overdrive = Axle).
+                flowstateChosenCharacterRef "character_overdrive"
+                flowstateForceAdminCharacter 0
+                flowstateChosenAdminCharacter 0
+                flowstateRandomCharacterOnSpawn 0
+
+                // 0 = destroy every prop door at load (legacy Flowstate memory).
+                flowstateDoorsEnabled 1
+                // Invisible FreeDM boundary walls refuse deployables unless 1.
+                freedm_wall_sticky_ents 0
+                // [JUMPPAD] plant/touch lines on the dedi console.
+                jump_pad_trace 0
                 match_jip 1
                 min_jip_time -1
                 max_score_difference_for_jip -1
@@ -1883,11 +1910,13 @@ playlists
 
                 // Loadouts on. ffa_force_weapons 1 stamps ffa_primary/ffa_secondary instead of the picker.
                 // ffa_disable_loadouts 1 hides the picker. ffa_locked_set: white|1 blue|2 purple|3 gold|4 none
-                ffa_disable_loadouts 0
-                ffa_force_weapons 0
+                ffa_disable_loadouts 1
+                ffa_force_weapons 1
+                // ffa_akimbo 1 pairs every forced slot whose weapon supports it.
+                ffa_akimbo 1
                 ffa_locked_set "blue"
-                ffa_primary "mp_weapon_r97"
-                ffa_secondary "mp_weapon_wingman"
+                ffa_primary "mp_weapon_semipistol"
+                ffa_secondary "mp_weapon_shotgun_pistol"
                 ffa_primary_mods ""
                 ffa_secondary_mods ""
                 ffa_armor_level 2
@@ -4991,6 +5020,7 @@ playlists
             inherit survival_dev
             vars
             {
+                aimassist_player_tune_allowed           0
                 r5f_mode_group                          flowstate
                 r5f_mode_family                         1v1
                 r5f_mode_family_title                   "1v1"
@@ -5196,6 +5226,7 @@ playlists
             inherit survival_dev
             vars
             {
+                aimassist_player_tune_allowed           0
                 r5f_mode_group                          flowstate
                 r5f_mode_family                         1v1
                 r5f_mode_family_title                   "1v1"
@@ -5367,6 +5398,38 @@ playlists
         }
 
         ///////////////////////////////////////////////////////////////////////////////////
+        //// Flowstate fs_movement_recorder (free roam + movement recorder bots)
+        ///////////////////////////////////////////////////////////////////////////////////
+        fs_movement_recorder
+        {
+            inherit survival_dev
+            vars
+            {
+                r5f_mode_group                          flowstate
+                r5f_mode_family                         movement_recorder
+                r5f_mode_family_title                   "Movement Recorder"
+                r5f_mode_family_order                   23
+                r5f_mode_family_blurb                   "Free roam. Record your movement, replay it on legend bots."
+                r5f_mode                                1
+                r5f_mode_order                          23
+                r5f_mode_title                          "Movement Recorder"
+                r5f_mode_blurb                          "Free roam. Record your movement, replay it on legend bots."
+                visible                                 1
+                name                                    "FS Movement Recorder"
+                description                             "Movement Recorder"
+                abbreviation                            "REC"
+                lobbytitle                              "Movement Recorder"
+                map_name                                ""
+
+                movement_recorder_enable                1
+                movement_recorder_legacy_binds          1
+            }
+            gamemodes { survival { maps {
+                mp_rr_canyonlands_hu                    1
+            } } }
+        }
+
+        ///////////////////////////////////////////////////////////////////////////////////
         //// Flowstate Instagib (bridge port)
         ///////////////////////////////////////////////////////////////////////////////////
         fs_instagib
@@ -5405,8 +5468,8 @@ playlists
                 matchmake_from_match                    0
 
                 bleedout_enabled                        0
-                emotes_enable                           0
-                holosprays_enabled                      0
+                emotes_enable                           1
+                holosprays_enabled                      1
                 is_elimination_based                    0
                 spectator_enabled                       0
                 player_collision_enabled                0
@@ -5468,23 +5531,14 @@ playlists
         }
 
         ///////////////////////////////////////////////////////////////////////////////////
-        //// Map Editor -- co-op prop building sandbox
+        //// Map Editor -- co-op prop building sandbox. Console only: `playlist map_editor`.
         ///////////////////////////////////////////////////////////////////////////////////
         map_editor
         {
             inherit survival_dev
             vars
             {
-                r5f_mode_group                          flowstate
-                r5f_mode_family                         mapeditor
-                r5f_mode_family_title                   "Map Editor"
-                r5f_mode_family_order                   30
-                r5f_mode_family_blurb                   "Build, script and test in the world itself."
-                r5f_mode                                1
-                r5f_mode_order                          30
-                r5f_mode_title                          "MAP EDITOR"
-                r5f_mode_blurb                          "Interactive map editor."
-                visible                                 1
+                visible                                 0
                 name                                    "MAP EDITOR"
                 description                             "Build together. Place props, save your work."
                 abbreviation                            "EDIT"

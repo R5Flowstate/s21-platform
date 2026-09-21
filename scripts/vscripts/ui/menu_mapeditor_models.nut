@@ -2,6 +2,7 @@
 
 global function InitMapEditorModelMenu
 global function OpenMapEditorModelMenu
+global function UI_MapEditor_SetActivePackMask
 
 struct
 {
@@ -54,6 +55,13 @@ void function OpenMapEditorModelMenu()
 {
 	CloseAllMenus()
 	AdvanceMenu( fileVM.menu )
+}
+
+
+void function UI_MapEditor_SetActivePackMask( int mask )
+{
+	MapEditorCatalog_Init()
+	MapEditorCatalog_SetActivePackMask( mask )
 }
 
 

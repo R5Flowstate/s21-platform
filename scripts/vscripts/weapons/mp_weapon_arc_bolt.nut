@@ -53,13 +53,13 @@ const asset ARC_BOLT_TETHER_RADIUS_FX = $"P_ash_arcbolt_tether_radius" // Radius
 const asset ARC_BOLT_TETHER_SCREEN_FX = $"P_ash_tether_screen_edge"    //$"P_ash_tether_screen"
 const asset ARC_BOLT_TETHER_INDICATOR_FX = $"P_ash_tether_indicator_cp10"  //$"P_ash_tether_indicator"
 const asset ARC_BOLT_TETHER_BREAK_CORE = $"P_emp_body_human"
-const asset ARC_BOLT_TETHER_BREAK_SNAP = $"P_tesla_trap_dmg"
+const asset ARC_BOLT_TETHER_BREAK_SNAP = $"P_tether_snap_break"
 
 const asset ARC_BOLT_TETHER_ANCHOR = $"mdl/weapons_r5/misc_ash_glaive/ash_glaive_solo_fx.rmdl"
 
 // ORGANIZATION AND DEBUG
 const string SIGNAL_TETHER_CREATED = "ArcBolt_TetherCreated"
-const string SIGNAL_TETHER_REMOVED = "ArcBolt_TetherRemoved"
+global const string SIGNAL_TETHER_REMOVED = "ArcBolt_TetherRemoved"
 const string SIGNAL_KILL_CRAWL_FX = "ArcBolt_ArcEffectCreated"
 
 const bool DEBUG_CONNECT_POINT 	= false  // false/true Debug view of octodad points
@@ -79,10 +79,10 @@ const float TETHER_DURATION_DEFAULT = 5.0
 
 const float TETHER_DURATION_UPGRADE = 15.0
 
-const float SHIELD_SCALE_DAMAGE_MULT_DEFAULT = 2.0
+const float SHIELD_SCALE_DAMAGE_MULT_DEFAULT = 1.0
 
 const float TETHER_MAX_PULL_VELOCITY_DEFAULT = 100.0
-const float TETHER_DEFAULT_STRENGTH = 80.0
+const float TETHER_DEFAULT_STRENGTH = 50.0
 const float TETHER_STRENGTH_HEALTH_SCALE = 0.6
 const float TETHER_HEALTH_BASE = 1000.0
 
@@ -92,10 +92,12 @@ const float TETHER_HEALTH_BASE = 1000.0
 
 
 
-const float TETHER_RADIUS_DEFAULT = 190
-const float TETHER_HEALTH_DRAIN_PER_SEC_DEFAULT = 250.0
-const float TETHER_MAX_STRETCH_DAMAGE_DEFAULT = 4.0    // Per-frame, maximum amont of damage dealt by stretching + velocity
-const float TETHER_HEALTH_STRETCH_DAMAGE_SCALE_DEFAULT = 0.11
+const float TETHER_RADIUS_DEFAULT = 210
+const float TETHER_MAX_RADIUS_SCALE = 1.5
+const float TETHER_MAX_RADIUS_STRENGTH_SCALE = 100
+const float TETHER_HEALTH_DRAIN_PER_SEC_DEFAULT = 200.0
+const float TETHER_MAX_STRETCH_DAMAGE_DEFAULT = 10.0    // Per-frame, maximum amont of damage dealt by stretching + velocity
+const float TETHER_HEALTH_STRETCH_DAMAGE_SCALE_DEFAULT = 0.3
 
 const float TETHER_HEALTH_DRAIN_DELAY = 1.0
 const float TETHER_HEALTH_DRAIN_CUTOFF_PCT = 0.0
@@ -175,10 +177,14 @@ void function MpWeaponArcBolt_Init()
 	PrecacheParticleSystem( ARC_BOLT_ZAP_CONNECT_FX )
 	PrecacheParticleSystem( ARC_BOLT_TETHER_INDICATOR_FX )
 	PrecacheParticleSystem( ARC_BOLT_TETHER_RADIUS_FX_UPGRADED )
+	PrecacheParticleSystem( ARC_BOLT_TETHER_BREAK_CORE )
+	PrecacheParticleSystem( ARC_BOLT_TETHER_BREAK_SNAP )
 
 	#if SERVER || CLIENT
 	PrecacheModel( ARC_BOLT_TETHER_ANCHOR )
 	#endif // SERVER || CLIENT
+	PrecacheScriptString( TETHER_TRAP_SCRIPTNAME )
+	PrecacheScriptString( TETHER_SCRIPTNAME )
 
 	file.doOnHitPing = GetCurrentPlaylistVarBool( "ash_tether_do_hit_ping", true )
 
@@ -314,7 +320,7 @@ void function WeaponAttackBolt( entity weapon, vector pos, vector dir, float lif
 	DeployableCollisionParams emptyParams
 	entity bolt = CreateBolt( weapon.GetOwner(), weapon, fireBoltParams, false, emptyParams )
 
-	if ( bolt == null )
+	if ( !IsValid( bolt ) )
 		return
 
 	#if SERVER

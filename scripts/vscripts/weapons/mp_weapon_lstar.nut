@@ -186,6 +186,7 @@ void function OnWeaponActivate_weapon_lstar( entity weapon )
 
 #if SERVER
 	CheckForRCEE( weapon, owner )
+	EnergyAmmoRegen_Start( weapon )
 #endif // #if SERVER
 
 	GoldenHorseGreen_OnWeaponActivate( weapon )

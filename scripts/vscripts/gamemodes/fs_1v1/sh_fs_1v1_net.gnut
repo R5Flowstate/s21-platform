@@ -1559,7 +1559,13 @@ void function ClientCallback_FS_1v1_PodiumEmote( entity player, int emoteGUID )
 	{
 		if ( !IsValid( other ) || other == player || !FS_1v1_PlayerHasClient( other ) )
 			continue
-		Remote_CallFunction_NonReplay( other, "ServerCallback_FS_1v1_PodiumEmote", emoteGUID )
+		try
+		{
+			Remote_CallFunction_NonReplay( other, "ServerCallback_FS_1v1_PodiumEmote", emoteGUID )
+		}
+		catch ( emoteFanoutErr )
+		{
+		}
 	}
 }
 
@@ -1574,7 +1580,13 @@ void function ClientCallback_FS_1v1_PodiumTbag( entity player )
 	{
 		if ( !IsValid( other ) || other == player || !FS_1v1_PlayerHasClient( other ) )
 			continue
-		Remote_CallFunction_NonReplay( other, "ServerCallback_FS_1v1_PodiumTbag" )
+		try
+		{
+			Remote_CallFunction_NonReplay( other, "ServerCallback_FS_1v1_PodiumTbag" )
+		}
+		catch ( tbagFanoutErr )
+		{
+		}
 	}
 }
 #endif // SERVER

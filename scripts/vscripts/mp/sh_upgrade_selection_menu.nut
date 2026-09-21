@@ -108,6 +108,15 @@ void function UpgradeSelectionMenu_UpdateChoices(entity player)
 		return
 
 	array<int> upgradeChoices = UpgradeCore_GetCurrentLevelChoices( player )
+	string indices = ""
+	foreach ( int idx in upgradeChoices )
+		indices += idx + ","
+	var pdataGuid = player.GetPersistentVar( LOADOUT_PDEF_PREFIX + Loadout_Character().id )
+	string pdataStr = pdataGuid == null ? "null" : string( pdataGuid )
+	printt( format( "[UPGRADE-CL] choices slot=%s pdata=%s settings=%s level=%d selected=0x%X indices=%s",
+		ItemFlavor_GetHumanReadableRef( LoadoutSlot_GetItemFlavor( ToEHI( player ), Loadout_Character() ) ),
+		pdataStr, string( player.GetPlayerSettings() ), UpgradeCore_GetPlayerLevel( player ),
+		player.GetPlayerNetInt( UPGRADE_CORE_SELECTED_UPGRADES ), indices ) )
 	array<string> numberStrArr = ["first", "second"]
 	for( int i=0; i < upgradeChoices.len() && i < numberStrArr.len();i++ )
 	{

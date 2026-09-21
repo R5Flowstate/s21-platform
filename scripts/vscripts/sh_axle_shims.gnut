@@ -1,0 +1,111 @@
+#if CLIENT
+global function AddScriptNameCreateCallback
+global function EffectSetUpdateControlPointsImmediate
+global function ReconScan_ShowHudForSimpleEntity
+global function ReconScan_RemoveHudForSimpleEntity
+global function GetTotalLOSRequiredNoRestoreReconScans
+global function ShouldHideHealthForPlayer
+#endif
+
+global function GetPlayerRunSpeed
+
+struct
+{
+#if CLIENT
+	table<string, array<void functionref( entity )> > scriptNameCallbacks = {}
+	table<string, bool> scriptNameHookedClasses = {}
+#endif
+} file
+
+float function GetPlayerRunSpeed( entity player )
+{
+	if ( !IsValid( player ) )
+		return 0.0
+
+	// S21 exposes runSpeed as a top-level player setting; this build keeps
+	// speeds inside poseSettings, which the getter cannot address by name.
+	try
+	{
+		return player.GetPlayerSettingFloat( "sprintspeed" )
+	}
+	catch ( e )
+	{
+		return 260.0
+	}
+}
+
+#if CLIENT
+void function EffectSetUpdateControlPointsImmediate( int fxHandle, bool immediate )
+{
+}
+
+void function AddScriptNameCreateCallback( string scriptName, void functionref( entity ) callbackFunc )
+{
+	if ( !(scriptName in file.scriptNameCallbacks) )
+		file.scriptNameCallbacks[ scriptName ] <- []
+
+	file.scriptNameCallbacks[ scriptName ].append( callbackFunc )
+
+	Axle_HookScriptNameClass( "prop_script" )
+	Axle_HookScriptNameClass( "script_mover" )
+	Axle_HookScriptNameClass( "script_mover_lightweight" )
+}
+
+void function Axle_HookScriptNameClass( string className )
+{
+	if ( className in file.scriptNameHookedClasses )
+		return
+
+	file.scriptNameHookedClasses[ className ] <- true
+	AddCreateCallback( className, Axle_OnScriptNameCandidateCreated )
+}
+
+void function Axle_OnScriptNameCandidateCreated( entity ent )
+{
+	if ( !IsValid( ent ) )
+		return
+
+	string scriptName = ent.GetScriptName()
+	if ( !(scriptName in file.scriptNameCallbacks) )
+		return
+
+	foreach ( void functionref( entity ) callbackFunc in file.scriptNameCallbacks[ scriptName ] )
+		callbackFunc( ent )
+}
+
+var function ReconScan_ShowHudForSimpleEntity( entity player, entity enemy )
+{
+	return ReconScan_ShowHudForTarget( player, enemy, false )
+}
+
+void function ReconScan_RemoveHudForSimpleEntity( entity player, entity enemy )
+{
+	ReconScan_RemoveHudForTarget( player, enemy )
+}
+
+int function GetTotalLOSRequiredNoRestoreReconScans( entity player, entity enemy )
+{
+	return 0
+}
+
+bool function ShouldHideHealthForPlayer( entity victim )
+{
+	bool phaseShifted = victim.IsPlayer() ? victim.IsPhaseShiftedOrPending() : false
+	if ( phaseShifted )
+	{
+		return true
+	}
+
+	if ( victim.IsCloaked( true ) )
+	{
+		return true
+	}
+
+	if ( PlayerHasPassive( victim, ePassives.PAS_GAS_GEAR ) && StatusEffect_HasSeverity( victim, eStatusEffect.gas_cloud ) )
+	{
+		return true
+	}
+
+	return false
+}
+#endif

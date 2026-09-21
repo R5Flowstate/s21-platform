@@ -156,7 +156,8 @@ global enum eMinimapObject_prop_script
        
 
 	                             
-		REDEPLOY_BALLOON
+		REDEPLOY_BALLOON,
+		NITRO_GATE
        
 
 	                    

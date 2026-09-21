@@ -165,11 +165,6 @@ void function Cl_Gamemode1v1_Init()
 
 	Obituary_SetAlwaysShow( true )
 	Obituary_SetMaxEntries( 8 )
-	if ( GetConVarInt( "cl_visual_clutter_ship" ) < 1 )
-	{
-		SetConVarInt( "cl_visual_clutter", 1 )
-		SetConVarInt( "cl_visual_clutter_ship", 1 )
-	}
 	CL_1v1_RegisterNetworkFunctions()
 
 	// Precache particles
@@ -590,6 +585,7 @@ void function FS_1v1_RestoreFfaPlayHud()
 	try { FS_1v1_SetRuiVisibleSafe( GetUltimateRui(), true ) } catch ( eUlt ) {}
 	FS_1v1_SetMinimapVisible( true )
 	FS_Hud_SetModeChromeVisible( true )
+	FS_1v1_SetLeaderboardTransitionLock( false )
 	var rui = ClGameState_GetRui()
 	if ( rui != null )
 		FS_1v1_RuiSetBoolSafe( rui, "isVisible", true )

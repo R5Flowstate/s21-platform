@@ -275,11 +275,11 @@
 	"chance_for_bonus_last_shot_in_clip" "0"
 	"critical_hit" "1"
 	"ammo_clip_size" "0"
-	"ammo_no_remove_from_stockpile" "1"
-	"uses_ammo_pool" "1"
+	"ammo_no_remove_from_stockpile" "0"
+	"uses_ammo_pool" "0"
 	"low_ammo_fraction" "0.005000"
-	"ammo_stockpile_max" "0"
-	"ammo_default_total" "0"
+	"ammo_stockpile_max" "88"
+	"ammo_default_total" "88"
 	"reload_alt_anim" "0"
 	"aimassist_adspull_weaponclass" "none"
 	"damage_near_value" "19"
@@ -542,6 +542,7 @@
 			"charge_cooldown_delay" "*0.967"
 			"charge_time" "2.400000"
 			"ammo_clip_size" "*1.25"
+			"ammo_stockpile_max" "++8"
 
 		}
 
@@ -551,6 +552,7 @@
 			"charge_cooldown_delay" "*0.933"
 			"charge_time" "2.600000"
 			"ammo_clip_size" "*1.5"
+			"ammo_stockpile_max" "++16"
 
 		}
 
@@ -560,6 +562,7 @@
 			"charge_cooldown_delay" "*0.9"
 			"charge_time" "2.800000"
 			"ammo_clip_size" "*2"
+			"ammo_stockpile_max" "++24"
 
 		}
 
@@ -569,6 +572,7 @@
 			"charge_cooldown_delay" "*0.9"
 			"charge_time" "2.800000"
 			"ammo_clip_size" "*2"
+			"ammo_stockpile_max" "++24"
 
 		}
 
@@ -879,7 +883,6 @@
 			"charge_cooldown_time" "*1.3"
 			"charge_cooldown_delay" "*1.1"
 			"charge_time" "3.400000"
-			"regen_ammo_refill_rate" "1.890000"
 			"ammo_stockpile_max" "++48"
 			"reload_time" "*1.3"
 			"reload_time_late1" "*1.3"

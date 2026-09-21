@@ -174,6 +174,8 @@ void function InitMapLocation()
 void function SetupFuncBrushWall( entity wall )
 {
 	wall.kv.contents = CONTENTS_SOLID | CONTENTS_NOGRAPPLE | CONTENTS_NOCLIMB
+	if ( !GetCurrentPlaylistVarBool( "freedm_wall_sticky_ents", false ) )
+		wall.e.preventStickyEnts = true
 }
 
 bool function MapNode_IsMapDataValid()

@@ -43,6 +43,8 @@ global function DEV_TestUltimateStates
 global function UpdateOffhandRuiCommon
 global function UpdateWeaponEnergizeRui
 global function OnPrimaryWeaponStatusUpdate_Energize
+global function OnPrimaryWeaponStatusUpdate_Akimbo
+global function PrimaryWeapon_UpdateFireSelectHUD
 global function ShouldShowChargeBar_Energize
 
 global function UpdateAmmoMinToFireForTacRui
@@ -76,6 +78,7 @@ struct
 	var    weapon_hud_rui
 	int    ultimateVideoChannel
 	entity lastSelectedPrimaryWeapon
+	array<entity> hasShownAkimboHintWeapons
 
 	bool[6] slotVisible = [true, true, true, true, true, true]
 	bool    ammo_counter_visible = true
@@ -118,6 +121,7 @@ void function ClWeaponStatus_Init()
 	AddCallback_GameStateEnter( eGameState.Playing, UpdateAmmoStatusVisibility )
 
 	AddCallback_OnPrimaryWeaponStatusUpdate( OnPrimaryWeaponStatusUpdate_Energize )
+	AddCallback_OnPrimaryWeaponStatusUpdate( OnPrimaryWeaponStatusUpdate_Akimbo )
 	AddCallback_ShouldShowChargeBar( ShouldShowChargeBar_Energize )
 
 	if ( GetCurrentPlaylistVarBool( "hud_ultimate_ready_video", false ) )
@@ -1582,6 +1586,10 @@ bool function WeaponHasFireModeSelect( entity weapon )
 		return true
 	else if ( DoesModExist( weapon, "alt_ammo" ) ) 
 		return true
+	else if ( IsModActive( weapon, "akimbo_active" ) )
+		return true
+	else if ( IsModActive( weapon, "akimbo_disable" ) )
+		return true
 
 
 
@@ -1687,6 +1695,14 @@ int function GetWeaponCurrentFireModeIndex( entity weapon )
 			return 1
 		else
 			return 0
+	}
+
+	if ( DoesModExist( weapon, "akimbo_active" ) )
+	{
+		if ( IsModActive( weapon, "akimbo_active" ) )
+			return 0
+		else
+			return 1
 	}
 
 
@@ -3118,6 +3134,37 @@ void function UpdateWeaponEnergizeRui( entity player, entity weapon, asset cross
 		lastEnergizeState = energizeState
 		lastWeaponName = curWeaponName
 		WaitFrame()
+	}
+}
+
+void function OnPrimaryWeaponStatusUpdate_Akimbo( entity selectedWeapon, var weaponRui )
+{
+	if ( !IsValid( selectedWeapon ) )
+		return
+
+	string className = selectedWeapon.GetWeaponClassName()
+	bool weaponCanAkimbo = IsWeaponKeyFieldDefined( className, "is_akimbo_weapon" ) && GetWeaponInfoFileKeyField_GlobalBool( className, "is_akimbo_weapon" )
+	bool weaponIsMissingPair = weaponCanAkimbo && !SURVIVAL_Weapon_IsAttachmentLocked( GetWeaponClassNameWithLockedSet( selectedWeapon ) ) && !selectedWeapon.IsAkimboAvailable()
+
+	// The S21 weapon status RUI has no hint args; the S30 ones throw on this build.
+	try
+	{
+		if ( weaponIsMissingPair && !file.hasShownAkimboHintWeapons.contains( selectedWeapon ) )
+		{
+			file.hasShownAkimboHintWeapons.append( selectedWeapon )
+			RuiSetBool( weaponRui, "showWeaponHintInfo", true )
+			RuiSetString( weaponRui, "weaponHintInfoText", Localize( "#AKIMBO_PICK_UP_2ND_WEAPON", GetWeaponInfoFileKeyField_GlobalString( className, "shortprintname" ) ) )
+			RuiSetWallTimeWithOffset( weaponRui, "fadeWeaponHintInfoStartTime", 3.0 )
+		}
+		else if ( !weaponIsMissingPair )
+		{
+			RuiSetBool( weaponRui, "showWeaponHintInfo", false )
+			RuiSetString( weaponRui, "weaponHintInfoText", "" )
+			RuiSetWallTimeBad( weaponRui, "fadeWeaponHintInfoStartTime" )
+		}
+	}
+	catch ( eHint )
+	{
 	}
 }
 

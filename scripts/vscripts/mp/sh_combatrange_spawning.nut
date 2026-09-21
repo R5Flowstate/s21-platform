@@ -1695,7 +1695,7 @@ bool function CanBeParticipant( entity player )
 	if( !IsValid( player ) )
 		return false
 
-	if( !player.IsPlayer() )
+	if( !player.IsPlayer() || player.IsBot() )
 		return false
 
 	return true
@@ -1852,7 +1852,7 @@ void function DynDummie_SpawnManager( int realm )
 				noSpawnLoops++
 				if( noSpawnLoops >= NOSPAWN_LOOP_COUNT_THRESHOLD )
 				{
-					if( file.spawnPtsRecentByRealm[ realm ].len() > 0  )
+					if( realm in file.spawnPtsRecentByRealm && file.spawnPtsRecentByRealm[ realm ].len() > 0  )
 					{
 						file.spawnPtsRecentByRealm[ realm ].remove( 0 )
 					}
@@ -1902,7 +1902,7 @@ void function Dummies_SpawnFill( int realm, bool doWaits = false )
 			noSpawnLoops++
 			if( noSpawnLoops >= NOSPAWN_LOOP_COUNT_THRESHOLD )
 			{
-				if( file.spawnPtsRecentByRealm[ realm ].len() > 0  )
+				if( realm in file.spawnPtsRecentByRealm && file.spawnPtsRecentByRealm[ realm ].len() > 0  )
 				{
 					file.spawnPtsRecentByRealm[ realm ].remove( 0 )
 				}

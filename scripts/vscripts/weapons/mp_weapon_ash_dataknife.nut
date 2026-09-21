@@ -58,6 +58,9 @@ const int INDEX_WaypointFloat_CreatedTime = 0
 
 const bool DEBUG_USE_NEW_ANIMS = true
 
+bool OLD_ASH_PAS_ENABLED = true
+bool OLD_ASH_PAS_DEATHBOX_MAP_PING_ENABLED = false
+
 
 struct deathboxInfo
 {
@@ -99,46 +102,63 @@ struct
 
 void function MpWeaponAshDataknife_Init()
 {
-	PrecacheWeapon( ASH_DATAKNIFE_WEAPON_NAME )
-	PrecacheParticleSystem( DEATHBOX_USED_FX )
-	PrecacheParticleSystem( DEATHBOX_KNIFE_FX )
+	OLD_ASH_PAS_ENABLED = !AshDashEnabled()
+	OLD_ASH_PAS_DEATHBOX_MAP_PING_ENABLED = AshDashEnabled()
+
+	if ( OLD_ASH_PAS_ENABLED )
+	{
+		PrecacheWeapon( ASH_DATAKNIFE_WEAPON_NAME )
+		PrecacheParticleSystem( DEATHBOX_USED_FX )
+		PrecacheParticleSystem( DEATHBOX_KNIFE_FX )
 
                          
                                                                   
        
 
-	if ( UseAlternatePassiveActivation() )
-	{
-		#if SERVER
-			file.ping_EnemyKill_RangeSqr = GetCurrentPlaylistVarFloat( "ash_passive_ping_enemy_kill_range_sqr", ASH_DATAKNIFE_ENEMY_KILL_PING_RANGE_SQR_DEFAULT )
-			file.ping_AllyDeath_RangeSqr = GetCurrentPlaylistVarFloat( "ash_passive_ping_ally_death_range_sqr", ASH_DATAKNIFE_ALLY_DEATH_PING_RANGE_SQR_DEFAULT )
-			AddCallback_OnPlayerKilled( OnPlayerKilled )
-		#endif
-	}
-	else
-	{
-		// Register remotes on both sides; client early-return was a regression that skipped these.
-		Remote_RegisterServerFunction( FUNCNAME_TryActivate, "typed_entity", "prop_death_box" )
-		Remote_RegisterServerFunction( FUNCNAME_PingDeathboxFromMap, "typed_entity", "prop_death_box" )
-		Remote_RegisterClientFunction( FUNCNAME_DevForceUsable )
+		if ( UseAlternatePassiveActivation() )
+		{
+			#if SERVER
+				file.ping_EnemyKill_RangeSqr = GetCurrentPlaylistVarFloat( "ash_passive_ping_enemy_kill_range_sqr", ASH_DATAKNIFE_ENEMY_KILL_PING_RANGE_SQR_DEFAULT )
+				file.ping_AllyDeath_RangeSqr = GetCurrentPlaylistVarFloat( "ash_passive_ping_ally_death_range_sqr", ASH_DATAKNIFE_ALLY_DEATH_PING_RANGE_SQR_DEFAULT )
+				AddCallback_OnPlayerKilled( OnPlayerKilled )
+			#endif
+		}
+		else
+		{
+			// Register remotes on both sides; client early-return was a regression that skipped these.
+			Remote_RegisterServerFunction( FUNCNAME_TryActivate, "typed_entity", "prop_death_box" )
+			Remote_RegisterServerFunction( FUNCNAME_PingDeathboxFromMap, "typed_entity", "prop_death_box" )
+			Remote_RegisterClientFunction( FUNCNAME_DevForceUsable )
 		                    
-		Remote_RegisterClientFunction( "DeathboxNetwork_ServerToClient_TrackTargetOverTime", "entity", "int", 0, ABSOLUTE_MAX_TEAMS )
+			Remote_RegisterClientFunction( "DeathboxNetwork_ServerToClient_TrackTargetOverTime", "entity", "int", 0, ABSOLUTE_MAX_TEAMS )
         
 
-		#if SERVER
-			AddCallback_OnDeathBoxSpawned( OnDeathboxSpawned )
-			AddCallback_OnPassiveChanged( ePassives.PAS_ASH, OnPassiveChanged )
-			AddCallback_OnGiveOffhandEquipment( ASH_DATAKNIFE_WEAPON_NAME, OnGiveDataKnife )
-			AddCallback_OnTakeOffhandEquipment( ASH_DATAKNIFE_WEAPON_NAME, OnTakeDataKnife )
-		#elseif CLIENT
-			RegisterConCommandTriggeredCallback( "+scriptCommand5", OnCharacterButtonPressed )
-			AddCallback_OnPassiveChanged( ePassives.PAS_ASH, OnPassiveChanged )
-			AddCreateCallback( PLAYER_WAYPOINT_CLASSNAME, OnWaypointCreated )
+			#if SERVER
+				AddCallback_OnDeathBoxSpawned( OnDeathboxSpawned )
+				AddCallback_OnPassiveChanged( ePassives.PAS_ASH, OnPassiveChanged )
+				AddCallback_OnGiveOffhandEquipment( ASH_DATAKNIFE_WEAPON_NAME, OnGiveDataKnife )
+				AddCallback_OnTakeOffhandEquipment( ASH_DATAKNIFE_WEAPON_NAME, OnTakeDataKnife )
+			#elseif CLIENT
+				RegisterConCommandTriggeredCallback( "+scriptCommand5", OnCharacterButtonPressed )
+				AddCallback_OnPassiveChanged( ePassives.PAS_ASH, OnPassiveChanged )
+				AddCreateCallback( PLAYER_WAYPOINT_CLASSNAME, OnWaypointCreated )
 
                            
                                                                     
                                                             
          
+
+				file.mapIconAppearanceDelay = GetCurrentPlaylistVarFloat( "ash_passive_map_icon_delay", ASH_DATAKNIFE_MAP_ICON_DELAY_DEFAULT )
+			#endif
+		}
+	}
+	else if ( OLD_ASH_PAS_DEATHBOX_MAP_PING_ENABLED )
+	{
+		Remote_RegisterServerFunction( FUNCNAME_PingDeathboxFromMap, "typed_entity", "prop_death_box" )
+
+		#if CLIENT
+			AddCallback_OnPassiveChanged( ePassives.PAS_PAS_UPGRADE_THREE, OnPassiveChanged )
+			AddCreateCallback( PLAYER_WAYPOINT_CLASSNAME, OnWaypointCreated )
 
 			file.mapIconAppearanceDelay = GetCurrentPlaylistVarFloat( "ash_passive_map_icon_delay", ASH_DATAKNIFE_MAP_ICON_DELAY_DEFAULT )
 		#endif
@@ -519,6 +539,9 @@ void function OnWaypointCreated( entity wp )
 
 	entity player = GetLocalViewPlayer()
 	if ( !IsValid( player ) || !player.HasPassive( ePassives.PAS_ASH ) )
+		return
+
+	if ( !OLD_ASH_PAS_ENABLED && !player.HasPassive( ePassives.PAS_PAS_UPGRADE_THREE ) )
 		return
 
 	entity deathbox = wp.GetWaypointEntity( INDEX_WaypointEntity_Deathbox )

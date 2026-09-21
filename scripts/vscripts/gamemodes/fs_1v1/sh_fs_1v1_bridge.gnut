@@ -1123,7 +1123,7 @@ void function __HighPingCheck( entity player )
 	if ( !IsValid( player ) || IsAdmin( player ) )
 		return
 
-	int pingMs = int( player.GetLatency() * 1000 ) - 40
+	int pingMs = int( player.GetLatency() * 1000 )
 	int maxPing = FlowState_MaxPingAllowed()
 
 	if ( flowstateSettings.enable_ping_kick && FlowState_KickHighPingPlayer() && pingMs > maxPing )

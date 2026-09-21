@@ -6,10 +6,6 @@
 	"ammo_default_total" "288"
 	"ammo_stockpile_max" "54"
 	"uses_ammo_pool" "0"
-	"regen_ammo_refill_rate"		"22"
-	"regen_ammo_refill_start_delay"		"0.100000"
-	"regen_ammo_stockpile_max_fraction"		"1.000000"
-	"regen_ammo_while_firing"		"0"
 	"ammo_no_remove_from_stockpile" "0"
 	"charge_time" "0.010000"
 	"charge_cooldown_time" "0.000000"
@@ -670,6 +666,7 @@
 		"energy_mag_l3"
 		{
 			"ammo_clip_size" "36"
+			"ammo_stockpile_max" "252"
 
 		}
 

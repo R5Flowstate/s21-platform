@@ -348,6 +348,7 @@ void function JumpPad_CreateTriggerEntity( entity jumpPad, entity owner )
 	trigger.SetOwner( jumpPad )
 	trigger.SetRadius( radiusToUse )
 	trigger.SetAboveHeight( 32 )
+	trigger.SetBelowHeight( 16 )
 	trigger.SetOrigin( origin )
 	trigger.SetAngles( angles )
 	trigger.SetTriggerType( TT_JUMP_PAD )
@@ -369,6 +370,10 @@ void function JumpPad_CreateTriggerEntity( entity jumpPad, entity owner )
 
 	if ( IsTooCloseToSkydiveLauncher( trigger ) )
 		trigger.Disable()
+
+	if ( GetCurrentPlaylistVarBool( "jump_pad_trace", false ) )
+		printt( "[JUMPPAD] planted pad=" + string( jumpPad ) + " origin=" + string( origin ) + " parent=" + string( jumpPad.GetParent() )
+			+ " owner=" + string( owner ) + " realms=" + string( trigger.GetRealms() ) + " nearLauncher=" + string( IsTooCloseToSkydiveLauncher( trigger ) ) )
 }
 
 void function JumpPad_OnTouchTrigger_Server( entity trigger, entity ent )
@@ -381,6 +386,10 @@ void function JumpPad_OnTouchTrigger_Server( entity trigger, entity ent )
 	entity jumpPad = trigger.GetOwner()
 	if ( !IsValid( jumpPad ) )
 		return
+
+	if ( GetCurrentPlaylistVarBool( "jump_pad_trace", false ) )
+		printt( "[JUMPPAD] touch pad=" + string( jumpPad ) + " ent=" + string( ent ) + " class=" + string( ent.GetNetworkedClassName() )
+			+ " team=" + string( ent.GetTeam() ) + " realms=" + string( ent.GetRealms() ) )
 
 	thread JumpPad_PlayLaunchAnim( jumpPad )
 	int fxId = GetParticleSystemIndex( JUMP_PAD_LAUNCH_FX )

@@ -1,0 +1,32 @@
+// Movement recorder shared constants (aim trainer record / replay).
+
+global const int    MREC_MAX_RECORDINGS_PER_PLAYER = 8
+global const int    MREC_GLOBAL_RECORDING_CAP      = 96
+global const float  MREC_MAX_SECONDS               = 60.0
+global const float  MREC_COUNTDOWN_SECONDS         = 3.0
+global const int    MREC_MAX_PLAYBACK_DUMMIES_PER_PLAYER = 8
+global const float  MREC_CMD_RATE_LIMIT            = 0.25
+global const float  MREC_RESPAWN_DELAY             = 1.5
+global const string MREC_SIGNAL_STOP_RECORD        = "MRec_StopRecord"
+global const string MREC_SIGNAL_STOP_PLAYBACK      = "MRec_StopPlayback"
+
+global struct MRecWeaponSnap
+{
+	string className
+	array<string> mods
+	int clip
+	int skin
+	int slot
+}
+
+global struct MRecSnapshot
+{
+	array<MRecWeaponSnap> weapons
+	int activeSlot
+	string tactical
+	string ultimate
+	array<string> equipment
+	table<string, int> inventory
+	int health
+	int shield
+}

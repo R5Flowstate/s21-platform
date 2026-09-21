@@ -9,6 +9,8 @@ global function MapEdit_Reject
 global function MapEdit_IsFiniteCoord
 global function MapEdit_NormalizeAngle360
 global function MapEditor_IsFrozenFor
+global function MapEdit_SV_PackReady
+global function MapEdit_PackFromConsole
 
 // Server-side freeze flag; read only via MapEditor_IsFrozenFor outside this file.
 global bool g_MapEditFrozen = false
@@ -38,10 +40,15 @@ struct
 	table< entity, array< entity > > undoStack
 	table< entity, array< MapEditorUndoDesc > > redoStack
 	table< int, bool > precachedIds
+	int activePackMask = 0
+	bool netRegistered = false
 } file
 
 void function MapEditor_ServerInit()
 {
+	MapEdit_RegisterNetworking()
+	AddCallback_OnClientConnected( MapEdit_OnClientConnected )
+
 	if ( !MapEditor_IsEnabled() )
 		return
 
@@ -53,6 +60,8 @@ void function MapEditor_ServerInit()
 	int attempted = 0
 	int verified = 0
 	file.precachedIds = {}
+	file.activePackMask = 0
+	MapEditorCatalog_SetActivePackMask( 0 )
 
 	foreach ( MapEditorCatalogEntry entry in available )
 	{
@@ -88,6 +97,7 @@ void function MapEditor_ServerInit()
 	AddClientCommandCallback( "mapedit_clear_all", ClientCommand_MapEdit_ClearAll )
 	AddClientCommandCallback( "mapedit_legends", ClientCommand_MapEdit_Legends )
 	AddClientCommandCallback( "mapedit_legend", ClientCommand_MapEdit_Legend )
+	AddClientCommandCallback( "mapedit_pack", ClientCommand_MapEdit_Pack )
 
 	AddCallback_OnClientDisconnected( MapEditor_OnClientDisconnected )
 
@@ -812,8 +822,8 @@ void function ClientCommand_MapEdit_Status( entity player, array<string> args )
 	int redoLen = ( player in file.redoStack ) ? file.redoStack[player].len() : 0
 	string freezeStr = g_MapEditFrozen ? "1" : "0"
 
-	MapEdit_Report( player, format( "status: you=%d/%d global=%d/%d undo=%d redo=%d freeze=%s catalog=%d",
-		mine, MAPEDIT_PROP_CAP_PLAYER, globalCount, MAPEDIT_PROP_CAP_GLOBAL, undoLen, redoLen, freezeStr, MapEditorCatalog_Count() ) )
+	MapEdit_Report( player, format( "status: you=%d/%d global=%d/%d undo=%d redo=%d freeze=%s catalog=%d packs=%s",
+		mine, MAPEDIT_PROP_CAP_PLAYER, globalCount, MAPEDIT_PROP_CAP_GLOBAL, undoLen, redoLen, freezeStr, MapEditorCatalog_Count(), MapEdit_ActivePackNames() ) )
 
 	return
 }
@@ -996,6 +1006,239 @@ void function ClientCommand_MapEdit_ClearAll( entity player, array<string> args 
 
 	MapEdit_Report( player, format( "clear_all: removed %d", n ) )
 	return
+}
+
+// ---------------------------------------------------------------------------
+// Extra map packs -- admin loads another BR map's props via catalog map bit.
+// The client never names a pak; it receives a bit and looks the name up
+// in its own catalog copy.
+// ---------------------------------------------------------------------------
+
+void function MapEdit_RegisterNetworking()
+{
+	if ( file.netRegistered )
+		return
+	file.netRegistered = true
+
+	Remote_RegisterClientFunction( "ServerCallback_MapEdit_PackLoad", "int", 0, 31 )
+	Remote_RegisterServerFunction( "MapEdit_SV_PackReady", "int", 0, 31 )
+}
+
+void function ClientCommand_MapEdit_Pack( entity player, array<string> args )
+{
+	if ( !MapEditor_IsEnabled() )
+		return
+
+	if ( !IsValid( player ) || !player.IsPlayer() )
+		return
+
+	if ( !IsAdmin( player ) && !GetCurrentPlaylistVarBool( "mapeditor_pack_open", true ) )
+	{
+		MapEdit_Reject( player, "pack: admin only" )
+		return
+	}
+
+	if ( args.len() < 1 )
+	{
+		MapEdit_Reject( player, "pack needs <mapName>" )
+		return
+	}
+
+	string mapName = args[0]
+	if ( mapName.len() > 64 )
+	{
+		MapEdit_Reject( player, "pack: map name too long" )
+		return
+	}
+
+	int bit = MapEditorCatalog_GetMapBit( mapName )
+	if ( bit < 0 || bit > 31 )
+	{
+		MapEdit_Reject( player, "pack: unknown map '" + mapName + "'" )
+		return
+	}
+
+	if ( mapName == GetMapName() )
+	{
+		MapEdit_Reject( player, "pack: already on map '" + mapName + "'" )
+		return
+	}
+
+	if ( ( file.activePackMask & ( 1 << bit ) ) != 0 )
+	{
+		MapEdit_Reject( player, "pack: '" + mapName + "' already active" )
+		return
+	}
+
+	if ( !MapEdit_RequestMapPak( mapName ) )
+	{
+		MapEdit_Reject( player, "pack: load rejected for '" + mapName + "'" )
+		return
+	}
+
+	MapEdit_Report( player, "pack: loading '" + mapName + "'" )
+	thread MapEdit_PackLoadThread( bit, mapName )
+	return
+}
+
+void function MapEdit_PackFromConsole( string mapName )
+{
+	MapEditorCatalog_Init()
+
+	if ( mapName.len() > 64 )
+	{
+		printt( "[MAPEDIT] pack: map name too long" )
+		return
+	}
+
+	int bit = MapEditorCatalog_GetMapBit( mapName )
+	if ( bit < 0 || bit > 31 )
+	{
+		printt( "[MAPEDIT] pack: unknown map '" + mapName + "'" )
+		return
+	}
+
+	if ( mapName == GetMapName() )
+	{
+		printt( "[MAPEDIT] pack: already on map '" + mapName + "'" )
+		return
+	}
+
+	if ( ( file.activePackMask & ( 1 << bit ) ) != 0 )
+	{
+		printt( "[MAPEDIT] pack: '" + mapName + "' already active" )
+		return
+	}
+
+	if ( !MapEdit_RequestMapPak( mapName ) )
+	{
+		printt( "[MAPEDIT] pack: load rejected for '" + mapName + "'" )
+		return
+	}
+
+	printt( "[MAPEDIT] pack: loading '" + mapName + "'" )
+	thread MapEdit_PackLoadThread( bit, mapName )
+}
+
+void function MapEdit_PackLoadThread( int bit, string mapName )
+{
+	float deadline = Time() + 60.0
+
+	while ( Time() < deadline )
+	{
+		int status = MapEdit_MapPakStatus( mapName )
+		if ( status == 1 )
+		{
+			MapEdit_PrecachePack( bit )
+			file.activePackMask = file.activePackMask | ( 1 << bit )
+			MapEditorCatalog_SetActivePackMask( file.activePackMask )
+
+			foreach ( entity p in GetPlayerArray() )
+			{
+				if ( IsValid( p ) )
+					Remote_CallFunction_NonReplay( p, "ServerCallback_MapEdit_PackLoad", bit )
+			}
+
+			printt( format( "[MAPEDIT] pack loaded: %s bit=%d mask=%d", mapName, bit, file.activePackMask ) )
+			return
+		}
+
+		if ( status == -1 )
+		{
+			printt( format( "[MAPEDIT] pack load failed: %s bit=%d", mapName, bit ) )
+			return
+		}
+
+		wait 0.25
+	}
+
+	printt( format( "[MAPEDIT] pack load timed out: %s bit=%d", mapName, bit ) )
+}
+
+void function MapEdit_PrecachePack( int bit )
+{
+	int flag = 1 << bit
+	int attempted = 0
+	int verified = 0
+
+	foreach ( string category in MapEditorCatalog_GetCategories() )
+	{
+		if ( attempted >= MAPEDIT_PACK_PRECACHE_MAX )
+			break
+
+		foreach ( MapEditorCatalogEntry entry in MapEditorCatalog_GetCategoryEntries( category ) )
+		{
+			if ( attempted >= MAPEDIT_PACK_PRECACHE_MAX )
+				break
+
+			if ( ( entry.mapMask & flag ) == 0 )
+				continue
+
+			if ( entry.id in file.precachedIds )
+				continue
+
+			attempted++
+			if ( !MapEdit_PrecacheModel( entry.model ) )
+				continue
+
+			if ( ModelIsPrecached( entry.model ) )
+			{
+				file.precachedIds[ entry.id ] <- true
+				verified++
+			}
+		}
+	}
+
+	printt( format( "[MAPEDIT] pack precache bit=%d attempted=%d verified=%d cap=%d",
+		bit, attempted, verified, MAPEDIT_PACK_PRECACHE_MAX ) )
+}
+
+void function MapEdit_SV_PackReady( entity player, int bit )
+{
+	if ( bit < 0 || bit > 31 )
+	{
+		printt( "[MAPEDIT] PackReady: bit out of range" )
+		return
+	}
+
+	string who = IsValid( player ) ? player.GetPlayerName() : "null"
+	printt( format( "[MAPEDIT] PackReady: bit=%d from %s", bit, who ) )
+}
+
+void function MapEdit_OnClientConnected( entity player )
+{
+	if ( !IsValid( player ) )
+		return
+
+	for ( int bit = 0; bit <= 31; bit++ )
+	{
+		if ( ( file.activePackMask & ( 1 << bit ) ) == 0 )
+			continue
+
+		Remote_CallFunction_NonReplay( player, "ServerCallback_MapEdit_PackLoad", bit )
+	}
+
+	if ( file.activePackMask != 0 )
+		printt( format( "[MAPEDIT] replayed pack mask=%d to %s", file.activePackMask, player.GetPlayerName() ) )
+}
+
+string function MapEdit_ActivePackNames()
+{
+	string names = ""
+	for ( int bit = 0; bit <= 31; bit++ )
+	{
+		if ( ( file.activePackMask & ( 1 << bit ) ) == 0 )
+			continue
+
+		string packName = MapEditorCatalog_GetMapNameForBit( bit )
+		if ( packName == "" )
+			continue
+
+		if ( names != "" )
+			names += ","
+		names += packName
+	}
+	return names
 }
 
 // ---------------------------------------------------------------------------

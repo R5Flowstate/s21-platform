@@ -94,6 +94,8 @@ void function AimTrainer_CL_Init()
 	AddCallback_OnWeaponAttack( AimTrainer_CL_OnWeaponFired )
 	AddLocalPlayerDidDamageCallback( AimTrainer_CL_OnDidDamage )
 	AddCallback_OnClientScriptInit( AimTrainer_CL_RequestDevMenuSync )
+	AddCallback_HighlightFlagsUpdated( AimTrainer_CL_OnHighlightFlagsUpdated )
+	MovementRecorder_CL_Init()
 	printt( "[AimTrainer] ClientInit" )
 }
 
@@ -166,8 +168,8 @@ void function AimTrainer_CL_PushChallengeFlagToUI()
 	}
 }
 
-// Server truth for DevMenu ON/OFF labels -- flags bitfield + duration + strafer sliders.
-void function AimTrainer_CL_SyncDevMenuState( int flags, int durationSec, int strafeSpeedTenth )
+// Server truth for DevMenu ON/OFF labels -- flags bitfield + duration + strafer sliders + dummy armor + strafer body/legend.
+void function AimTrainer_CL_SyncDevMenuState( int flags, int durationSec, int strafeSpeedTenth, int dummyShield, int straferBody, int straferLegendIdx, int straferAim, int strafeWidth )
 {
 	bool hit = ( flags & 1 ) != 0
 	bool shot = ( flags & 2 ) != 0
@@ -175,20 +177,44 @@ void function AimTrainer_CL_SyncDevMenuState( int flags, int durationSec, int st
 	bool dynStats = ( flags & 8 ) != 0
 	bool reconBars = ( flags & 16 ) != 0
 	bool straferGod = ( flags & 32 ) != 0
+	bool highlight = ( flags & 64 ) != 0
+	bool straferFire = ( flags & 128 ) != 0
+	bool fixedSpawn = ( flags & 256 ) != 0
 
 	ClDamageHealthBar_SetEnabled( reconBars )
 
-	printt( format( "[AimTrainer] CL SyncDevMenu hit=%s shot=%s kill=%s dyn=%s bars=%s dur=%d god=%s speed=%d",
-		string( hit ), string( shot ), string( kill ), string( dynStats ), string( reconBars ), durationSec, string( straferGod ), strafeSpeedTenth ) )
+	printt( format( "[AimTrainer] CL SyncDevMenu hit=%s shot=%s kill=%s dyn=%s bars=%s dur=%d god=%s speed=%d shield=%d body=%d legIdx=%d",
+		string( hit ), string( shot ), string( kill ), string( dynStats ), string( reconBars ), durationSec, string( straferGod ), strafeSpeedTenth, dummyShield, straferBody, straferLegendIdx ) )
 
 	try
 	{
-		RunUIScript( "AimTrainer_UI_SyncDevMenuState", hit, shot, kill, dynStats, reconBars, durationSec, straferGod, strafeSpeedTenth )
+		RunUIScript( "AimTrainer_UI_SyncDevMenuState", hit, shot, kill, dynStats, reconBars, durationSec, straferGod, strafeSpeedTenth, dummyShield, straferBody, straferLegendIdx, highlight, straferFire, straferAim, strafeWidth, fixedSpawn )
 	}
 	catch ( eUI )
 	{
 		printt( format( "[AimTrainer] SyncDevMenuState UI failed (restart client): %s", string( eUI ) ) )
 	}
+}
+
+// Targets share their context with other outlined enemies; only targets go
+// full white.
+bool function AimTrainer_CL_IsTarget( entity ent )
+{
+	if ( !IsValid( ent ) )
+		return false
+	if ( ent.IsPlayer() )
+	{
+		string name = ent.GetPlayerName()
+		return name.find( "R5F-" ) == 0 || name.find( "STRF-" ) == 0 || name.find( "REC-" ) == 0 || name.find( "Bot" ) == 0 || name.find( "EnemyBot" ) == 0
+	}
+	return ent.GetNetworkedClassName() == "npc_dummie"
+}
+
+void function AimTrainer_CL_OnHighlightFlagsUpdated( entity ent, int contextId )
+{
+	if ( contextId != GetHighlightId( AIMTRAINER_TARGET_HIGHLIGHT ) || !AimTrainer_CL_IsTarget( ent ) )
+		return
+	ent.Highlight_OverrideParam( 0, <1.0, 1.0, 1.0> )
 }
 
 void function AimTrainer_CL_OnModeExit()
@@ -198,7 +224,6 @@ void function AimTrainer_CL_OnModeExit()
 	AimTrainer_CL_PushChallengeFlagToUI()
 	AimTrainer_CL_HideDynStatsRUI()
 	AimTrainer_CL_SetMinimapForMode( false )
-	ClDamageHealthBar_SetEnabled( false )
 	if ( !GameModeVariant_IsActive( eGameModeVariants.SURVIVAL_FIRING_RANGE ) && !GameModeVariant_IsActive( eGameModeVariants.SURVIVAL_TRAINING ) )
 		HudTargetInfo_Enable( true )
 	printt( "[AimTrainer] CL ModeExit" )

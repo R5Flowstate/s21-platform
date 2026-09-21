@@ -85,7 +85,10 @@ int function GetBodyTypeIndexFromVictim( entity victim )
 
 	if ( victim.IsPlayer() )
 	{
-		return eBodyTypes[ victim.GetPlayerSettingString( "painDeathSoundType" ) ]
+		string soundType = victim.GetPlayerSettingString( "painDeathSoundType" )
+		if ( !( soundType in eBodyTypes ) )
+			return eBodyTypes.PLAYER_HUMAN_FEMALE
+		return eBodyTypes[ soundType ]
 	}
 
 	if ( IsSpecialist( victim ) )
@@ -150,6 +153,8 @@ void function PainDeathSounds_Init()
 		string alias_3p_except_victim   = GetDataTableString( dataTable, i, alias_3p_except_victim_column )
 		string alias_3p_attacker_only   = GetDataTableString( dataTable, i, alias_3p_attacker_only_column )
 		string alias_3p_except_attacker = GetDataTableString( dataTable, i, alias_3p_except_attacker_column )
+		if ( !( bodyTypeName in eBodyTypes ) )
+			continue
 		int bodyType                    = eBodyTypes[ bodyTypeName ]
 
 		PainOrDeathSound painOrDeathSound

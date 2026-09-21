@@ -4185,7 +4185,10 @@ array<LoadoutEntry> function EquipButton_GetItemLoadoutEntries( ItemFlavor item,
 			break
 
 		case eItemType.skydive_emote:
-			ItemFlavor character = SkydiveEmote_GetCharacterFlavor( item )
+			ItemFlavor ornull character = SkydiveEmote_GetCharacterFlavor( item )
+			if ( character == null )
+				character = LoadoutSlot_GetItemFlavor( LocalClientEHI(), Loadout_Character() )
+			expect ItemFlavor( character )
 
 			for ( int emoteIndex = 0; emoteIndex < NUM_SKYDIVE_EMOTE_SLOTS; emoteIndex++ )
 			{

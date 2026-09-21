@@ -57,6 +57,7 @@ global function GetMeleeWeapon
 global function OnWeaponRegenEndGeneric
 global function Ultimate_OnWeaponRegenBegin
 global function EnergyAmmoRegen_Start
+global function EnergyAmmoRegen_IsRegenWeapon
 global function OnWeaponActivate_RUIColorSchemeOverrides
 global function PlayDelayedShellEject
 global function IsABaseGrenade
@@ -4729,7 +4730,7 @@ void function OnWeaponReadyToFire_ability_tactical( entity weapon )
 void function EnergyAmmoRegen_Start( entity weapon )
 {
 #if SERVER
-	if ( !IsValid( weapon ) )
+	if ( !EnergyAmmoRegen_IsRegenWeapon( weapon ) )
 		return
 	if ( "energyRegenRunning" in weapon.s && weapon.s.energyRegenRunning )
 		return
@@ -4738,7 +4739,74 @@ void function EnergyAmmoRegen_Start( entity weapon )
 #endif
 }
 
+bool function EnergyAmmoRegen_IsRegenWeapon( entity weapon )
+{
+	if ( !IsValid( weapon ) || !weapon.IsWeaponX() )
+		return false
+	if ( weapon.GetWeaponAmmoPoolType() != eAmmoPoolType.special )
+		return false
+	if ( weapon.GetWeaponSettingBool( eWeaponVar.uses_ammo_pool ) )
+		return false
+	return weapon.GetWeaponSettingInt( eWeaponVar.ammo_stockpile_max ) > 0
+}
+
 #if SERVER
+const float ENERGY_RESERVE_REGEN_START_DELAY = 0.1
+const float ENERGY_RESERVE_REGEN_SECONDS_PER_CLIP = 18.0
+const float ENERGY_RESERVE_REGEN_SECONDS_PER_CLIP_CRATE = 22.0
+const float LSTAR_RESERVE_REGEN_ROUNDS_PER_SEC = 1.22
+const float LSTAR_RESERVE_REGEN_ROUNDS_PER_SEC_CRATE = 1.27
+
+const table< string, float > ENERGY_MAG_RESERVE_REGEN_SCALE = {
+	energy_mag_l1 = 1.5,
+	energy_mag_l2 = 2.0,
+	energy_mag_l3 = 2.5,
+	energy_mag_l4 = 2.5
+}
+
+const table< string, float > LSTAR_MAG_RESERVE_REGEN_ROUNDS_PER_SEC = {
+	energy_mag_l1 = 1.34,
+	energy_mag_l2 = 1.44,
+	energy_mag_l3 = 1.56,
+	energy_mag_l4 = 1.56
+}
+
+float function EnergyAmmoRegen_GetRoundsPerSecond( entity weapon )
+{
+	bool crate = weapon.HasMod( "crate" )
+	int clipSize = weapon.GetWeaponPrimaryClipCountMax()
+
+	if ( clipSize <= 0 )
+	{
+		if ( crate )
+			return LSTAR_RESERVE_REGEN_ROUNDS_PER_SEC_CRATE
+		foreach ( mod, roundsPerSec in LSTAR_MAG_RESERVE_REGEN_ROUNDS_PER_SEC )
+		{
+			if ( weapon.HasMod( mod ) )
+				return roundsPerSec
+		}
+		return LSTAR_RESERVE_REGEN_ROUNDS_PER_SEC
+	}
+
+	float rate = float( clipSize ) / ( crate ? ENERGY_RESERVE_REGEN_SECONDS_PER_CLIP_CRATE : ENERGY_RESERVE_REGEN_SECONDS_PER_CLIP )
+	foreach ( mod, scale in ENERGY_MAG_RESERVE_REGEN_SCALE )
+	{
+		if ( weapon.HasMod( mod ) )
+			return rate * scale
+	}
+	return rate
+}
+
+bool function EnergyAmmoRegen_IsFiring( entity weapon )
+{
+	entity owner = weapon.GetWeaponOwner()
+	if ( !IsValid( owner ) || !owner.IsPlayer() )
+		return false
+	if ( owner.GetActiveWeapon( eActiveInventorySlot.mainHand ) != weapon )
+		return false
+	return owner.IsInputCommandHeld( IN_ATTACK )
+}
+
 void function EnergyAmmoRegen_Think( entity weapon )
 {
 	weapon.EndSignal( "OnDestroy" )
@@ -4753,8 +4821,9 @@ void function EnergyAmmoRegen_Think( entity weapon )
 	)
 
 	int lastStock = weapon.GetWeaponPrimaryAmmoCount( AMMOSOURCE_STOCKPILE )
-	int startStock = lastStock
 	float readyTime = Time()
+	float lastTime = Time()
+	float carry = 0.0
 
 	while ( IsValid( weapon ) )
 	{
@@ -4762,57 +4831,37 @@ void function EnergyAmmoRegen_Think( entity weapon )
 		if ( !IsValid( weapon ) )
 			return
 
-		// seconds to refill one magazine of reserve, not rounds per second
-		float secondsPerClip = weapon.GetWeaponSettingFloat( eWeaponVar.regen_ammo_refill_rate )
-		if ( secondsPerClip <= 0.0 )
-			continue
+		float now = Time()
+		float dt = now - lastTime
+		lastTime = now
 
 		int maxStock = weapon.GetWeaponPrimaryAmmoCountMax( AMMOSOURCE_STOCKPILE )
 		int cur = weapon.GetWeaponPrimaryAmmoCount( AMMOSOURCE_STOCKPILE )
-		if ( maxStock <= 0 )
-			continue
-
-		entity owner = weapon.GetWeaponOwner()
-		bool firing = false
-		if ( IsValid( owner ) && owner.IsPlayer() && owner.GetActiveWeapon( eActiveInventorySlot.mainHand ) == weapon )
-			firing = owner.IsInputCommandHeld( IN_ATTACK )
-
-		if ( firing )
-		{
-			startStock = cur
-			lastStock = cur
-			readyTime = Time() + weapon.GetWeaponSettingFloat( eWeaponVar.regen_ammo_refill_start_delay )
-			continue
-		}
-
-		if ( cur < lastStock )
-		{
-			startStock = cur
-			readyTime = Time() + weapon.GetWeaponSettingFloat( eWeaponVar.regen_ammo_refill_start_delay )
-		}
+		bool spent = cur < lastStock
 		lastStock = cur
 
-		if ( cur >= maxStock )
-			continue
-		if ( Time() < readyTime )
-			continue
-
-		int clipSize = weapon.GetWeaponPrimaryClipCountMax()
-		if ( clipSize <= 0 )
-			clipSize = 1
-
-		float rate = float( clipSize ) / secondsPerClip
-		int need = maxStock - startStock
-		if ( need <= 0 )
-			continue
-
-		float span = float( need ) / rate
-		int want = int( GraphCapped( Time() - readyTime, 0.0, span, float( startStock ), float( maxStock ) ) )
-		if ( want > cur )
+		if ( spent || EnergyAmmoRegen_IsFiring( weapon ) )
 		{
-			weapon.SetWeaponPrimaryAmmoCount( AMMOSOURCE_STOCKPILE, want )
-			lastStock = want
+			readyTime = now + ENERGY_RESERVE_REGEN_START_DELAY
+			carry = 0.0
+			continue
 		}
+
+		if ( maxStock <= 0 || cur >= maxStock || now < readyTime )
+		{
+			carry = 0.0
+			continue
+		}
+
+		carry += EnergyAmmoRegen_GetRoundsPerSecond( weapon ) * dt
+		int whole = int( carry )
+		if ( whole <= 0 )
+			continue
+		carry -= float( whole )
+
+		int want = minint( cur + whole, maxStock )
+		weapon.SetWeaponPrimaryAmmoCount( AMMOSOURCE_STOCKPILE, want )
+		lastStock = want
 	}
 }
 #endif

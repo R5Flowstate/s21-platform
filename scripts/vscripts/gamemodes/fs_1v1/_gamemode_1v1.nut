@@ -929,8 +929,8 @@ void function FS_1v1_NetworkedLatencyThread( entity player )
 
 	for( ; ; )
 	{
-		int latency = int( player.GetLatency() * 1000 ) - 45
-		player.SetPlayerNetInt( "latency", ClampInt( latency, -1, 500 ) )
+		int latency = int( player.GetLatency() * 1000 )
+		player.SetPlayerNetInt( "latency", ClampInt( latency, 0, 500 ) )
 		wait 0.5
 	}
 }
@@ -1278,7 +1278,7 @@ void function Gamemode1v1_Init( string mapName )
 		file.Weapons = 
 		[
 			"mp_weapon_r97 optic_cq_hcog_classic stock_tactical_l1 bullets_mag_l2",
-			"mp_weapon_nemesis optic_cq_hcog_classic energy_mag_l2 stock_tactical_l1",
+			"mp_weapon_car optic_cq_hcog_classic stock_tactical_l1 highcal_mag_l2",
 			"mp_weapon_vinson optic_cq_hcog_classic stock_tactical_l1 highcal_mag_l3",
 			"mp_weapon_volt_smg optic_cq_hcog_classic energy_mag_l1 stock_tactical_l1"
 		]

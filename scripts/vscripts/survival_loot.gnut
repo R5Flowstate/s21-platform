@@ -3794,6 +3794,13 @@ entity function SURVIVAL_GiveMainWeapon( entity player, entity pickup, array<str
 	// set the mods here so extended ammo doesn't take effect until after we give ammo
 	newWeapon.SetMods( mods )
 
+	if ( EnergyAmmoRegen_IsRegenWeapon( newWeapon ) )
+	{
+		int stockMax = newWeapon.GetWeaponPrimaryAmmoCountMax( AMMOSOURCE_STOCKPILE )
+		int stock = pickup.GetClipCount() >= 0 ? pickup.GetClipCount() - newWeapon.GetWeaponPrimaryClipCount() : stockMax
+		newWeapon.SetWeaponPrimaryAmmoCount( AMMOSOURCE_STOCKPILE, minint( maxint( stock, 0 ), stockMax ) )
+	}
+
 	//We have to know if it's a locked set before infinite ammo tags are applied
 	if( !newWeapon.HasMod( "crate" ) )
 	{
@@ -9865,6 +9872,10 @@ void function ClearPlayerInventory( entity player )
 
 	// Melee weapon
 	player.TakeNormalWeaponByIndexNow( WEAPON_INVENTORY_SLOT_PRIMARY_2 )
+
+	// Akimbo partners ride in the dual-primary slots
+	player.TakeNormalWeaponByIndexNow( WEAPON_INVENTORY_SLOT_DUALPRIMARY_0 )
+	player.TakeNormalWeaponByIndexNow( WEAPON_INVENTORY_SLOT_DUALPRIMARY_1 )
 
 	SetPlayerInventory( player, [] )
 

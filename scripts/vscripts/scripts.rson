@@ -340,6 +340,7 @@ Scripts:
 [
 	sh_debug_draw.gnut
 	sh_bridge_native_shims.gnut
+	sh_axle_shims.gnut
 	sh_flag.gnut
 	_trigger_functions.gnut
 	_utility_shared.nut
@@ -547,6 +548,8 @@ Scripts:
 	weapons/mp_ability_redeploy_balloon.nut
 	weapons/mp_ability_copycat_kit.nut
 	weapons/mp_weapon_grenade_rev_shell.nut
+	weapons/mp_ability_frag_drone.nut
+	weapons/mp_ability_overdrive_tac_slide_gate.nut
 	sh_evac_ship.nut
 	mp/sh_skydive_launchers.gnut
 	mp/sh_skydive_launchers_precache.nut
@@ -632,8 +635,11 @@ Scripts:
 	ai/_ai_spawn.gnut
 	ai/_ai_spawn_content.gnut
 	ai/_ai_utility.gnut
+	gamemodes/fs_movement_recorder/sh_movement_recorder.gnut
+	gamemodes/fs_movement_recorder/_movement_recorder.nut
 	gamemodes/fs_aimtrainer/sh_gamemode_aimtrainer_freeroam.gnut
 	gamemodes/fs_aimtrainer/_gamemode_aimtrainer_freeroam.gnut
+	gamemodes/fs_aimtrainer/_aimtrainer_legend_bots.nut
 	cafemods/sh_cafemod_defs.gnut
 	cafemods/sv_cafemod_core.nut
 	cafemods/sv_mod_mitosis.nut
@@ -854,6 +860,7 @@ Scripts:
 	weapons/mp_weapon_phase_breach.nut
 	weapons/mp_weapon_arc_bolt.nut
 	weapons/mp_weapon_ash_dataknife.nut
+	weapons/mp_ability_ash_dash.nut
 	pilot/sh_pilot_passive_sling.gnut
 	weapons/mp_ability_portable_auto_loader.nut
 	weapons/mp_ability_debuff_zone.nut
@@ -887,6 +894,7 @@ Scripts:
 	weapons/mp_ability_transport_portal.nut
 	weapons/mp_ability_transport_portal_datapad.nut
 	pilot/sh_alter.gnut
+	pilot/sh_ability_overdrive_passive.gnut
 	pilot/sh_pilot_passive_remote_deathbox_interact.gnut
 	pilot/sh_pilot_passive_void_vision.gnut
 	weapons/mp_ability_void_ring.nut
@@ -1709,6 +1717,7 @@ ui/menu_freeroam_weapons.nut
 	ui/panel_lab_player.nut
 	ui/panel_lab_armory.nut
 	ui/panel_lab_targets.nut
+	ui/panel_lab_recorder.nut
 	ui/panel_lab_match.nut
 	ui/panel_lab_mods.nut
 	ui/panel_teams_scoreboard.nut
@@ -2137,6 +2146,7 @@ Scripts:
 [
 	sh_debug_draw.gnut
 	sh_bridge_native_shims.gnut
+	sh_axle_shims.gnut
 	sh_flag.gnut
 	_trigger_functions.gnut
 	_utility_shared.nut
@@ -2344,6 +2354,8 @@ Scripts:
 	weapons/mp_ability_redeploy_balloon.nut
 	weapons/mp_ability_copycat_kit.nut
 	weapons/mp_weapon_grenade_rev_shell.nut
+	weapons/mp_ability_frag_drone.nut
+	weapons/mp_ability_overdrive_tac_slide_gate.nut
 	sh_evac_ship.nut
 	mp/sh_skydive_launchers.gnut
 	mp/sh_skydive_launchers_precache.nut
@@ -2357,6 +2369,9 @@ Scripts:
 	mp/_sh_tutorial.gnut
 	mp/sh_survival_training.gnut
 	mp/firing_range.gnut
+	gamemodes/fs_movement_recorder/sh_movement_recorder.gnut
+	gamemodes/fs_movement_recorder/cl_movement_recorder.gnut
+	gamemodes/fs_movement_recorder/cl_movement_recorder_hud.gnut
 	gamemodes/fs_aimtrainer/sh_gamemode_aimtrainer_freeroam.gnut
 	gamemodes/fs_aimtrainer/cl_gamemode_aimtrainer_freeroam.gnut
 gamemodes/freeroam_weapons_menu/sh_freeroam_weapons_menu.gnut
@@ -2647,6 +2662,7 @@ Scripts:
 	weapons/mp_weapon_phase_breach.nut
 	weapons/mp_weapon_arc_bolt.nut
 	weapons/mp_weapon_ash_dataknife.nut
+	weapons/mp_ability_ash_dash.nut
 	pilot/sh_pilot_passive_sling.gnut
 	weapons/mp_ability_portable_auto_loader.nut
 	weapons/mp_ability_debuff_zone.nut
@@ -2680,6 +2696,7 @@ Scripts:
 	weapons/mp_ability_transport_portal.nut
 	weapons/mp_ability_transport_portal_datapad.nut
 	pilot/sh_alter.gnut
+	pilot/sh_ability_overdrive_passive.gnut
 	pilot/sh_pilot_passive_remote_deathbox_interact.gnut
 	pilot/sh_pilot_passive_mantle_boost.gnut
 	pilot/sh_pilot_passive_void_vision.gnut

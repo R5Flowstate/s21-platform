@@ -20,6 +20,9 @@ global const int   MAPEDIT_UNDO_DEPTH        = 64
 // signon. Raising this needs the resulting index range measured first.
 global const int   MAPEDIT_PRECACHE_MAX      = 256
 
+// Per extra map pack precache bound; keeps one pack from eating the table.
+global const int   MAPEDIT_PACK_PRECACHE_MAX = 4096
+
 // Extended palette / zipline
 global const float MAPEDIT_ZIPLINE_MAX_DIST  = 8192.0
 global const float MAPEDIT_JUMP_PAD_RADIUS   = 32.0

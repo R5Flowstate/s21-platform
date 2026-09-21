@@ -849,7 +849,14 @@ void function HoverVehicle_WakeVehiclesIntersectingEntity( entity ent )
 	Warning( "STUB: HoverVehicle_WakeVehiclesIntersectingEntity" )
 }
 
-void function PIN_EmoteUse( entity player, string emoteRef, vector pos, string action, ... ) { Warning( "STUB: PIN_EmoteUse" ) }
+bool s_PINEmoteUseWarned = false
+void function PIN_EmoteUse( entity player, string emoteRef, vector pos, string action, ... )
+{
+	if ( s_PINEmoteUseWarned )
+		return
+	s_PINEmoteUseWarned = true
+	Warning( "STUB: PIN_EmoteUse" )
+}
 
 
 // Highlight_SetGameModeEnemyHighlight — now in sh_highlight.gnut

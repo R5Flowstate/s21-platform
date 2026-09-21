@@ -142,14 +142,10 @@
 	"chroma_color" "1 .7 .4"
 	"vortex_refire_behavior" "absorb"
 	"projectile_adjust_to_gun_barrel" "1"
-	"ammo_default_total" "0"
+	"ammo_default_total" "45"
 	"ammo_stockpile_max" "30"
 	"ammo_no_remove_from_stockpile" "0"
 	"uses_ammo_pool" "0"
-	"regen_ammo_refill_rate"		"18"
-	"regen_ammo_refill_start_delay"		"0.100000"
-	"regen_ammo_stockpile_max_fraction"		"1.000000"
-	"regen_ammo_while_firing"		"0"
 	"low_ammo_fraction" "0.300000"
 	"damage_type" "bullet"
 	"damage_rodeo" "110"
@@ -441,24 +437,28 @@
 		"energy_mag_l1"
 		{
 			"ammo_clip_size" "++3"
+			"ammo_stockpile_max" "++6"
 
 		}
 
 		"energy_mag_l2"
 		{
 			"ammo_clip_size" "++6"
+			"ammo_stockpile_max" "++12"
 
 		}
 
 		"energy_mag_l3"
 		{
 			"ammo_clip_size" "++9"
+			"ammo_stockpile_max" "++18"
 
 		}
 
 		"energy_mag_l4"
 		{
 			"ammo_clip_size" "++9"
+			"ammo_stockpile_max" "++18"
 
 		}
 

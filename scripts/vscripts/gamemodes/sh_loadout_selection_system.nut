@@ -321,12 +321,12 @@ void function LoadoutSelection_FullInit()
 			RegisterSignal( "LoadoutSelection_LoadoutSelectMenuClosed" )
 		#endif // SERVER
 
-		#if CLIENT || SERVER
+		#if CLIENT
 			AddCallback_EntitiesDidLoad( LoadoutSelection_PopulateLoadouts ) // requires that Netvars are enabled, which requires entities to have been created
 		#endif
-		
+
 		#if SERVER
-			AddCallback_EntitiesDidLoad( LoadoutSelection_SetUnixTimeSinceEventStarted ) // requires that Netvars are enabled, which requires entities to have been created
+			AddCallback_EntitiesDidLoad( LoadoutSelection_ServerSeedAndPopulate ) // seed rotation netvars before building the server cache
 		#endif
 
 		// Remote_RegisterUIFunction for Open/Close lives in LoadoutSelection_RegisterNetworking
@@ -1439,6 +1439,14 @@ array< string > function LoadoutSelection_GetConsumableLoadoutByLoadoutSlotIndex
 		loadout = file.loadoutSlotIndexToConsumableLoadoutTable[ loadoutIndex ]
 
 	return loadout
+}
+#endif // SERVER
+
+#if SERVER
+void function LoadoutSelection_ServerSeedAndPopulate()
+{
+	LoadoutSelection_SetUnixTimeSinceEventStarted()
+	LoadoutSelection_PopulateLoadouts()
 }
 #endif // SERVER
 

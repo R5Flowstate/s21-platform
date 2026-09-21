@@ -722,9 +722,8 @@ void function TrackingVision_CreatePOIForDroppedLoot( entity lootEnt, int lootTy
 
 void function TrackingVision_OnPassiveChanged( entity player, int passive, bool didHave, bool nowHas )
 {
-	if ( didHave )
+	if ( didHave && player in file.trackingVisionData )
 	{
-		Assert ( player in file.trackingVisionData, "Player does not have tracking passive, but we are trying to remove it." )
 		StatusEffect_Stop( player, file.trackingVisionData[ player ].statusID )
 		delete file.trackingVisionData[ player ]
 	}

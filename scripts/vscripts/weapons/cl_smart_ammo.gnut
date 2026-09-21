@@ -810,6 +810,19 @@ void function SmartAmmo_LockedOntoWarningHUD_Update()
 			 RuiSetBool( file.lockon_hud, "showProgress", false )
 		}
 
+		else if ( StatusEffect_HasSeverity( player, eStatusEffect.overdrive_ult_tracking ) )
+		{
+			 RuiSetString( file.lockon_hud, "lockMessage", "#ABL_ULT_FRAG_DRONE_TRACKING_WARNING" )
+			 RuiSetBool( file.lockon_hud, "isVisible", true )
+			 RuiSetBool( file.lockon_hud, "northLock", false )
+			 RuiSetBool( file.lockon_hud, "southLock", false )
+			 RuiSetBool( file.lockon_hud, "westLock", false )
+			 RuiSetBool( file.lockon_hud, "eastLock", false )
+			 RuiSetImage( file.lockon_hud, "characterIcon", $"rui/menu/buttons/battlepass/character_skin_overdrive" )
+			 RuiSetFloat3( file.lockon_hud, "borderColor", <1, 0, 0> )
+			 RuiSetFloat( file.lockon_hud, "characterIconScale", 0.6 )
+		}
+
 
 
 

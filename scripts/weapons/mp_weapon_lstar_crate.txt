@@ -6,7 +6,7 @@
 	"ammo_per_shot" "1"
 	"ammo_no_remove_from_stockpile" "0"
 	"ammo_stockpile_max" "88"
-	"ammo_default_total" "280"
+	"ammo_default_total" "168"
 	"uses_ammo_pool" "0"
 	"low_ammo_fraction" "0.030900"
 	"damage_shield_scale" "1.600000"
@@ -578,6 +578,7 @@
 			"charge_cooldown_delay" "*0.9"
 			"charge_time" "2.800000"
 			"ammo_clip_size" "*2"
+			"ammo_stockpile_max" "168"
 
 		}
 
@@ -868,7 +869,6 @@
 			"charge_cooldown_time" "*1.3"
 			"charge_cooldown_delay" "*1.1"
 			"charge_time" "3.400000"
-			"regen_ammo_refill_rate" "1.890000"
 			"ammo_stockpile_max" "++48"
 			"reload_time" "*1.3"
 			"reload_time_late1" "*1.3"

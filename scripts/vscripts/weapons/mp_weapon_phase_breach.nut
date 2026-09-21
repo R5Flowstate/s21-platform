@@ -11,10 +11,6 @@ global function DEV_PhaseBreach_DestroyAll
 #endif
 #if CLIENT
 global function ServerToClient_PhaseBreachPortalCancelled
-
-    global function ServerToClient_NotifyAshCooldownReduction
-
-
 #if DEVELOPER
 global function DEV_ClearTargetingData
 global function DEV_ToggleAshValidation
@@ -27,7 +23,7 @@ const string SOUND_PORTAL_EXIT_OPEN = "Ash_PhaseBreach_PortalOpen_Exit_3p"
 const string SOUND_PORTAL_LOOP = "Ash_PhaseBreach_Portal_Loop" // Play (to everyone) when second gate is created and gates connect.  Should play on each gate.  Stop when gates expire.
 const string SOUND_PORTAL_CLOSE = "Ash_PhaseBreach_Portal_Expire" // Play (to everyone) when gates expire.  Should play on each gate.
 
-const string SIGNAL_PHASE_BREACH_STOP_PLACEMENT = "PhaseBreach_StopPlacement"
+const string SIGNAL_PHASE_BREACH_STOP_PREVIEW = "PhaseBreach_StopPreview"
 
 const string FUNCNAME_ENEMY_BREACHED_NEARBY = "PhaseBreach_EnemyBreachedNearby"
 
@@ -49,7 +45,8 @@ const float PHASE_BREACH_PORTAL_LIFETIME = 15.0
 
 
 const float PHASE_BREACH_TRAVEL_TIME_MAX = 1.8
-const float PHASE_BREACH_MAX_2D_DIST_DEFAULT = 3000.0
+const float PHASE_BREACH_BASE_DIST = 75 * METERS_TO_INCHES
+const float PHASE_BREACH_UPGRADED_DIST = 100 * METERS_TO_INCHES
 
 const float PHASE_BREACH_MAX_ANGLE_FOR_FULL_DIST_DEFAULT = 45.0
 const bool  PHASE_BREACH_ALLOW_START_ON_MOVERS_DEFAULT = true
@@ -61,6 +58,23 @@ const bool  PHASE_BREACH_ALLOW_END_ON_OOB = false
 
 
 const float PHASE_BREACH_MIN_VIEW_DOT = deg_cos(15.0)
+const bool DEBUG_DRAW_OLD_VERSION = false
+const float MIN_VIEW_DOT = DOT_15DEGREE
+const float TRACE_HEIGHT_SIN = deg_cos( 75.0 )
+const float MIN_DIST_FROM_PLAYER = 200.0
+const int BREACH_VERSION = 2
+global enum PhaseBreach_DebugStep
+{
+	All = -1,
+	None = 0,
+	InitialPosCheck,
+	EyeTrace,
+	WallUp,
+	FindGround,
+	CheckSpace,
+	CheckLos,
+	ScorePoints
+}
 
 const bool DEBUG_DRAW_TARGETING = false
 const bool DEBUG_DRAW_PLACEMENT_TRACES = false
@@ -83,6 +97,7 @@ const asset BREACH_RANGE_FX = $"P_ar_zipline_range"
 const string FUNC_BREACH_FAILED = "ServerToClient_PhaseBreachPortalCancelled"
 const string PLACEMENT_FAILED_HINT = "#PHASE_BREACH_CANT_PLACE"
 global const string PHASE_BREACH_BLOCKER_SCRIPTNAME = "phase_breach_blocker"
+global const string PHASE_BREACH_PORTAL_MARKER_SCRIPTNAME = "portal_marker"
 
 
 struct PhaseBreachTargetInfo
@@ -97,8 +112,10 @@ struct PhaseBreachTargetInfo
 
 	vector		eyeTracePos
 	vector		eyeTraceNormal
+	vector		eyeDir
+	vector		debugStartPos
 
-	float         portalQuality
+	float         portalQuality = -1
 }
 
 struct PhaseBreachTraceResults
@@ -121,15 +138,20 @@ struct
 		int		targetingFxHandle
 		int    	targetingFxHandleDir
 		int    	targetingInvalidFxHandle
+		int 	rangeFxHandle
 		string targetingHint
+		entity previewFxParent
+		entity wallPreviewFxParent
 	#endif
 
 	float maxDist
+	float upgradedMaxDist
 	float maxAngleForFullDist
 	float maxEndingMoverSpeedSqr
 	bool allowStartOnMovers
 	bool allowEndOnMovers
-	array<string> invalidTriggerEndingTypes = ["trigger_slip"]
+	bool useContinueGroundDetection
+	array<string> invalidTriggerEndingTypes = ["trigger_slip", "trigger_out_of_bounds", "trigger_networked_out_of_bounds"]
 
 	bool breachPersistsWhenAshDies
 
@@ -149,6 +171,17 @@ struct
 	#endif
 } file
 
+#if DEVELOPER
+void function PhaseBreach_DebugSphere( vector origin, float radius, vector color, bool throughGeo, float time )
+{
+#if SERVER
+	DebugDrawSphere( origin, radius, int( color.x ), int( color.y ), int( color.z ), throughGeo, time )
+#else
+	DebugDrawSphere( origin, radius, color, throughGeo, time )
+#endif
+}
+#endif
+
 void function MpWeaponPhaseBreach_Init()
 {
 	PrecacheParticleSystem( BREACH_ENDPOINT_FX )
@@ -159,28 +192,36 @@ void function MpWeaponPhaseBreach_Init()
 	PrecacheParticleSystem( BREACH_FX_AR_INVALID )
 	PrecacheParticleSystem( BREACH_RANGE_FX )
 
-	RegisterSignal( SIGNAL_PHASE_BREACH_STOP_PLACEMENT )
+	PrecacheScriptString( PHASE_BREACH_PORTAL_MARKER_SCRIPTNAME )
+	PrecacheScriptString( PHASE_BREACH_BLOCKER_SCRIPTNAME )
 
-	file.maxDist = GetCurrentPlaylistVarFloat( "ash_phase_breach_max_2d_dist", PHASE_BREACH_MAX_2D_DIST_DEFAULT )
+	#if CLIENT
+		RegisterSignal( SIGNAL_PHASE_BREACH_STOP_PREVIEW )
+	#endif
+
+	file.maxDist = GetCurrentPlaylistVarFloat( "ash_phase_breach_max_2d_dist", PHASE_BREACH_BASE_DIST )
+	file.upgradedMaxDist = GetCurrentPlaylistVarFloat( "ash_phase_breach_max_2d_dist_upgraded", PHASE_BREACH_UPGRADED_DIST )
 	file.maxAngleForFullDist = GetCurrentPlaylistVarFloat( "ash_phase_breach_max_angle_for_full_dist", PHASE_BREACH_MAX_ANGLE_FOR_FULL_DIST_DEFAULT )
 	file.maxEndingMoverSpeedSqr = pow( GetCurrentPlaylistVarFloat( "ash_phase_breach_max_mover_speed", PHASE_BREACH_MOVERS_MAX_SPEED_FOR_END_DEFAULT ), 2.0)
 	file.allowStartOnMovers = GetCurrentPlaylistVarBool( "ash_phase_breach_allow_start_on_movers", PHASE_BREACH_ALLOW_START_ON_MOVERS_DEFAULT )
 	file.allowEndOnMovers = GetCurrentPlaylistVarBool( "ash_phase_breach_allow_end_on_movers", PHASE_BREACH_ALLOW_END_ON_MOVERS_DEFAULT )
+	file.useContinueGroundDetection = GetCurrentPlaylistVarBool( "ash_phase_breach_use_continue_ground_detection", true )
 	#if SERVER
 		file.doAnnouncePing = GetCurrentPlaylistVarBool( "ash_phase_breach_do_announce_ping", true )
 	#endif
 
-	if ( PHASE_BREACH_ALLOW_END_ON_OOB == false )
-	{
-		file.invalidTriggerEndingTypes.append( "trigger_out_of_bounds" )
-		file.invalidTriggerEndingTypes.append( "trigger_networked_out_of_bounds" )
-	}
-
 	Remote_RegisterClientFunction( FUNC_BREACH_FAILED )
 
-		Remote_RegisterClientFunction( "ServerToClient_NotifyAshCooldownReduction" )
-
 	file.breachPersistsWhenAshDies = GetCurrentPlaylistVarBool( "ash_ult_persists_past_ash_death", true )
+}
+
+float function GetPhaseBreachDistanceForPlayer( entity player )
+{
+	if ( IsValid( player ) && PlayerHasPassive( player, ePassives.PAS_ULT_UPGRADE_THREE ) )
+	{
+		return file.upgradedMaxDist
+	}
+	return file.maxDist
 }
 
 
@@ -208,11 +249,7 @@ void function OnWeaponActivate_weapon_phase_breach( entity weapon )
 	#if CLIENT
 		entity player = weapon.GetWeaponOwner()
 		if ( player == GetLocalViewPlayer() )
-			thread PhaseBreachPlacement_Thread( weapon )
-	#endif
-
-	#if SERVER
-	thread PhaseBreachCrosshair_Thread( weapon )
+			thread PhaseBreachPreview_Thread( weapon, player )
 	#endif
 }
 
@@ -233,7 +270,7 @@ void function OnWeaponDeactivate_weapon_phase_breach( entity weapon )
 		}
 	#elseif CLIENT
 		if ( player == GetLocalViewPlayer() )
-			weapon.Signal( SIGNAL_PHASE_BREACH_STOP_PLACEMENT )
+			weapon.Signal( SIGNAL_PHASE_BREACH_STOP_PREVIEW )
 	#endif
 }
 
@@ -318,11 +355,6 @@ var function OnWeaponPrimaryAttackAnimEvent_ability_phase_breach( entity weapon,
 			PhaseTunnel_CleanAndFinalizePath( data, PHASE_BREACH_SPEED, PHASE_BREACH_TRAVEL_TIME_MIN, GetMaxPhaseTravelTime( player ), true )
 
 		thread MoveEntAndCreateTunnel( player, data, info.finalPos )
-	#endif
-
-	#if CLIENT
-		if ( player == GetLocalViewPlayer() )
-			weapon.Signal( SIGNAL_PHASE_BREACH_STOP_PLACEMENT )
 	#endif
 
 	return 0
@@ -430,78 +462,6 @@ void function MoveEntAndCreateTunnel( entity player, PhaseTunnelPathData data, v
 }
 
 
-bool function UpdateAshAbilityCooldowns( entity player )
-{
-	// refresh Tactical
-	entity tacWeapon = player.GetOffhandWeapon( OFFHAND_TACTICAL )
-	if( !IsValid( tacWeapon ) )
-		return false
-	int ammo = tacWeapon.GetWeaponPrimaryClipCount()
-	int ammoReq = tacWeapon.GetAmmoPerShot()
-	int ammoMax = tacWeapon.GetWeaponPrimaryClipCountMax()
-	tacWeapon.SetWeaponPrimaryClipCount( minint( ammo + ammoReq, ammoMax ) )
-
-	// reduce Ultimate cooldown
-	entity ultWeapon = player.GetOffhandWeapon( OFFHAND_ULTIMATE )
-	if( !IsValid( ultWeapon ) )
-		return false
-
-	bool reducedCooldown = true
-
-	if ( ultWeapon.HasMod( "cooldown_reduction_1" ) )
-	{
-		ultWeapon.RemoveMod( "cooldown_reduction_1" )
-		ultWeapon.AddMod( "cooldown_reduction_2" )
-	}
-	else if ( ultWeapon.HasMod( "cooldown_reduction_2" ) )
-	{
-		ultWeapon.RemoveMod( "cooldown_reduction_2" )
-		ultWeapon.AddMod( "cooldown_reduction_3" )
-	}
-	else if ( ultWeapon.HasMod( "cooldown_reduction_3" ) )
-	{
-		ultWeapon.RemoveMod( "cooldown_reduction_3" )
-		ultWeapon.AddMod( "cooldown_reduction_4" )
-	}
-	else if ( ultWeapon.HasMod( "cooldown_reduction_4" ) )
-	{
-		ultWeapon.RemoveMod( "cooldown_reduction_4" )
-		ultWeapon.AddMod( "cooldown_reduction_5" )
-	}
-	else if ( ultWeapon.HasMod( "cooldown_reduction_5" ) )
-	{
-		ultWeapon.RemoveMod( "cooldown_reduction_5" )
-		ultWeapon.AddMod( "cooldown_reduction_6" )
-	}
-	else if ( ultWeapon.HasMod( "cooldown_reduction_6" ) )
-	{
-		reducedCooldown = false
-	}
-	else
-	{
-		ultWeapon.AddMod( "cooldown_reduction_1" )
-	}
-
-	if( reducedCooldown )
-		thread UpdateAshAbilityCooldowns_Thread( player )
-
-	return true
-}
-
-void function UpdateAshAbilityCooldowns_Thread( entity player )
-{
-	player.EndSignal( "OnDestroy" )
-
-	// for some reason this notication doesn't display if you do it the frame we're entering phase.
-	// so wait until the player is out of phase to display it (which might be the better time anyways since their screen isn't blue)
-	WaitFrame()
-	while( player.IsPhaseShiftedOrPending() )
-	{
-		WaitFrame()
-	}
-	Remote_CallFunction_NonReplay( player, "ServerToClient_NotifyAshCooldownReduction" )
-}
-
 #endif
 
 #if CLIENT
@@ -517,15 +477,6 @@ void function ServerToClient_PhaseBreachPortalCancelled()
 }
 
 
-void function ServerToClient_NotifyAshCooldownReduction()
-{
-	entity localViewPlayer = GetLocalViewPlayer()
-	if ( IsValid( localViewPlayer ) && PlayerHasPassive( localViewPlayer, ePassives.PAS_ULT_UPGRADE_TWO ) )
-	{
-		string hintStr = "#PHASE_BREACH_COOLDOWN_REDUCED"
-		AddPlayerHint( 2.5, 0.25, $"rui/hud/ultimate_icons/ultimate_ash", hintStr )
-	}
-}
 
 #endif
 
@@ -737,76 +688,121 @@ int function PhaseBreach_PathNodeCheck( entity player, array<PhaseTunnelPathNode
 #endif
 
 const float DOWN_TRACE_DISTANCE = 1000.0
-const float BACK_TRACE_STEP_DIST = 50.0
+const float BACK_TRACE_STEP_DIST = 200.0
+const float BACK_TRACE_STEP_DIST_V1 = 50.0
 const float BACK_TRACE_MAX_STEP = 200.0
 const float TUNNEL_STEP_DIST = 16.0
 
+int s_currentSubstep = 0
+int s_desiredStep = 0
+int s_desiredSubstep = -1
+
+bool function ShowDebugDisplay( int debugStep )
+{
+#if DEVELOPER
+	if ( s_desiredStep == 0 || (s_desiredStep > 0 && debugStep != s_desiredStep) )
+		return false
+
+	s_currentSubstep++
+	if ( s_desiredSubstep >= 0 && s_currentSubstep != s_desiredSubstep )
+		return false
+
+	return true
+#else
+	return false
+#endif
+}
+
 PhaseBreachTargetInfo function GetPhaseBreachTargetInfo( entity player )
 {
+	if ( BREACH_VERSION == 1 )
+		return GetPhaseBreachTargetInfo_OLD( player )
+
+	vector playerPos = player.GetOrigin()
+	vector eyePos = player.EyePosition()
+	vector eyeDir = player.GetViewVector()
+	eyeDir = Normalize( eyeDir )
+	vector eyeAngles = player.EyeAngles()
+	vector mins = player.GetPlayerMins()
+	vector maxs = player.GetPlayerMaxs()
+#if DEVELOPER
+	s_desiredStep = GetConVarInt( "gwut_debug_step" )
+	s_desiredSubstep = GetConVarInt( "gwut_debug_substep" )
+	s_currentSubstep = -1
+#endif
+	return GetPhaseBreachTargetInfoFromPos( player, playerPos, eyePos, eyeDir, eyeAngles, mins, maxs )
+}
+
+PhaseBreachTargetInfo function GetPhaseBreachTargetInfoFromPos( entity player, vector playerPos, vector eyePos, vector eyeDir, vector eyeAngles, vector mins, vector maxs, bool skipInitialCheck = false )
+{
 	PhaseBreachTargetInfo info
-	info.startPos   = player.GetOrigin()
-	info.finalPos   = player.GetOrigin()
+	info.startPos   = playerPos
+	info.finalPos   = playerPos
 	info.startCrouched = player.IsCrouched()
 	info.eyeTracePos = ZERO_VECTOR
 	info.eyeTraceNormal = ZERO_VECTOR
+	info.eyeDir = eyeDir
+	info.debugStartPos = playerPos
 
-	vector eyePos = player.EyePosition()
-	vector eyeDir = player.GetViewVector()
-	eyeDir          = Normalize( eyeDir )
 
-	vector mins = player.GetPlayerMins()
-	vector maxs = player.GetPlayerMaxs()
-
-	// See if we're on a pusher and we're not allowed to be
 	if ( !file.allowStartOnMovers )
 	{
 		entity groundEnt = player.GetGroundEntity()
-		if ( IsValid( groundEnt ) && LengthSqr( groundEnt.GetVelocity() ) > file.maxEndingMoverSpeedSqr )
+		if ( GetPusherEnt( groundEnt ) )
 			return info
 	}
 
-	// Make sure the portal entrance position will be valid (otherwise the portal will instantly die)
-	// These parameters should match the checks in PhaseTunnel_WaitForPhaseTunnelExpiration
-	if ( ! PhaseTunnel_IsPortalExitPointValid( player, info.startPos, player, true, info.startCrouched ) )//,DEBUG_DRAW_TARGETING ) )
+
+	if ( !skipInitialCheck )
 	{
-		info.startBlocked = true
-		return info
+
+
+		if ( !PhaseTunnel_IsPortalExitPointValid( player, info.startPos, player, true, info.startCrouched, ShowDebugDisplay(PhaseBreach_DebugStep.InitialPosCheck) ) )
+		{
+			info.startBlocked = true
+			return info
+		}
 	}
 
-	float rangeNormal = file.maxDist
-	float rangeSqr    = rangeNormal * rangeNormal
+	float rangeNormal = GetPhaseBreachDistanceForPlayer( player )
 
-	// Calculate effective range
-	float pitchClamped   = clamp( player.EyeAngles().x, -file.maxAngleForFullDist, file.maxAngleForFullDist )
+
+	float pitchClamped   = clamp( eyeAngles.x, -file.maxAngleForFullDist, file.maxAngleForFullDist )
 	float rangeEffective = rangeNormal / deg_cos( pitchClamped )
 
 	array<entity> ignoredEnts = [ player ]
 
-	//////////////////////////////////////////////////////////////
-	// Step 1: Basic eye trace looking forward for solid ground
-	PhaseBreachTraceResults eyeTrace = DoEyeTrace( eyePos, eyeDir, rangeEffective, ignoredEnts, mins, maxs )
 
-	#if DEVELOPER
-	if ( DEBUG_DRAW_TARGETING )
+
+	PhaseBreachTraceResults eyeTrace = DoEyeTrace( player, eyePos, eyeDir, rangeEffective, ignoredEnts, mins, maxs )
+
+#if DEVELOPER
+	if ( ShowDebugDisplay( PhaseBreach_DebugStep.EyeTrace ) )
 	{
-		vector debugColor = eyeTrace.results.fraction < 1.0 ? <0, 255, 0> : <255, 0, 0>
-		DebugDrawSphereRGB( eyeTrace.results.endPos, 10, int(debugColor.x), int(debugColor.y), int(debugColor.z), false, 0.1 )
+		vector debugColor = eyeTrace.results.fraction < 1.0 ? COLOR_GREEN : COLOR_RED
+		PhaseBreach_DebugSphere( eyeTrace.results.endPos, 10, debugColor, false, 0.1 )
+	}
 
-		vector adjustedColor = eyeTrace.foundValidEnd ? <0, 255, 0> : COLOR_ORANGE
-		DebugDrawSphereRGB( eyeTrace.adjustedEndPos, 5, int(adjustedColor.x), int(adjustedColor.y), int(adjustedColor.z), false, 0.1 )
+	if ( ShowDebugDisplay( PhaseBreach_DebugStep.EyeTrace ) )
+	{
+		vector adjustedColor = eyeTrace.foundValidEnd ? COLOR_GREEN : COLOR_ORANGE
+		PhaseBreach_DebugSphere( eyeTrace.adjustedEndPos, 5, adjustedColor, false, 0.1 )
+	}
 
-		float distMeters = Distance( eyeTrace.results.endPos, player.GetOrigin() ) * INCHES_TO_METERS
+	if ( ShowDebugDisplay( PhaseBreach_DebugStep.EyeTrace ) )
+	{
+		float distMeters = Distance( eyeTrace.results.endPos, info.startPos ) * INCHES_TO_METERS
 		string text = "Ash Ult: " +
-						"\nRange " + distMeters + "/" + (file.maxDist*INCHES_TO_METERS) +
+						"\nRange " + distMeters + "/" + (rangeNormal*INCHES_TO_METERS) +
 						"\nEffective: " + (rangeEffective*INCHES_TO_METERS)
 		DebugDrawScreenText( 0.1, 0.6, text )
 	}
-	#endif
+#endif
 
 	info.eyeTracePos = eyeTrace.results.endPos
 	info.eyeTraceNormal = eyeTrace.results.surfaceNormal
-	// If we hit something and this is valid (solid ground, space avail, etc. ) then stop here
-	if ( eyeTrace.foundValidEnd && IsBreachPositionValid( player, eyeTrace.adjustedEndPos, eyeTrace.results.hitEnt, eyeDir, eyeTrace.results.surfaceNormal ) )
+
+	if ( eyeTrace.foundValidEnd && IsBreachPositionValid( player, eyeTrace.adjustedEndPos, eyeTrace.results.hitEnt, eyePos, eyeDir, eyeTrace.results.surfaceNormal, mins, maxs, PhaseBreach_DebugStep.EyeTrace ) )
 	{
 		bool success = GenerateBreachPathInfo( player, info, eyeTrace.adjustedEndPos )
 
@@ -817,29 +813,10 @@ PhaseBreachTargetInfo function GetPhaseBreachTargetInfo( entity player )
 		}
 	}
 
-	if ( eyeTrace.results.fraction >= 1.0 )
-	{
-		vector lowerEyeDir = VectorRotateAxis( eyeDir, player.GetRightVector(), -1 )
-		PhaseBreachTraceResults lowerEyeTrace = DoEyeTrace( eyePos, lowerEyeDir, rangeEffective, ignoredEnts, mins, maxs )
-		#if DEVELOPER
-			if ( DEBUG_DRAW_TARGETING )
-			{
-				DebugDrawText( eyeTrace.results.endPos, "Lower", false, 0.1 )
-				vector debugColor = eyeTrace.results.fraction < 1.0 ? <0, 255, 0> : <255, 0, 0>
-				DebugDrawSphereRGB( eyeTrace.results.endPos, 10, int(debugColor.x), int(debugColor.y), int(debugColor.z), false, 0.1 )
-
-				vector adjustedColor = eyeTrace.foundValidEnd ? <0, 255, 0> : COLOR_ORANGE
-				DebugDrawSphereRGB( eyeTrace.adjustedEndPos, 5, int(adjustedColor.x), int(adjustedColor.y), int(adjustedColor.z), false, 0.1 )
-			}
-		#endif
-		if ( lowerEyeTrace.results.fraction < 1.0 )
-			eyeTrace = lowerEyeTrace
-	}
-
 	info.eyeTracePos = eyeTrace.results.endPos
 	info.eyeTraceNormal = eyeTrace.results.surfaceNormal
 
-	//STEP 2: If we didnt hit something perfect on the first trace, lets look for other options and then pick based on score.
+
 	array<vector> possibleEndings
 
 	if ( eyeTrace.results.fraction < 1.0 )
@@ -852,14 +829,14 @@ PhaseBreachTargetInfo function GetPhaseBreachTargetInfo( entity player )
 			vector flattenedEyeDir = FlattenNormalizeVec( eyeDir )
 
 			const float LEDGE_CHECK_UP = DOWN_TRACE_DISTANCE/2
-			const float LEDGE_CHECK_BACK = 24//1 * METERS_TO_INCHES
-			float debugDrawTime      = DEBUG_DRAW_TARGETING ? 0.1 : 0.0
+			const float LEDGE_CHECK_BACK = 24
+			float debugDrawTime = ShowDebugDisplay( PhaseBreach_DebugStep.WallUp ) ? 0.1 : 0.0
 
 			vector wallTraceMaxs = <maxs.x,maxs.y,PHASE_TUNNEL_CROUCH_HEIGHT>
 			vector wallToTopNormal = -flattenedEyeDir
 
 			float eyeVsWallDot = DotProduct( eyeTrace.results.surfaceNormal, -flattenedEyeDir )
-			if ( eyeVsWallDot < 0.707106781187 )
+			if ( eyeVsWallDot < DOT_45DEGREE )
 				wallToTopNormal = eyeTrace.results.surfaceNormal
 
 			WallToTopResults results
@@ -867,75 +844,185 @@ PhaseBreachTargetInfo function GetPhaseBreachTargetInfo( entity player )
 			while( !results.found && checkUpDistance > 0)
 			{
 				results = TraceFromWallToTop( eyeTrace.results.endPos, wallToTopNormal, [ player ], LEDGE_CHECK_BACK, checkUpDistance, TRACE_MASK_PLAYERSOLID_BRUSHONLY, TRACE_COLLISION_GROUP_PLAYER, debugDrawTime, true, mins, wallTraceMaxs )
-				//results = TraceFromWallToTop( eyeTrace.results.endPos, wallToTopNormal, [ player ], LEDGE_CHECK_BACK, checkUpDistance, TRACE_MASK_PLAYERSOLID_BRUSHONLY, TRACE_COLLISION_GROUP_PLAYER, debugDrawTime )
 				checkUpDistance -= PHASE_TUNNEL_CROUCH_HEIGHT
 			}
 
-			//////////////////
-			//WallToTopResults results = TraceFromWallToTop( eyeTrace.results.endPos, -flattenedEyeDir, [ player ], LEDGE_CHECK_BACK, LEDGE_CHECK_UP/2, TRACE_MASK_PLAYERSOLID, TRACE_COLLISION_GROUP_PLAYER, debugDrawTime, true, mins, wallTraceMaxs )
-			//if ( !results.found )
-			//{
-			//	results = TraceFromWallToTop( eyeTrace.results.endPos, -flattenedEyeDir, [ player ], LEDGE_CHECK_BACK, LEDGE_CHECK_UP, TRACE_MASK_PLAYERSOLID, TRACE_COLLISION_GROUP_PLAYER, debugDrawTime, true, mins, wallTraceMaxs )
-			//}
-			//////////////////
-
-			if ( results.found && IsBreachPositionValid( player, results.pos, results.hitEnt, eyeDir, results.normal ) )
+			if ( results.found && IsBreachPositionValid( player, results.pos, results.hitEnt, eyePos, eyeDir, results.normal, mins, maxs, PhaseBreach_DebugStep.WallUp ) )
 			{
 				possibleEndings.append( results.pos )
 			}
+#if DEVELOPER
+			else
+			{
+				if ( results.found && ShowDebugDisplay( PhaseBreach_DebugStep.WallUp ) )
+					DebugDrawText( results.pos, "Wall invalid", false, 0.1 )
+			}
+#endif
 		}
 		PerfEnd( PerfIndexClient.PhaseBreach_WallToTop )
 	}
 
-	// Trace down looking for a ground hit
+
 	{
-		TraceResults downTrace = TraceHull( eyeTrace.adjustedEndPos, eyeTrace.adjustedEndPos - <0.0, 0.0, DOWN_TRACE_DISTANCE>, <-5,-5,-5>, <5,5,5>, ignoredEnts, TRACE_MASK_PLAYERSOLID, TRACE_COLLISION_GROUP_PLAYER )
-		DrawDebugSphereIfDebugging( downTrace.endPos, 0, 255, 0 )
+		TraceResults downTrace = TraceHull( eyeTrace.adjustedEndPos, eyeTrace.adjustedEndPos - <0.0, 0.0, DOWN_TRACE_DISTANCE>, <-5,-5,-5>, <5,5,5>, ignoredEnts, TRACE_MASK_PLAYERSOLID, TRACE_COLLISION_GROUP_PLAYER, UP_VECTOR, player )
+
+#if DEVELOPER
+		if ( ShowDebugDisplay( PhaseBreach_DebugStep.FindGround ) )
+			PhaseBreach_DebugSphere( downTrace.endPos, 5.0, COLOR_GREEN, false, 0.1 )
+#endif
 
 		if ( downTrace.fraction < 1.0 )
 		{
-			TraceResults hullTrace = DoHullTraceForExit( mins, maxs, downTrace.endPos )
+			TraceResults hullTrace = DoHullTraceForExit( player, mins, maxs, downTrace.endPos )
 
-			if ( !hullTrace.startSolid && IsBreachPositionValid( player, hullTrace.endPos, hullTrace.hitEnt != null ? hullTrace.hitEnt : downTrace.hitEnt, eyeDir, downTrace.surfaceNormal ) )
+			if ( !hullTrace.startSolid && IsBreachPositionValid( player, hullTrace.endPos, hullTrace.hitEnt != null ? hullTrace.hitEnt : downTrace.hitEnt, eyePos, eyeDir, downTrace.surfaceNormal, mins, maxs, PhaseBreach_DebugStep.FindGround ) )
 			{
 				possibleEndings.append( hullTrace.endPos )
 			}
 		}
 	}
 
-	// Keep going backwards in the air then down to see if we can find a position in view
-	{
-		vector airPos      = eyeTrace.adjustedEndPos - eyeDir * BACK_TRACE_STEP_DIST
-		float airTraceDist = BACK_TRACE_STEP_DIST
-		int i              = 0
 
-		while ( possibleEndings.len() < 10 && airTraceDist < (rangeEffective - 250.0) && (DotProduct( eyeTrace.adjustedEndPos - eyePos, airPos - eyePos ) > 0) )
+	if ( file.useContinueGroundDetection )
+	{
+
+		vector singleStepVec = eyeDir * BACK_TRACE_STEP_DIST
+		vector currentAirPos = eyeTrace.adjustedEndPos - singleStepVec
+		float distFromPlayer = Distance(eyeTrace.adjustedEndPos, eyePos) - BACK_TRACE_STEP_DIST
+		bool eyeAngleAboveHorizon = DotProduct( eyeDir, UP_VECTOR ) > 0.0
+		int i = 0
+
+		vector findGroundTraceMins = <-0.01,-0.01,0>
+		vector findGroundTraceMaxs = <0.01,0.01,BACK_TRACE_STEP_DIST>
+
+		vector findImpactTraceMins = <-0.02,-0.02,-0.02>
+		vector findImpactTraceMaxs = < 0.02, 0.02, 0.02>
+		vector findImpactFudgeVec = eyeDir * 1.0
+
+		const int TOTAL_TARGET_POSITION_COUNT = 5
+		while ( possibleEndings.len() < TOTAL_TARGET_POSITION_COUNT && distFromPlayer > MIN_DIST_FROM_PLAYER && (DotProduct( eyeTrace.adjustedEndPos - eyePos, currentAirPos - eyePos ) > 0) )
 		{
-			TraceResults airDownTrace = TraceHull( airPos, airPos - <0.0, 0.0, DOWN_TRACE_DISTANCE>, <-5,-5,-5>, <5,5,5>, ignoredEnts, TRACE_MASK_PLAYERSOLID, TRACE_COLLISION_GROUP_PLAYER )
-			DrawDebugSphereIfDebugging( airPos, 0, 255, 255 )
-			DrawDebugSphereIfDebugging( airDownTrace.endPos, 255, 0, 255 )
+
+			float endZOffset = min (Distance(currentAirPos, eyePos) * TRACE_HEIGHT_SIN, DOWN_TRACE_DISTANCE)
+
+
+
+
+
+
+
+
+
+
+
+			TraceResults airDownTrace = TraceHull( currentAirPos, currentAirPos - <0.0, 0.0, endZOffset>, findGroundTraceMins, findGroundTraceMaxs, ignoredEnts, TRACE_MASK_PLAYERSOLID, TRACE_COLLISION_GROUP_PLAYER, eyeDir, player )
+
+#if DEVELOPER
+			if ( ShowDebugDisplay( PhaseBreach_DebugStep.FindGround ) )
+				PhaseBreach_DebugSphere( currentAirPos, 5.0, COLOR_CYAN, false, 0.1 )
+			if ( ShowDebugDisplay( PhaseBreach_DebugStep.FindGround ) )
+				PhaseBreach_DebugSphere( airDownTrace.endPos, 5.0, COLOR_MAGENTA, false, 0.1 )
+#endif
+
 			if ( airDownTrace.fraction < 1.0 )
 			{
-				TraceResults hullTrace = DoHullTraceForExit( mins, maxs, airDownTrace.endPos )
 
-				if ( !hullTrace.startSolid && IsBreachPositionValid( player, hullTrace.endPos, hullTrace.hitEnt != null ? hullTrace.hitEnt : airDownTrace.hitEnt, eyeDir, airDownTrace.surfaceNormal ) )
+				vector impactPointTraceStart = eyeAngleAboveHorizon ? airDownTrace.endPos + singleStepVec + findImpactFudgeVec : airDownTrace.endPos - findImpactFudgeVec
+				vector impactPointTraceEnd = eyeAngleAboveHorizon ? airDownTrace.endPos - findImpactFudgeVec : airDownTrace.endPos + singleStepVec + findImpactFudgeVec
+
+				TraceResults impactPointTrace = TraceHull( impactPointTraceStart, impactPointTraceEnd, findImpactTraceMins, findImpactTraceMaxs, ignoredEnts, TRACE_MASK_PLAYERSOLID, TRACE_COLLISION_GROUP_PLAYER, eyeDir, player )
+
+				vector impactPoint = impactPointTrace.endPos
+				if ( impactPointTrace.startSolid )
+				{
+					impactPoint = impactPointTraceStart
+				}
+
+				TraceResults hullTrace = DoHullTraceForExit( player, mins, maxs, impactPointTrace.endPos, 12.0, 1.0 )
+
+				if ( !hullTrace.startSolid && IsBreachPositionValid( player, hullTrace.endPos, hullTrace.hitEnt != null ? hullTrace.hitEnt : impactPointTrace.hitEnt, eyePos, eyeDir, hullTrace.fraction < 1.0 ? hullTrace.surfaceNormal : airDownTrace.surfaceNormal, mins, maxs, PhaseBreach_DebugStep.FindGround ) )
 				{
 					possibleEndings.append( hullTrace.endPos )
 				}
-				else if ( DEBUG_DRAW_TARGETING )
+#if DEVELOPER
+				else if ( hullTrace.startSolid )
 				{
-					if ( hullTrace.startSolid )
-						DebugDrawText( hullTrace.endPos, "HT startSolid", false, 0.1 )
-					else
-						DebugDrawText( hullTrace.endPos, "BreachPos Invalid", false, 0.1 )
+					if ( ShowDebugDisplay( PhaseBreach_DebugStep.FindGround ) )
+						DebugDrawText( hullTrace.endPos, "" + i + " HT startSolid", false, 0.1 )
 				}
+				else
+				{
+					if ( ShowDebugDisplay( PhaseBreach_DebugStep.FindGround ) )
+						DebugDrawText( hullTrace.endPos, "" + i + " Invalid", false, 0.1 )
+				}
+#endif
 
 			}
+#if DEVELOPER
+			else
+			{
+				if ( ShowDebugDisplay( PhaseBreach_DebugStep.FindGround ) )
+					DebugDrawText( airDownTrace.endPos, "" + i + " Missed", false, 0.1 )
+			}
+#endif
 
 			i++
-			float nextStepDist = min( BACK_TRACE_STEP_DIST * i, BACK_TRACE_MAX_STEP )
-			airTraceDist += nextStepDist
-			airPos -= eyeDir * nextStepDist
+			distFromPlayer -= BACK_TRACE_STEP_DIST
+			currentAirPos -= eyeDir * BACK_TRACE_STEP_DIST
+		}
+	}
+	else
+	{
+		vector airPos = eyeTrace.adjustedEndPos - eyeDir * BACK_TRACE_STEP_DIST
+		float distFromPlayer = Distance(eyeTrace.adjustedEndPos, eyePos) - BACK_TRACE_STEP_DIST
+		int i = 0
+
+		while ( possibleEndings.len() < 10 && distFromPlayer > MIN_DIST_FROM_PLAYER && (DotProduct( eyeTrace.adjustedEndPos - eyePos, airPos - eyePos ) > 0) )
+		{
+
+			float endZPos = min (Distance(airPos, eyePos) * TRACE_HEIGHT_SIN, DOWN_TRACE_DISTANCE)
+
+			TraceResults airDownTrace = TraceHull( airPos, airPos - <0.0, 0.0, endZPos>, <-5,-5,-5>, <5,5,5>, ignoredEnts, TRACE_MASK_PLAYERSOLID, TRACE_COLLISION_GROUP_PLAYER, UP_VECTOR, player )
+
+#if DEVELOPER
+			if ( ShowDebugDisplay( PhaseBreach_DebugStep.FindGround ) )
+				PhaseBreach_DebugSphere( airPos, 5.0, COLOR_CYAN, false, 0.1 )
+			if ( ShowDebugDisplay( PhaseBreach_DebugStep.FindGround ) )
+				PhaseBreach_DebugSphere( airDownTrace.endPos, 5.0, COLOR_MAGENTA, false, 0.1 )
+#endif
+
+			if ( airDownTrace.fraction < 1.0 )
+			{
+				TraceResults hullTrace = DoHullTraceForExit( player, mins, maxs, airDownTrace.endPos )
+
+				if ( !hullTrace.startSolid && IsBreachPositionValid( player, hullTrace.endPos, hullTrace.hitEnt != null ? hullTrace.hitEnt : airDownTrace.hitEnt, eyePos, eyeDir, airDownTrace.surfaceNormal, mins, maxs, PhaseBreach_DebugStep.FindGround ) )
+				{
+					possibleEndings.append( hullTrace.endPos )
+				}
+#if DEVELOPER
+				else if ( hullTrace.startSolid )
+				{
+					if ( ShowDebugDisplay( PhaseBreach_DebugStep.FindGround ) )
+						DebugDrawText( hullTrace.endPos, "" + i + " HT startSolid", false, 0.1 )
+				}
+				else
+				{
+					if ( ShowDebugDisplay( PhaseBreach_DebugStep.FindGround ) )
+						DebugDrawText( hullTrace.endPos, "" + i + " Invalid", false, 0.1 )
+				}
+#endif
+			}
+#if DEVELOPER
+			else
+			{
+				if ( ShowDebugDisplay( PhaseBreach_DebugStep.FindGround ) )
+					DebugDrawText( airDownTrace.endPos, "" + i + " Missed", false, 0.1 )
+			}
+#endif
+
+			i++
+			distFromPlayer -= BACK_TRACE_STEP_DIST
+			airPos -= eyeDir * BACK_TRACE_STEP_DIST
 		}
 	}
 	PerfStart( PerfIndexClient.PhaseBreach_ScorePos )
@@ -985,8 +1072,8 @@ PhaseBreachTargetInfo function GetPhaseBreachTargetInfo_OLD( entity player )
 	array<entity> ignoredEnts = [ player ]
 
 	// Basic eye trace looking for solid ground
-	PhaseBreachTraceResults eyeTrace = DoEyeTrace( eyePos, eyeDir, rangeEffective, ignoredEnts, mins, maxs )
-	if ( eyeTrace.foundValidEnd && IsBreachPositionValid( player, eyeTrace.adjustedEndPos, eyeTrace.results.hitEnt, eyeDir, eyeTrace.results.surfaceNormal ) )
+	PhaseBreachTraceResults eyeTrace = DoEyeTrace_OLD( eyePos, eyeDir, rangeEffective, ignoredEnts, mins, maxs )
+	if ( eyeTrace.foundValidEnd && IsBreachPositionValid_OLD( player, eyeTrace.adjustedEndPos, eyeTrace.results.hitEnt, eyeDir, eyeTrace.results.surfaceNormal ) )
 	{
 		bool success = GenerateBreachPathInfo( player, info, eyeTrace.adjustedEndPos )
 
@@ -1015,9 +1102,9 @@ PhaseBreachTargetInfo function GetPhaseBreachTargetInfo_OLD( entity player )
 
 				if ( ledgeDownTrace.fraction < 1.0 )
 				{
-					TraceResults hullTrace = DoHullTraceForExit( mins, maxs, ledgeDownTrace.endPos )
+					TraceResults hullTrace = DoHullTraceForExit_OLD( mins, maxs, ledgeDownTrace.endPos )
 
-					if ( !hullTrace.startSolid && IsBreachPositionValid( player, hullTrace.endPos, hullTrace.hitEnt != null ? hullTrace.hitEnt : ledgeDownTrace.hitEnt, eyeDir, ledgeDownTrace.surfaceNormal ) )
+					if ( !hullTrace.startSolid && IsBreachPositionValid_OLD( player, hullTrace.endPos, hullTrace.hitEnt != null ? hullTrace.hitEnt : ledgeDownTrace.hitEnt, eyeDir, ledgeDownTrace.surfaceNormal ) )
 					{
 						possibleEndings.append( hullTrace.endPos )
 						if ( DEBUG_DRAW_TARGETING )
@@ -1030,7 +1117,7 @@ PhaseBreachTargetInfo function GetPhaseBreachTargetInfo_OLD( entity player )
 
 	// Lower the eye angle and try another ledge trace, so we aren't just relying on the back traces to hit places below our eye line
 	{
-		PhaseBreachTraceResults lowerEyeTrace = DoEyeTrace( eyePos, VectorRotateAxis( eyeDir, player.GetRightVector(), -1 ), rangeEffective, ignoredEnts, player.GetPlayerMins(), player.GetPlayerMaxs() )
+		PhaseBreachTraceResults lowerEyeTrace = DoEyeTrace_OLD( eyePos, VectorRotateAxis( eyeDir, player.GetRightVector(), -1 ), rangeEffective, ignoredEnts, player.GetPlayerMins(), player.GetPlayerMaxs() )
 
 		if ( lowerEyeTrace.results.fraction < 1.0 )
 		{
@@ -1046,9 +1133,9 @@ PhaseBreachTargetInfo function GetPhaseBreachTargetInfo_OLD( entity player )
 
 				if ( ledgeDownTrace.fraction < 1.0 )
 				{
-					TraceResults hullTrace = DoHullTraceForExit( mins, maxs, ledgeDownTrace.endPos )
+					TraceResults hullTrace = DoHullTraceForExit_OLD( mins, maxs, ledgeDownTrace.endPos )
 
-					if ( !hullTrace.startSolid && IsBreachPositionValid( player, hullTrace.endPos, hullTrace.hitEnt != null ? hullTrace.hitEnt : ledgeDownTrace.hitEnt, eyeDir, ledgeDownTrace.surfaceNormal ) )
+					if ( !hullTrace.startSolid && IsBreachPositionValid_OLD( player, hullTrace.endPos, hullTrace.hitEnt != null ? hullTrace.hitEnt : ledgeDownTrace.hitEnt, eyeDir, ledgeDownTrace.surfaceNormal ) )
 					{
 						possibleEndings.append( hullTrace.endPos )
 						if ( DEBUG_DRAW_TARGETING )
@@ -1066,9 +1153,9 @@ PhaseBreachTargetInfo function GetPhaseBreachTargetInfo_OLD( entity player )
 
 		if ( downTrace.fraction < 1.0 )
 		{
-			TraceResults hullTrace = DoHullTraceForExit( mins, maxs, downTrace.endPos )
+			TraceResults hullTrace = DoHullTraceForExit_OLD( mins, maxs, downTrace.endPos )
 
-			if ( !hullTrace.startSolid && IsBreachPositionValid( player, hullTrace.endPos, hullTrace.hitEnt != null ? hullTrace.hitEnt : downTrace.hitEnt, eyeDir, downTrace.surfaceNormal ) )
+			if ( !hullTrace.startSolid && IsBreachPositionValid_OLD( player, hullTrace.endPos, hullTrace.hitEnt != null ? hullTrace.hitEnt : downTrace.hitEnt, eyeDir, downTrace.surfaceNormal ) )
 			{
 				possibleEndings.append( hullTrace.endPos )
 				if ( DEBUG_DRAW_TARGETING )
@@ -1089,9 +1176,9 @@ PhaseBreachTargetInfo function GetPhaseBreachTargetInfo_OLD( entity player )
 			DrawDebugSphereIfDebugging( airDownTrace.endPos, 255, 0, 255 )
 			if ( airDownTrace.fraction < 1.0 )
 			{
-				TraceResults hullTrace = DoHullTraceForExit( mins, maxs, airDownTrace.endPos )
+				TraceResults hullTrace = DoHullTraceForExit_OLD( mins, maxs, airDownTrace.endPos )
 
-				if ( !hullTrace.startSolid && IsBreachPositionValid( player, hullTrace.endPos, hullTrace.hitEnt != null ? hullTrace.hitEnt : airDownTrace.hitEnt, eyeDir, airDownTrace.surfaceNormal ) )
+				if ( !hullTrace.startSolid && IsBreachPositionValid_OLD( player, hullTrace.endPos, hullTrace.hitEnt != null ? hullTrace.hitEnt : airDownTrace.hitEnt, eyeDir, airDownTrace.surfaceNormal ) )
 				{
 					possibleEndings.append( hullTrace.endPos )
 					if ( DEBUG_DRAW_TARGETING )
@@ -1106,12 +1193,12 @@ PhaseBreachTargetInfo function GetPhaseBreachTargetInfo_OLD( entity player )
 		}
 	}
 
-	PortalEndingSortStruct end = GetBestEnding( possibleEndings, player,eyeDir, eyePos, info )
+	PortalEndingSortStruct end = GetBestEnding_OLD( possibleEndings, player,eyeDir, eyePos, info )
 	return info
 }
 
 
-PhaseBreachTraceResults function DoEyeTrace( vector eyePos, vector eyeDir, float effectiveRange, array<entity> ignoredEntities, vector mins, vector maxs )
+PhaseBreachTraceResults function DoEyeTrace_OLD( vector eyePos, vector eyeDir, float effectiveRange, array<entity> ignoredEntities, vector mins, vector maxs )
 {
 	PhaseBreachTraceResults eyeTraceResults
 
@@ -1134,7 +1221,49 @@ PhaseBreachTraceResults function DoEyeTrace( vector eyePos, vector eyeDir, float
 
 	if ( eyeTraceResults.foundValidEnd )
 	{
-		TraceResults hullTrace = DoHullTraceForExit( mins, maxs, eyeTraceResults.adjustedEndPos )
+		TraceResults hullTrace = DoHullTraceForExit_OLD( mins, maxs, eyeTraceResults.adjustedEndPos )
+
+		if ( hullTrace.startSolid )
+			eyeTraceResults.foundValidEnd = false
+		else
+			eyeTraceResults.adjustedEndPos = hullTrace.endPos
+	}
+
+	return eyeTraceResults
+}
+PhaseBreachTraceResults function DoEyeTrace( entity realmEnt, vector eyePos, vector eyeDir, float effectiveRange, array<entity> ignoredEntities, vector mins, vector maxs )
+{
+	PhaseBreachTraceResults eyeTraceResults
+
+
+	TraceResults initialTrace = TraceHull( eyePos, eyePos + (eyeDir * effectiveRange), <-5,-5,-5>, <5,5,5>, ignoredEntities, TRACE_MASK_PLAYERSOLID, TRACE_COLLISION_GROUP_PLAYER, UP_VECTOR, realmEnt )
+	eyeTraceResults.adjustedEndPos = initialTrace.endPos
+	eyeTraceResults.results        = initialTrace
+
+#if DEVELOPER
+	if ( ShowDebugDisplay( PhaseBreach_DebugStep.EyeTrace ) )
+	{
+		PhaseBreach_DebugSphere( initialTrace.endPos, 11, COLOR_RED, false, 0.1 )
+	}
+#endif
+
+	if ( initialTrace.fraction < 1.0 )
+	{
+		if ( IsNormalVertical( initialTrace.surfaceNormal ) )
+			eyeTraceResults.foundValidEnd = true
+		else
+			eyeTraceResults.adjustedEndPos = initialTrace.endPos - eyeDir * 30.0
+#if DEVELOPER
+		if ( ShowDebugDisplay( PhaseBreach_DebugStep.EyeTrace ) )
+		{
+			PhaseBreach_DebugSphere( eyeTraceResults.adjustedEndPos, 12, COLOR_DARK_RED, false, 0.1 )
+		}
+#endif
+	}
+
+	if ( eyeTraceResults.foundValidEnd )
+	{
+		TraceResults hullTrace = DoHullTraceForExit( realmEnt, mins, maxs, eyeTraceResults.adjustedEndPos )
 
 		if ( hullTrace.startSolid )
 			eyeTraceResults.foundValidEnd = false
@@ -1146,7 +1275,7 @@ PhaseBreachTraceResults function DoEyeTrace( vector eyePos, vector eyeDir, float
 }
 
 
-bool function IsBreachPositionValid( entity player, vector position, entity traceHitEnt, vector eyeDir, vector normal )
+bool function IsBreachPositionValid_OLD( entity player, vector position, entity traceHitEnt, vector eyeDir, vector normal )
 {
 	if ( IsValid( traceHitEnt ) )
 	{
@@ -1198,12 +1327,97 @@ bool function IsBreachPositionValid( entity player, vector position, entity trac
 
 	return true
 }
+bool function IsBreachPositionValid( entity player, vector position, entity traceHitEnt, vector eyePos, vector eyeDir, vector normal, vector mins, vector maxs, int debugStep )
+{
+	if ( IsValid( traceHitEnt ) && !traceHitEnt.IsWorld() ) 
+	{
+		if ( traceHitEnt.IsPlayer() || traceHitEnt.IsNPC() || IsDeathboxFlyer( traceHitEnt ) )
+			return false
+
+		if ( traceHitEnt.GetScriptName() == CRYPTO_DRONE_SCRIPTNAME  )
+			return false
+
+		if ( traceHitEnt.IsProjectile() )
+			return false
+
+		entity pusher = GetPusherEnt( traceHitEnt )
+		if ( pusher )
+		{
+			if ( ! file.allowEndOnMovers )
+				return false
+
+#if DEVELOPER
+			if ( DEBUG_DRAW_PUSHER_MOVEMENT && ShowDebugDisplay( debugStep ) )
+			{
+				vector pusherVelAtPoint = pusher.GetVelocity()
+				DebugDrawScreenText( 0.1,0.6, "Pusher " + pusher + ", speed is " + Length(pusherVelAtPoint) + " , vel is " + pusherVelAtPoint )
+			}
+#endif
+
+			if ( LengthSqr(pusher.GetVelocity()) > file.maxEndingMoverSpeedSqr )	
+				return false
+		}
+	}
+
+#if DEVELOPER
+	vector debugTextPos = position + < 0,0,-10>
+#endif
+
+	if ( DotProduct( eyeDir, Normalize( position - eyePos ) ) < MIN_VIEW_DOT )
+	{
+#if DEVELOPER
+		if ( ShowDebugDisplay( debugStep ) )
+			DebugDrawText( debugTextPos, "Dot < MIN_VIEW_DOT", false, 0.1 )
+#endif
+		return false
+	}
+
+	if ( !IsNormalVertical( normal ) )
+	{
+#if DEVELOPER
+		if ( ShowDebugDisplay( debugStep ) )
+			DebugDrawText( debugTextPos, "Normal Not Vertical", false, 0.1 )
+#endif
+		return false
+	}
+
+	foreach ( entity trigger in GetTriggersByClassesInRealms_HullSize(
+		file.invalidTriggerEndingTypes,
+		position, position,
+		player.GetRealms(), TRACE_MASK_PLAYERSOLID,
+		mins, maxs ) )
+	{
+#if DEVELOPER
+		if ( ShowDebugDisplay( debugStep ) )
+			DebugDrawText( debugTextPos, "In Bad Trigger", false, 0.1 )
+#endif
+		return false
+	}
+
+	TraceResults eyeToDownTrace = TraceLine( eyePos, position + <0, 0, 48.0>, [player], TRACE_MASK_ABILITY, TRACE_COLLISION_GROUP_PLAYER, player )
+	if ( eyeToDownTrace.fraction < 1.0 )
+	{
+#if DEVELOPER
+		if ( ShowDebugDisplay( debugStep ) )
+			DebugDrawText( debugTextPos, "Can't see", false, 0.1 )
+#endif
+		return false
+	}
+
+	return true
+}
 
 
-TraceResults function DoHullTraceForExit( vector mins, vector maxs, vector pos, float zClearance = 12.0 )
+TraceResults function DoHullTraceForExit_OLD( vector mins, vector maxs, vector pos, float zClearance = 12.0 )
 {
 	TraceResults hullTrace = TraceHull( pos + <0, 0, zClearance>, pos, mins, maxs, null, TRACE_MASK_PLAYERSOLID, TRACE_COLLISION_GROUP_NONE )
 	//PrintTraceResults( hullTrace )
+	return hullTrace
+}
+TraceResults function DoHullTraceForExit( entity realmEnt, vector mins, vector maxs, vector pos, float zClearance = 12.0, float zDownFudge = 0.0 )
+{
+	TraceResults hullTrace = TraceHull( pos + <0, 0, zClearance>, pos - <0, 0, zDownFudge>, mins, maxs, null, TRACE_MASK_PLAYERSOLID, TRACE_COLLISION_GROUP_NONE, UP_VECTOR, realmEnt )
+
 	return hullTrace
 }
 
@@ -1213,7 +1427,7 @@ struct PortalEndingSortStruct
 	float  val = -1.0
 }
 
-PortalEndingSortStruct function GetBestEnding( array<vector> possibleEndings, entity player, vector eyeDir, vector eyePos, PhaseBreachTargetInfo info )
+PortalEndingSortStruct function GetBestEnding_OLD( array<vector> possibleEndings, entity player, vector eyeDir, vector eyePos, PhaseBreachTargetInfo info )
 {
 	PortalEndingSortStruct failedEnding
 
@@ -1223,7 +1437,7 @@ PortalEndingSortStruct function GetBestEnding( array<vector> possibleEndings, en
 		PortalEndingSortStruct end
 		end.pos = pos
 
-		end.val = ScoreEndPosition( pos, eyeDir, eyePos, DEBUG_DRAW_ENDING_SCORES )
+		end.val = ScoreEndPosition_OLD( pos, eyeDir, eyePos, DEBUG_DRAW_ENDING_SCORES )
 
 		endings.append( end )
 	}
@@ -1251,8 +1465,46 @@ PortalEndingSortStruct function GetBestEnding( array<vector> possibleEndings, en
 	PortalEndingSortStruct emptyEnding
 	return emptyEnding
 }
+PortalEndingSortStruct function GetBestEnding( array<vector> possibleEndings, entity player, vector eyeDir, vector eyePos, PhaseBreachTargetInfo info, bool isOldVersion = false )
+{
+	array<PortalEndingSortStruct> endings
+	foreach ( vector pos in possibleEndings )
+	{
+		PortalEndingSortStruct end
+		end.pos = pos
 
-float function ScoreEndPosition( vector pos, vector eyeDir, vector eyePos, bool debugDraw = false )
+		end.val = ScoreEndPosition( pos, eyeDir, eyePos, GetPhaseBreachDistanceForPlayer( player ) , ShowDebugDisplay( PhaseBreach_DebugStep.ScorePoints ) && (!isOldVersion || DEBUG_DRAW_OLD_VERSION) )
+
+		endings.append( end )
+	}
+
+	endings.sort( SortEndingStruct )
+
+
+
+	foreach ( ending in endings )
+	{
+		bool success = GenerateBreachPathInfo( player, info, ending.pos )
+
+		if ( success )
+		{
+			info.portalQuality = ending.val
+			return ending
+		}
+		else
+		{
+#if DEVELOPER
+			if ( ShowDebugDisplay( PhaseBreach_DebugStep.ScorePoints ) && (!isOldVersion || DEBUG_DRAW_OLD_VERSION) )
+				DebugDrawText( ending.pos + <0,0,5>, "No path", false, 0.1 )
+#endif
+		}
+	}
+
+	PortalEndingSortStruct emptyEnding
+	return emptyEnding
+}
+
+float function ScoreEndPosition_OLD( vector pos, vector eyeDir, vector eyePos, bool debugDraw = false )
 {
 	vector dirToPortal 	= pos - eyePos
 	float distance 		= Length( dirToPortal )
@@ -1281,6 +1533,50 @@ float function ScoreEndPosition( vector pos, vector eyeDir, vector eyePos, bool 
 
 	return totalScore
 }
+float function ScoreEndPosition( vector pos, vector eyeDir, vector eyePos, float maxDist, bool debugDraw = false )
+{
+	vector dirToPortal 	= pos - eyePos
+	float distance = Length( dirToPortal )
+
+	float dot = DotProduct( eyeDir, dirToPortal / distance )
+
+	const float WEIGHT_DOT = 60
+	const float WEIGHT_DIST = 80
+
+	float dotScore = GraphCapped( dot, MIN_VIEW_DOT, 1.0, 0, WEIGHT_DOT )
+
+	float distScore = GraphCapped( distance, 0, maxDist, 0, WEIGHT_DIST)
+
+	float splScore = 0
+	const float WEIGHT_SPL = 40
+	const bool CHECK_SPL_SCORE = true
+	if ( CHECK_SPL_SCORE )
+	{
+#if SERVER
+		vector nearestSafePosition = SPL_GetClosestPosition( pos )
+		const float MAX_SPL_Z_DIST = 10 * METERS_TO_INCHES
+		float absZDist = fabs( pos.z - nearestSafePosition.z )
+		splScore = GraphCapped( absZDist, 0, MAX_SPL_Z_DIST, WEIGHT_SPL, 0)
+#endif
+	}
+
+	float totalScore = dotScore + distScore + splScore
+
+
+
+
+
+#if DEVELOPER
+	if ( debugDraw )
+	{
+		string scoreText = string( totalScore ) + "\nDotScore: " + dotScore + "\nDistScore: " + distScore + "\nSplScore: " + splScore
+
+		DebugDrawText( pos + <0,0,-5>, scoreText, false, 0.1 )
+	}
+#endif
+
+	return totalScore
+}
 
 
 int function SortEndingStruct( PortalEndingSortStruct a, PortalEndingSortStruct b )
@@ -1296,9 +1592,9 @@ int function SortEndingStruct( PortalEndingSortStruct a, PortalEndingSortStruct 
 
 bool function GenerateBreachPathInfo( entity player, PhaseBreachTargetInfo info, vector endPos )
 {
-	// We do the IsPortalExitPointValid check here instead of in IsBreachPositionValid since it should almost always succeed - trying to minimize the amount of hull traces we do
-	// This is intended to catch some extreme edge cases that might have snunk through hull traces we do looking for ending positions
-	if ( !PhaseTunnel_IsPortalExitPointValid( player, endPos, player, true, false, DEBUG_DRAW_TARGETING ) )
+
+
+	if ( !PhaseTunnel_IsPortalExitPointValid( player, endPos, player, true, false, ShowDebugDisplay(PhaseBreach_DebugStep.CheckLos) ) )
 		return false
 
 	PerfStart( PerfIndexClient.PhaseBreach_ScorePos_Generate )
@@ -1324,48 +1620,23 @@ bool function GenerateBreachPathInfo( entity player, PhaseBreachTargetInfo info,
 	info.posList[ posListCount - 1 ] = endPos
 	info.finalPos   = endPos
 
-	bool successful = (posListCount > 2) && info.pathDistance > 200.0
+	bool successful = (posListCount > 2) && info.pathDistance > MIN_DIST_FROM_PLAYER
 
-	#if CLIENT
-		if ( successful )
-			DrawDebugSphereIfDebugging( info.finalPos, 0, 0, 255 )
-	#endif
 	PerfEnd( PerfIndexClient.PhaseBreach_ScorePos_Generate )
+
+#if DEVELOPER
+	if ( successful )
+	{
+		if ( ShowDebugDisplay( PhaseBreach_DebugStep.CheckLos ) )
+		{
+			PhaseBreach_DebugSphere( info.finalPos, 5.0, COLOR_BLUE, false, 0.1 )
+		}
+	}
+#endif
+
 	return successful
 }
 
-void function PhaseBreachCrosshair_Thread( entity weapon )
-{
-	entity player = weapon.GetWeaponOwner()
-	player.EndSignal( "OnDeath" )
-
-	weapon.EndSignal( SIGNAL_PHASE_BREACH_STOP_PLACEMENT )
-	weapon.EndSignal( "OnDestroy" )
-
-	while (true)
-	{
-		vector traceStart = player.EyePosition()
-		vector traceEnd = player.EyePosition() + player.GetPlayerOrNPCViewVector() * (file.maxDist-15)
-		TraceResults tr = TraceLine( traceStart, traceEnd , [ player ], TRACE_MASK_SOLID_BRUSHONLY , TRACE_COLLISION_GROUP_PLAYER, player )
-		int pointInRange = tr.fraction < 1.0 ? 1 : -1
-
-		if ( IsValid( weapon ) )
-		{
-			bool isPredictableEnt = false
-			#if CLIENT
-				//isPredictableEnt = weapon.GetPredictable()
-			#endif
-			#if SERVER
-				isPredictableEnt = true
-			#endif //SERVER
-			if ( isPredictableEnt )
-				weapon.SetScriptInt0( pointInRange )
-		}
-
-		WaitFrame()
-	}
-
-}
 
 
 void function DrawDebugSphereIfDebugging( vector origin, int r, int g, int b )
@@ -1380,158 +1651,144 @@ void function DrawDebugSphereIfDebugging( vector origin, int r, int g, int b )
 
 
 #if CLIENT
-void function PhaseBreachPlacement_Thread( entity weapon )
+void function PhaseBreachPreview_Thread( entity weapon, entity player )
 {
-	Signal( weapon, SIGNAL_PHASE_BREACH_STOP_PLACEMENT )
-
-	weapon.EndSignal( SIGNAL_PHASE_BREACH_STOP_PLACEMENT )
+	weapon.Signal( SIGNAL_PHASE_BREACH_STOP_PREVIEW )
+	weapon.EndSignal( SIGNAL_PHASE_BREACH_STOP_PREVIEW )
 	weapon.EndSignal( "OnDestroy" )
-
-	entity player = weapon.GetWeaponOwner()
 	player.EndSignal( "OnDeath" )
 
+	PhaseBreach_CreatePreviewFX( weapon, player )
 	OnThreadEnd(
-		function() : ()
+		function() : ( weapon, player )
 		{
-			if ( EffectDoesExist( file.targetingFxHandle ) )
-				EffectStop( file.targetingFxHandle, true, true )
-			if ( EffectDoesExist( file.targetingFxHandleDir ) )
-				EffectStop( file.targetingFxHandleDir, true, true )
-			if ( EffectDoesExist( file.targetingInvalidFxHandle ) )
-				EffectStop( file.targetingInvalidFxHandle, true, true )
-
-			if ( file.targetingHint != "'" )
-				HidePlayerHint( file.targetingHint )
-		}
-	)
-
-	int fxID		= GetParticleSystemIndex( BREACH_TARGET_FX )
-	
-	int wallDownFXID	= GetParticleSystemIndex(BREACH_FX_AR_DIR )
-
-	
-	const int OFFSET_CORRECTION = 290
-	int rangeId = GetParticleSystemIndex( BREACH_RANGE_FX )
-	int rangeVfx  = StartParticleEffectOnEntity( player, rangeId, FX_PATTACH_ABSORIGIN_FOLLOW, ATTACHMENTID_INVALID )
-	EffectSetControlPointVector( rangeVfx, 1, <PHASE_BREACH_MAX_2D_DIST_DEFAULT + OFFSET_CORRECTION, 0, 0> )
-
-	OnThreadEnd(
-		function() : ( rangeVfx )
-		{
-			if ( EffectDoesExist( rangeVfx ) )
-				EffectStop( rangeVfx, false, true )
+			PhaseBreach_DestroyPreviewFX( weapon, player )
 		}
 	)
 
 	while ( true )
 	{
-		if ( !IsValid( player ) )
+		if ( !IsValid( player ) || !IsValid( weapon ) )
 			return
 
-		PhaseBreachTargetInfo info
-		if ( player in file.portalTargetTable )
-			info = file.portalTargetTable[ player ]
-		else
-		{
-
-
-
-
-
-
-
-
-
-
-
-			info = GetPhaseBreachTargetInfo_OLD( player  )
-
-
-		}
-
-		if ( info.portalQuality > 0 )
-		{
-			if ( !EffectDoesExist( file.targetingFxHandle ) )
-			{
-				file.targetingFxHandle = StartParticleEffectInWorldWithHandle( fxID, info.finalPos, <0,0,0> )
-				EffectSetControlPointVector( file.targetingFxHandle, 1, TEAM_COLOR_FRIENDLY )
-			}
-
-			EffectSetControlPointVector( file.targetingFxHandle, 0, info.finalPos )
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-			
-			
-			
-			
-
-
-			HidePlayerHint( file.targetingHint )
-			file.targetingHint = ""
-		}
-		else
-		{
-			if ( EffectDoesExist( file.targetingFxHandle ) )
-			{
-				EffectStop( file.targetingFxHandle, true, false )
-			}
-			if ( EffectDoesExist( file.targetingFxHandleDir ) )
-			{
-				EffectStop( file.targetingFxHandleDir, true, false )
-			}
-
-			
-			
-			
-			
-			
-			
-			
-			
-			
-			
-			
-			
-
-
-			file.targetingHint = PLACEMENT_FAILED_HINT
-			AddPlayerHint( 60.0, 0, $"", file.targetingHint )
-		}
+		PhaseBreach_UpdatePreviewFX( weapon, player )
 
 		WaitFrame()
 	}
+}
+
+void function PhaseBreach_CreatePreviewFX( entity weapon, entity player )
+{
+	int rangeId = GetParticleSystemIndex( BREACH_RANGE_FX )
+	file.rangeFxHandle  = StartParticleEffectOnEntity( player, rangeId, FX_PATTACH_ABSORIGIN_FOLLOW, ATTACHMENTID_INVALID )
+	EffectSetControlPointVector( file.rangeFxHandle, 1, <GetPhaseBreachDistanceForPlayer( player ), 0, 0> )
+	file.previewFxParent = CreateClientSidePropDynamic( <0,0,0>, <0,0,0>, $"mdl/dev/empty_model.rmdl" )
+	file.wallPreviewFxParent = CreateClientSidePropDynamic( <0,0,0>, <0,0,0>, $"mdl/dev/empty_model.rmdl" )
+}
+
+void function PhaseBreach_UpdatePreviewFX( entity weapon, entity player )
+{
+	int fxID		= GetParticleSystemIndex( BREACH_TARGET_FX )
+	int wallDownFXID	= GetParticleSystemIndex(BREACH_FX_AR_DIR )
+
+	PhaseBreachTargetInfo info
+	if ( player in file.portalTargetTable )
+		info = file.portalTargetTable[ player ]
+	else
+	{
+		PerfStart( PerfIndexClient.PhaseBreach_GetPosition )
+		info = GetPhaseBreachTargetInfo( player  )
+		PerfEnd( PerfIndexClient.PhaseBreach_GetPosition )
+
+#if DEVELOPER
+			if( DEV_DO_VALIDATION )
+				DEV_ValidateAgainstOldTargeting( player, info )
+#endif
+
+	}
+
+	if ( info.portalQuality > 0 )
+	{
+		if ( !EffectDoesExist( file.targetingFxHandle ) )
+		{
+			file.targetingFxHandle = StartParticleEffectOnEntity( file.previewFxParent, fxID, FX_PATTACH_ABSORIGIN_FOLLOW, ATTACHMENTID_INVALID )
+			EffectSetControlPointVector( file.targetingFxHandle, 1, TEAM_COLOR_FRIENDLY )
+		}
+
+		file.previewFxParent.SetOrigin( info.finalPos )
+
+		if ( !EffectDoesExist( file.targetingFxHandleDir ) )
+		{
+			file.targetingFxHandleDir = StartParticleEffectOnEntity( file.wallPreviewFxParent, wallDownFXID, FX_PATTACH_ABSORIGIN_FOLLOW, ATTACHMENTID_INVALID )
+		}
+
+		const float VFX_Z_DIFF_THRESHOLD = 50
+		float finalPosZDiff = info.finalPos.z - info.eyeTracePos.z
+
+		float distSq = DistanceSqr( FlattenVec( info.finalPos ), FlattenVec( info.eyeTracePos ) )
+		const float VFX_FLAT_Z_THRESHOLD = 100
+
+		if ( distSq <= (VFX_FLAT_Z_THRESHOLD*VFX_FLAT_Z_THRESHOLD) && ( finalPosZDiff > VFX_Z_DIFF_THRESHOLD/3 || finalPosZDiff <= -VFX_Z_DIFF_THRESHOLD ) )
+		{
+			vector fxNormal = info.eyeTraceNormal
+			if ( fxNormal == ZERO_VECTOR )
+				fxNormal = -player.GetViewForward()
+
+			vector endAngles = VectorToAngles( fxNormal )
+			file.wallPreviewFxParent.SetOrigin( info.eyeTracePos )
+			file.wallPreviewFxParent.SetAngles( endAngles )
+			EffectSetControlPointVector( file.targetingFxHandleDir, 1, TEAM_COLOR_FRIENDLY )
+			EffectSetControlPointVector( file.targetingFxHandleDir, 2, info.eyeTracePos )
+		}
+		else
+		{
+			EffectSetControlPointVector( file.targetingFxHandleDir, 1, ZERO_VECTOR )
+		}
+
+		if ( finalPosZDiff > 0 )
+			EffectSetControlPointVector( file.targetingFxHandleDir, 3, <1,0,0> )
+		else
+			EffectSetControlPointVector( file.targetingFxHandleDir, 3, <0,0,0> )
+
+		HidePlayerHint( file.targetingHint )
+		file.targetingHint = ""
+	}
+	else
+	{
+		if ( EffectDoesExist( file.targetingFxHandle ) )
+		{
+			EffectStop( file.targetingFxHandle, true, false )
+		}
+		if ( EffectDoesExist( file.targetingFxHandleDir ) )
+		{
+			EffectStop( file.targetingFxHandleDir, true, false )
+		}
+
+		file.targetingHint = PLACEMENT_FAILED_HINT
+		AddPlayerHint( 60.0, 0, $"", file.targetingHint )
+	}
+}
+
+void function PhaseBreach_DestroyPreviewFX( entity weapon, entity player )
+{
+	if ( EffectDoesExist( file.targetingFxHandle ) )
+		EffectStop( file.targetingFxHandle, true, true )
+	if ( EffectDoesExist( file.targetingFxHandleDir ) )
+		EffectStop( file.targetingFxHandleDir, true, true )
+	if ( EffectDoesExist( file.targetingInvalidFxHandle ) )
+		EffectStop( file.targetingInvalidFxHandle, true, true )
+
+	if ( file.targetingHint != "'" )
+		HidePlayerHint( file.targetingHint )
+
+	if ( EffectDoesExist( file.rangeFxHandle ) )
+		EffectStop( file.rangeFxHandle, false, true )
+
+	if ( IsValid( file.previewFxParent ) )
+		file.previewFxParent.Destroy()
+
+	if ( IsValid( file.wallPreviewFxParent ) )
+		file.wallPreviewFxParent.Destroy()
 }
 #endif
 
@@ -1561,7 +1818,7 @@ void function DEV_ValidateAgainstOldTargeting( entity player, PhaseBreachTargetI
 			if ( DEBUG_DRAW_VALIDATION )
 			{
 				Warning("Ash Ult: Old algorithm found a point and the new one failed to at all.")
-				DebugDrawSphere( oldInfo.finalPos, 20, COLOR_RED, false, 0.1 )
+				PhaseBreach_DebugSphere( oldInfo.finalPos, 20, COLOR_RED, false, 0.1 )
 			}
 			if ( DEV_LogValidationCase( player, file.oldTargetingWins ) )
 			{
@@ -1580,8 +1837,8 @@ void function DEV_ValidateAgainstOldTargeting( entity player, PhaseBreachTargetI
 		{
 			vector eyePos = player.EyePosition()
 			vector eyeDir = player.GetViewVector()
-			float newScore = ScoreEndPosition(info.finalPos, eyeDir, eyePos )
-			float oldScore = ScoreEndPosition(oldInfo.finalPos, eyeDir, eyePos )
+			float newScore = ScoreEndPosition_OLD(info.finalPos, eyeDir, eyePos )
+			float oldScore = ScoreEndPosition_OLD(oldInfo.finalPos, eyeDir, eyePos )
 
 			float newOldDistance = Distance( info.finalPos, oldInfo.finalPos )
 
@@ -1600,7 +1857,7 @@ void function DEV_ValidateAgainstOldTargeting( entity player, PhaseBreachTargetI
 					if ( DEBUG_DRAW_VALIDATION )
 					{
 						Warning( "Ash Ult: Old algorithm found a point which scored better than the new one. Distance between them is " + newOldDistance + ". Dot between " + newOldDot + ". newDotScore: " + newScore + " oldDotScore: " + oldScore )
-						DebugDrawSphere( oldInfo.finalPos, 20, COLOR_RED, false, 0.1 )
+						PhaseBreach_DebugSphere( oldInfo.finalPos, 20, COLOR_RED, false, 0.1 )
 					}
 					DEV_LogValidationCase( player, file.oldTargetingBetter )
 				}

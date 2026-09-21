@@ -31,8 +31,7 @@ void function OnWeaponActivate_weapon_basic_bolt( entity weapon )
 	UpdateViewmodelAmmo( false, weapon )
 #endif // #if CLIENT
 #if SERVER
-	if ( weapon.GetWeaponSettingFloat( eWeaponVar.regen_ammo_refill_rate ) > 0.0 && !weapon.GetWeaponSettingBool( eWeaponVar.uses_ammo_pool ) )
-		EnergyAmmoRegen_Start( weapon )
+	EnergyAmmoRegen_Start( weapon )
 #endif
 }
 

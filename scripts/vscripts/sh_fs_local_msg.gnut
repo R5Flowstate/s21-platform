@@ -554,14 +554,46 @@ void function FS_DisplayLocalizedToken( int token, int subtoken, int uiType, flo
 	FS_LocalMsg_DisplayAnnouncement( Msg, SubMsg, duration, uiType )
 }
 
-// Freeform path: consume streamed text and show score splash.
+// Freeform path: consume streamed text and show score splash. A line of the
+// form "#TOKEN" or "#TOKEN|arg" is localized here, so the server never has to
+// know the player's language.
 void function FS_DisplaySplashMessage( float duration )
 {
 	string text = file.fs_variableString
 	file.fs_variableString = ""
 	file.fs_variableSubString = ""
 
-	Flowstate_AddCustomScoreEventMessage( text, duration )
+	Flowstate_AddCustomScoreEventMessage( FS_LocalizeSplashLines( text ), duration )
+}
+
+string function FS_LocalizeSplashLines( string text )
+{
+	if ( text.find( "#" ) == -1 )
+		return text
+
+	array<string> lines = split( text, "\n" )
+	string result = ""
+	foreach ( string line in lines )
+	{
+		if ( result != "" )
+			result += "\n"
+		result += FS_LocalizeSplashLine( line )
+	}
+	return result
+}
+
+string function FS_LocalizeSplashLine( string line )
+{
+	if ( line.len() < 2 || line.find( "#" ) != 0 )
+		return line
+
+	int sep = line.find( "|" )
+	if ( sep == -1 )
+		return Localize( line )
+
+	string token = line.slice( 0, sep )
+	string arg = line.slice( sep + 1 )
+	return Localize( token, arg )
 }
 
 void function FS_LocalMsg_DisplayAnnouncement( string str1, string str2, float duration, int uiType )

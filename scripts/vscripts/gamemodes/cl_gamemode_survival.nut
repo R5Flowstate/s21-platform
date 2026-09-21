@@ -2083,6 +2083,10 @@ void function ToggleFireSelect( entity player )
 		return
 	}
 
+	int akimboState = player.GetAkimboState()
+	if ( akimboState == AKIMBO_STATE_ACTIVE || akimboState == AKIMBO_STATE_SINGLE || akimboState == AKIMBO_STATE_OFFHAND )
+		SetAkimboToggleInput( true )
+
 }
 
 void function ServerCallback_SUR_PingMinimap( vector origin, float duration, float spreadRadius, float ringRadius, int colorID, float frequency, float frequencyVariation, int airdropType )

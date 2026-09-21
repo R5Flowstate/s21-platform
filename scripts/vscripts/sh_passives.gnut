@@ -246,6 +246,7 @@ global enum ePassives
 
 	//Modded passives
 	PAS_SHOTGUN_KICK,
+	PAS_OVERDRIVE,
 
 	// S29 loot table entries
 	PAS_GOLD_ARMOR_UPGRADE,
@@ -401,12 +402,18 @@ void function OnRegisterRootItemFlavors()
 #if SERVER
 void function GivePassive( entity player, int passive )
 {
+	bool hadPassive = player.HasPassive( passive )
 	player.GivePassive( passive )
+	if ( !hadPassive )
+		CodeCallback_OnPassiveChanged( player, passive )
 }
 
 void function TakePassive( entity player, int passive )
 {
+	bool hadPassive = player.HasPassive( passive )
 	player.RemovePassive( passive )
+	if ( hadPassive )
+		CodeCallback_OnPassiveChanged( player, passive )
 }
 
 void function TakeAllPassives( entity player )

@@ -1486,6 +1486,9 @@ bool function IsItemFlavorGRXUnlockedForLoadoutSlot( EHI playerEHI, ItemFlavor i
 		case eTristate.FALSE:
 			return false
 		default:
+			// Bridge has no legend store, every legend is playable.
+			if ( ItemFlavor_GetType( itemFlavor ) == eItemType.character )
+				return true
 			return ItemFlavor_GetGRXMode( itemFlavor ) == eItemFlavorGRXMode.NONE
 	}
 	unreachable
@@ -2019,6 +2022,19 @@ int function GetLoadoutSlotContentsIndexInternal( EHI playerEHI, LoadoutEntry en
 		{
 			Assert( playerEHI == LocalClientEHI(), "Tried to access a loadout slot of a different client (LoadoutEntry.networkTo on '" + entry.id + "' is not PLAYER_GLOBAL)" )
 			slotContentsIndex = GetLoadoutSlotContentsIndexFromPersistence( playerEHI, entry, eValidation.DONT_ASSERT, ignoreFavoriting )
+
+			// In a match the server-published slot is the truth for the local player too;
+			// the local pdata copy can lag a mid-match slot change (legend swap).
+			if ( !IsLobby() && entry.networkTo == eLoadoutNetworking.PLAYER_GLOBAL && entry.defaultItemFlavor.guid != DEFAULT_MELEE_WEAPON_SKIN_GUID )
+			{
+				#if CLIENT
+					int publishedIndex = GetLoadoutSlotContentsIndexFromNetworkVar( playerEHI, entry )
+				#elseif UI
+					int publishedIndex = GetLoadoutSlotContentsIndexFromCache( playerEHI, entry )
+				#endif
+				if ( IsValidLoadoutSlotContentsIndex( entry, publishedIndex ) )
+					slotContentsIndex = publishedIndex
+			}
 		}
 
 		if ( !IsContentsIndexValidForLoadoutSlot( playerEHI, entry, slotContentsIndex ) )

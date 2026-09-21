@@ -210,7 +210,7 @@
         pin_corner_to_sibling	TOP_LEFT
         pin_to_sibling_corner	BOTTOM_LEFT
         minValue				0
-        maxValue				360
+        maxValue				500
         stepSize				1
         navUp					SwchReflex
         navDown					SldAdaptiveRes

@@ -189,6 +189,7 @@ void function FreeDM_FFA_PrecacheForcedKit()
 
 	printt( "[FreeDM] FFA kit disableLoadouts=" + string( GetCurrentPlaylistVarBool( "ffa_disable_loadouts", false ) ) +
 		" forceWeapons=" + string( GetCurrentPlaylistVarBool( "ffa_force_weapons", false ) ) +
+		" akimbo=" + string( GetCurrentPlaylistVarBool( "ffa_akimbo", false ) ) +
 		" lockedSet=" + FreeDM_FFA_GetLockedSetChoice() +
 		" primary=" + FreeDM_FFA_PlaylistToken( "ffa_primary", "mp_weapon_r97" ) +
 		" secondary=" + FreeDM_FFA_PlaylistToken( "ffa_secondary", "mp_weapon_wingman" ) +
@@ -312,7 +313,43 @@ void function FreeDM_FFA_GiveSlotFromPlaylist( entity player, string varName, st
 
 	entity weapon = FreeDM_FFA_GiveLockedWeapon( player, weaponclass, slot, mods )
 	if ( !IsValid( weapon ) )
+	{
 		printt( "[FreeDM] FFA give failed slot=" + string( slot ) + " class=" + weaponclass )
+		return
+	}
+
+	if ( GetCurrentPlaylistVarBool( "ffa_akimbo", false ) )
+		FreeDM_FFA_GiveAkimboPartner( player, weapon )
+}
+
+void function FreeDM_FFA_GiveAkimboPartner( entity player, entity weapon )
+{
+	string classname = weapon.GetWeaponClassName()
+	if ( !CanWeaponAkimbo( classname ) )
+		return
+
+	int dualslot = weapon.GetInventoryIndex() + WEAPON_INVENTORY_SLOT_DUALPRIMARY_0
+	player.TakeNormalWeaponByIndexNow( dualslot )
+
+	entity partner = null
+	try
+	{
+		partner = player.GiveWeapon( classname, dualslot, weapon.GetMods(), false )
+	}
+	catch ( giveErr )
+	{
+		printt( "[FreeDM] FFA akimbo partner give failed class=" + classname + " " + giveErr )
+		return
+	}
+	if ( !IsValid( partner ) )
+		return
+
+	if ( partner.UsesClipsForAmmo() )
+		partner.SetWeaponPrimaryClipCount( partner.GetWeaponPrimaryClipCountMax() )
+	SetInfiniteAmmoForWeapon( player, partner, true )
+	CafeItems_OnWeaponGiven( player, partner )
+	player.ClearFirstDeployForAllWeapons()
+	player.SetActiveWeaponBySlot( eActiveInventorySlot.altHand, dualslot )
 }
 
 void function FreeDM_FFA_GiveOrdnance( entity player )

@@ -316,6 +316,9 @@ in_olympus_rift
                                 
 	ring_lethality_increase
 	ring_lethality_warning
+	slide_gate_boosting
+	overdrive_ult_scan
+	overdrive_ult_tracking
       
 
                    

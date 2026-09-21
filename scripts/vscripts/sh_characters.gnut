@@ -280,6 +280,12 @@ struct
 //// Initialiszation ////
 /////////////////////////
 /////////////////////////
+// Legends packed in an SDK settings pak rather than base_itemflavors. A missing pak
+// leaves the entry unregistered instead of failing the level.
+const array<asset> SDK_CHARACTER_FLAVORS = [
+	$"settings/itemflav/character/overdrive.rpak",
+]
+
 #if SERVER || CLIENT || UI
 void function ShCharacters_LevelInit()
 {
@@ -336,7 +342,9 @@ void function OnRegisterRootItemFlavors()
 	fileLevel.characterSelectionSlot = entry
 
 	array<ItemFlavor> characterList = []
-	foreach ( asset characterAsset in GetBaseItemFlavorsFromArray( "characters" ) )
+	array<asset> characterAssets = GetBaseItemFlavorsFromArray( "characters" )
+	characterAssets.extend( SDK_CHARACTER_FLAVORS )
+	foreach ( asset characterAsset in characterAssets )
 	{
 		if ( characterAsset == $"" )
 			continue
@@ -1171,6 +1179,9 @@ bool function Character_IsCharacterOwnedByPlayer( ItemFlavor character, entity p
 		if ( player == null )
 			player = GetLocalClientPlayer()
 	#endif
+
+	// Bridge has no legend store, every legend is playable.
+	return true
 
 	if( GRX_HasInventoryEverBeenReady( player ) )
 	{

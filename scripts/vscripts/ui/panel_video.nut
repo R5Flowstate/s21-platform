@@ -27,6 +27,7 @@ struct
 	bool videoSettingsChanged = false
 	bool loggedMissingFpsSlider = false
 	bool fpsTextApplying = false
+	var  fpsDropButton = null
 
 	
 
@@ -101,6 +102,8 @@ void function InitVideoPanel( var panel )
 		if ( Hud_HasChild( file.videoPanel, "SldFPS" ) )
 		{
 			SetupSettingsSlider( Hud_GetChild( file.videoPanel, "SldFPS" ), "#FS_FPS_MAX", "#FS_MAX_FPS_DESC", $"rui/menu/settings/settings_video" )
+		if ( Hud_HasChild( Hud_GetChild( file.videoPanel, "SldFPS" ), "BtnDropButton" ) )
+			file.fpsDropButton = Hud_GetChild( Hud_GetChild( file.videoPanel, "SldFPS" ), "BtnDropButton" )
 			AddButtonEventHandler( Hud_GetChild( file.videoPanel, "SldFPS" ), UIE_CHANGE, FPSSlider_Changed )
 			if ( Hud_HasChild( file.videoPanel, "TextEntrySldFPS" ) )
 				AddButtonEventHandler( Hud_GetChild( file.videoPanel, "TextEntrySldFPS" ), UIE_CHANGE, FPSTextEntry_Changed )
@@ -461,14 +464,25 @@ void function FPSControls_PullFromCvar()
 	int shown = cur
 	if ( shown < 0 )
 		shown = 0
-	if ( shown > 360 )
-		shown = 360
+	if ( shown > 500 )
+		shown = 500
 
 	file.fpsTextApplying = true
 	Hud_SliderControl_SetCurrentValue( Hud_GetChild( file.videoPanel, "SldFPS" ), float( shown ) )
 	if ( Hud_HasChild( file.videoPanel, "TextEntrySldFPS" ) )
 		Hud_SetText( Hud_GetChild( file.videoPanel, "TextEntrySldFPS" ), string( cur ) )
 	file.fpsTextApplying = false
+	FPSControls_UpdateTitle( cur )
+}
+
+
+// Row title reads "FPS Limit (Unlimited)" at 0 -- the slider thumb itself
+// only ever shows a number, so 0-is-uncapped was invisible before this.
+void function FPSControls_UpdateTitle( int value )
+{
+	if ( file.fpsDropButton == null )
+		return
+	SetButtonRuiText( file.fpsDropButton, Localize( value == 0 ? "#FS_FPS_MAX_UNLIMITED" : "#FS_FPS_MAX" ) )
 }
 
 
@@ -480,10 +494,11 @@ void function FPSSlider_Changed( var button )
 	int want = int( Hud_SliderControl_GetCurrentValue( button ) + 0.5 )
 	if ( want < 0 )
 		want = 0
-	if ( want > 360 )
-		want = 360
+	if ( want > 500 )
+		want = 500
 
 	SetConVarInt( "fps_max", want )
+	FPSControls_UpdateTitle( want )
 	if ( !Hud_HasChild( file.videoPanel, "TextEntrySldFPS" ) )
 		return
 
@@ -513,10 +528,11 @@ void function FPSTextEntry_Changed( var button )
 	int want = parsed
 	if ( want < 0 )
 		want = 0
-	if ( want > 360 )
-		want = 360
+	if ( want > 500 )
+		want = 500
 
 	SetConVarInt( "fps_max", want )
+	FPSControls_UpdateTitle( want )
 	file.fpsTextApplying = true
 	if ( want != parsed )
 		Hud_SetText( entry, string( want ) )
