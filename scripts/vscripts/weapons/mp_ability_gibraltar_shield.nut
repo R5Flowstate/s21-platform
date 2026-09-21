@@ -218,6 +218,11 @@ bool function OnWeaponChargeBegin_ability_gibraltar_shield( entity weapon )
 
 #if SERVER
 
+	if ( player.IsBot() )
+	{
+		printt( format( "[GunShield] ignoring charge on bot %s (zoomFrac %.2f)", player.GetPlayerName(), player.GetZoomFrac() ) )
+		return true
+	}
 	thread GibraltarShield_ChargeThread( player, weapon )
 
 #elseif CLIENT

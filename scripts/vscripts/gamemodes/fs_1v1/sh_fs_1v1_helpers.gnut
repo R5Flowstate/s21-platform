@@ -257,8 +257,16 @@ ItemFlavor function FS_1v1_GetCharacterFlavorByIndex( int index )
 	return Loadout_Character().defaultItemFlavor
 }
 
+// flowstateChosenCharacterRef names a legend the index table does not carry.
 ItemFlavor function FS_1v1_GetForcedCharacterFlavor()
 {
+	string ref = strip( GetCurrentPlaylistVarString( "flowstateChosenCharacterRef", "" ) )
+	if ( ref != "" )
+	{
+		if ( IsValidItemFlavorCharacterRef( ref ) )
+			return GetItemFlavorByCharacterRef( ref )
+		printt( "[FS-1V1][LEGEND] flowstateChosenCharacterRef '" + ref + "' is not a registered character ref -- using flowstateChosenCharacter" )
+	}
 	return FS_1v1_GetCharacterFlavorByIndex( FlowState_ChosenCharacter() )
 }
 

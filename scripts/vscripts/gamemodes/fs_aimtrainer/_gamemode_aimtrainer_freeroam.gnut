@@ -40,7 +40,7 @@ global function DEV_AimTrainer_SetStrafeSpeed
 global function DEV_AimTrainer_SetStraferInfiniteHealth
 global function DEV_AimTrainer_SetStraferFire
 global function DEV_AimTrainer_SetStraferAim
-global function DEV_AimTrainer_SetStrafeWidth
+global function DEV_AimTrainer_SetStrafeTime
 global function DEV_AimTrainer_SetFixedSpawn
 global function DEV_AimTrainer_SetSpawnPointHere
 global function AimTrainer_GetDummyShieldSetting
@@ -222,11 +222,11 @@ void function AimTrainer_DevMenuCmd( entity player, array<string> args )
 		DEV_AimTrainer_SetStraferAim( player, int( args[1] ) )
 		return
 	}
-	if ( action == "strafe_width" )
+	if ( action == "strafe_time" )
 	{
-		if ( args.len() < 2 )
+		if ( args.len() < 3 )
 			return
-		DEV_AimTrainer_SetStrafeWidth( player, int( args[1] ) )
+		DEV_AimTrainer_SetStrafeTime( player, int( args[1] ), int( args[2] ) )
 		return
 	}
 	if ( action == "spawn_fixed" )
@@ -922,7 +922,7 @@ void function AimTrainer_SyncDevMenuState( entity player )
 	if ( player.p.aimTrainerFixedSpawn )
 		flags = flags | 256
 
-	int straferBody = 0
+	int straferBody = 1
 	int straferLegendIdx = -1
 	try
 	{
@@ -939,7 +939,7 @@ void function AimTrainer_SyncDevMenuState( entity player )
 	{
 	}
 
-	Remote_CallFunction_NonReplay( player, "AimTrainer_CL_SyncDevMenuState", flags, AimTrainer_GetChallengeDurationSec( player ), AimTrainer_GetStrafeSpeedTenth( player ), AimTrainer_GetDummyShieldSetting( player ), straferBody, straferLegendIdx, maxint( 0, minint( 100, player.p.aimTrainerStraferAim ) ), maxint( 0, minint( 1024, player.p.aimTrainerStrafeWidth ) ) )
+	Remote_CallFunction_NonReplay( player, "AimTrainer_CL_SyncDevMenuState", flags, AimTrainer_GetChallengeDurationSec( player ), AimTrainer_GetStrafeSpeedTenth( player ), AimTrainer_GetDummyShieldSetting( player ), straferBody, straferLegendIdx, maxint( 0, minint( 100, player.p.aimTrainerStraferAim ) ), AimTrainer_PackStrafeTime( player ) )
 }
 
 int function AimTrainer_GetStrafeSpeedTenth( entity player )
@@ -1424,14 +1424,30 @@ void function DEV_AimTrainer_SetStraferAim( entity player, int aim )
 	AimTrainer_SyncDevMenuState( player )
 }
 
-void function DEV_AimTrainer_SetStrafeWidth( entity player, int width )
+// Strafe time = how long a strafer holds one direction, as indices into the
+// firing range dummy duration steps (0.10 s .. 0.90 s).
+void function DEV_AimTrainer_SetStrafeTime( entity player, int minIdx, int maxIdx )
 {
 	if ( !IsValid( player ) || !player.IsPlayer() )
 		return
-	player.p.aimTrainerStrafeWidth = maxint( 32, minint( 1024, width ) )
-	LegendBot_SetStrafeWidthAll( player, player.p.aimTrainerStrafeWidth )
-	printt( format( "[AimTrainer] Strafe width = %d for %s", player.p.aimTrainerStrafeWidth, player.GetPlayerName() ) )
+	minIdx = maxint( 0, minint( 9, minIdx ) )
+	maxIdx = maxint( 0, minint( 9, maxIdx ) )
+	if ( minIdx > maxIdx )
+	{
+		int t = minIdx
+		minIdx = maxIdx
+		maxIdx = t
+	}
+	player.p.aimTrainerStrafeTimeMin = minIdx
+	player.p.aimTrainerStrafeTimeMax = maxIdx
+	LegendBot_SetStrafeTimingAll( player )
+	printt( format( "[AimTrainer] Strafe time = %.2f..%.2f s for %s", FRDummie_StrafeDurationIndexToSeconds( minIdx ), FRDummie_StrafeDurationIndexToSeconds( maxIdx ), player.GetPlayerName() ) )
 	AimTrainer_SyncDevMenuState( player )
+}
+
+int function AimTrainer_PackStrafeTime( entity player )
+{
+	return maxint( 0, minint( 9, player.p.aimTrainerStrafeTimeMin ) ) * 10 + maxint( 0, minint( 9, player.p.aimTrainerStrafeTimeMax ) )
 }
 
 // Fixed spawn: every strafer the owner spawns from now on lands on the

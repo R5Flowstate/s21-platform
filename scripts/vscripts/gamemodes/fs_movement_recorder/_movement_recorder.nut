@@ -16,6 +16,8 @@ global function MRec_PlayerBotCount
 
 const string MREC_BOT_NAME_PREFIX = "REC-"
 const float MREC_BOT_READY_TIMEOUT = 8.0
+const float MREC_BOT_PARK_SECONDS = 45.0
+const float MREC_START_PLACE_TOLERANCE = 4.0
 
 struct MRecRecording
 {
@@ -61,6 +63,10 @@ struct MRecPlayerState
 	MRecSnapshot pendingSnap
 	bool pendingAnimRecording = false
 	bool pendingInputRecording = true
+	entity parkedBot = null
+	string parkedCharRef = ""
+	asset parkedModel = $""
+	int parkedSerial = 0
 }
 
 struct
@@ -634,10 +640,13 @@ void function MRec_CmdPlay( entity player, MRecPlayerState st, array<string> arg
 		Message( player, "#MREC_MSG_DUMMIES_FULL", "#MREC_MSG_STOPALL_TO_FREE" )
 		return
 	}
-	entity npc = MRec_SpawnPlaybackDummy( player, st, slot )
+	entity npc = MRec_TakeParkedBot( st, st.recordings[slot] )
+	bool reused = IsValid( npc )
+	if ( !reused )
+		npc = MRec_SpawnPlaybackDummy( player, st, slot )
 	if ( !IsValid( npc ) )
 		return
-	MRec_BeginPlayback( player, st, npc, slot )
+	MRec_BeginPlayback( player, st, npc, slot, null, reused )
 	Message( player, "#MREC_MSG_REPLAYING|" + string( slot + 1 ) )
 }
 
@@ -1787,6 +1796,7 @@ void function MRec_StopAllPlaybacks( MRecPlayerState st )
 		}
 	}
 	MRec_StopProgramBots( st )
+	MRec_KickParkedBot( st )
 }
 
 void function MRec_KillPlaybackSlot( MRecPlayerState st, int slot )
@@ -1853,6 +1863,96 @@ int function MRec_PickBotTeam( entity player )
 		return team
 	}
 	return myTeam == TEAM_IMC ? TEAM_MILITIA : TEAM_IMC
+}
+
+// The bot that just finished stays hidden on its start spot for a while so
+// the next play of the same legend starts at once instead of waiting for a
+// new fake player to connect, spawn and dress.
+void function MRec_ParkBot( entity player, entity bot, MRecRecording rec, string legendOverride )
+{
+	if ( !IsValid( bot ) || !IsAlive( bot ) || !IsValid( player ) )
+	{
+		MRec_KickBot( bot )
+		return
+	}
+	int key = MovementRecorder_PlayerKey( player )
+	if ( !( key in file.states ) )
+	{
+		MRec_KickBot( bot )
+		return
+	}
+	MRecPlayerState st = file.states[key]
+	if ( IsValid( st.parkedBot ) && st.parkedBot != bot )
+		MRec_KickBot( st.parkedBot )
+	try
+	{
+		bot.BotCmd_Stop()
+		bot.SetVelocity( <0, 0, 0> )
+		bot.SetOrigin( rec.startOrigin )
+		bot.NotSolid()
+		bot.Hide()
+		bot.SetInvulnerable()
+	}
+	catch ( ePark )
+	{
+		MRec_KickBot( bot )
+		return
+	}
+	st.parkedBot = bot
+	st.parkedCharRef = legendOverride != "" ? legendOverride : rec.characterRef
+	st.parkedModel = legendOverride != "" ? $"" : rec.model
+	st.parkedSerial++
+	thread MRec_ParkTimeout( st, bot, st.parkedSerial )
+}
+
+void function MRec_ParkTimeout( MRecPlayerState st, entity bot, int serial )
+{
+	if ( !IsValid( bot ) )
+		return
+	bot.EndSignal( "OnDestroy" )
+	wait MREC_BOT_PARK_SECONDS
+	if ( st.parkedBot == bot && st.parkedSerial == serial )
+	{
+		st.parkedBot = null
+		MRec_KickBot( bot )
+	}
+}
+
+entity function MRec_TakeParkedBot( MRecPlayerState st, MRecRecording rec )
+{
+	entity bot = st.parkedBot
+	if ( !IsValid( bot ) )
+		return null
+	st.parkedBot = null
+	st.parkedSerial++
+	string wantRef = st.legendOverride != "" ? st.legendOverride : rec.characterRef
+	asset wantModel = st.legendOverride != "" ? $"" : rec.model
+	if ( !IsAlive( bot ) || st.parkedCharRef != wantRef || st.parkedModel != wantModel )
+	{
+		MRec_KickBot( bot )
+		return null
+	}
+	try
+	{
+		bot.ClearInvulnerable()
+		bot.Show()
+		bot.Solid()
+	}
+	catch ( eWake )
+	{
+		MRec_KickBot( bot )
+		return null
+	}
+	return bot
+}
+
+void function MRec_KickParkedBot( MRecPlayerState st )
+{
+	entity bot = st.parkedBot
+	st.parkedBot = null
+	st.parkedSerial++
+	if ( IsValid( bot ) )
+		MRec_KickBot( bot )
 }
 
 void function MRec_KickBotAfter( entity bot, float delay )
@@ -2129,11 +2229,32 @@ bool function MRec_UseAnimTrack( MRecPlayerState st, MRecRecording rec )
 	return rec.anim != null && rec.cmdRecId < 0
 }
 
+// A fresh fake player's spawn placement lands a tick after script sees it
+// alive and overwrites a same-frame SetOrigin, so the start spot is held
+// until the bot stays put. Recordings replay from exactly where they began.
+bool function MRec_PlaceBotAtRecStart( entity bot, MRecRecording rec )
+{
+	for ( int i = 0; i < 6; i++ )
+	{
+		if ( !IsValid( bot ) )
+			return false
+		MRec_TeleportBotToRecStart( bot, rec )
+		WaitFrame()
+		if ( !IsValid( bot ) )
+			return false
+		float off = Distance( bot.GetOrigin(), rec.startOrigin )
+		if ( off <= MREC_START_PLACE_TOLERANCE )
+			return true
+		printt( format( "[MRec] %s displaced %.1f u from the recording start, re-placing", bot.GetPlayerName(), off ) )
+	}
+	return IsValid( bot )
+}
+
 bool function MRec_StartBotPlayback( entity bot, MRecRecording rec, bool loop, float rate, bool useAnim )
 {
-	MRec_TeleportBotToRecStart( bot, rec )
 	MRec_UnfreezeBot( bot )
-	WaitFrame()
+	if ( !MRec_PlaceBotAtRecStart( bot, rec ) )
+		return false
 	bool ok = false
 	if ( useAnim )
 	{
@@ -2256,7 +2377,7 @@ void function MRec_RunProgram( entity player, entity bot, vector spawn, string n
 
 // A respawn hands its own playback entry back in; a fresh play creates one
 // wearing the legend selected at that moment.
-void function MRec_BeginPlayback( entity player, MRecPlayerState st, entity npc, int slot, MRecPlayback ornull again = null )
+void function MRec_BeginPlayback( entity player, MRecPlayerState st, entity npc, int slot, MRecPlayback ornull again = null, bool reused = false )
 {
 	MRecRecording rec = st.recordings[slot]
 	MRecPlayback pb
@@ -2279,8 +2400,9 @@ void function MRec_BeginPlayback( entity player, MRecPlayerState st, entity npc,
 	float rate = st.rate
 	string legend = pb.legend
 	bool useAnim = MRec_UseAnimTrack( st, rec )
-	thread function() : ( npc, player, slot, rec, loop, rate, legend, useAnim )
+	thread function() : ( npc, player, slot, rec, loop, rate, legend, useAnim, reused )
 	{
+		float playStart = Time()
 		OnThreadEnd(
 			function() : ( player, npc, slot, loop )
 			{
@@ -2296,16 +2418,20 @@ void function MRec_BeginPlayback( entity player, MRecPlayerState st, entity npc,
 		npc.EndSignal( "OnDestroy" )
 		npc.EndSignal( MREC_SIGNAL_STOP_PLAYBACK )
 		MRec_HudBot( player, npc, slot, MREC_HUD_BOT_PREP, 0, 0.0 )
-		if ( !MRec_WaitForBotReady( npc ) )
+		if ( !reused )
 		{
-			printt( "[MRec] playback bot never became ready" )
-			MRec_KickBot( npc )
-			return
+			if ( !MRec_WaitForBotReady( npc ) )
+			{
+				printt( "[MRec] playback bot never became ready" )
+				MRec_KickBot( npc )
+				return
+			}
+			MRec_BindBotRealms( npc, player )
+			MRec_DressBot( npc, rec, legend )
+			if ( !IsValid( npc ) )
+				return
 		}
-		MRec_BindBotRealms( npc, player )
-		MRec_DressBot( npc, rec, legend )
-		if ( !IsValid( npc ) )
-			return
+		float readyAt = Time()
 		MRec_ApplySnapshot( npc, rec.snapshot )
 		if ( !IsValid( npc ) )
 			return
@@ -2325,6 +2451,7 @@ void function MRec_BeginPlayback( entity player, MRecPlayerState st, entity npc,
 			MRec_KickBot( npc )
 			return
 		}
+		printt( format( "[MRec] play slot %d: %s ready in %.0f ms, rolling at %.0f ms", slot + 1, reused ? "parked bot" : "new bot", ( readyAt - playStart ) * 1000.0, ( Time() - playStart ) * 1000.0 ) )
 		MRec_HudBot( player, npc, slot, MREC_HUD_BOT_PLAYING, 0, Time() )
 		if ( useAnim )
 		{
@@ -2343,7 +2470,7 @@ void function MRec_BeginPlayback( entity player, MRecPlayerState st, entity npc,
 			}
 			MRec_HudBot( player, npc, slot, MREC_HUD_BOT_DONE, 0, 0.0 )
 			wait 1.0
-			MRec_KickBot( npc )
+			MRec_ParkBot( player, npc, rec, legend )
 			return
 		}
 		while ( true )
@@ -2362,9 +2489,7 @@ void function MRec_BeginPlayback( entity player, MRecPlayerState st, entity npc,
 			if ( loops > lastLoop )
 			{
 				lastLoop = loops
-				MRec_TeleportBotToRecStart( npc, rec )
-				WaitFrame()
-				if ( !IsValid( npc ) )
+				if ( !MRec_PlaceBotAtRecStart( npc, rec ) )
 					return
 				// Inputs replay from frame 0, so the loadout must match frame 0 too:
 				// slots, active weapon, clips, offhands and health as recorded.
@@ -2385,7 +2510,7 @@ void function MRec_BeginPlayback( entity player, MRecPlayerState st, entity npc,
 		}
 		MRec_HudBot( player, npc, slot, MREC_HUD_BOT_DONE, lastLoop, 0.0 )
 		wait 1.0
-		MRec_KickBot( npc )
+		MRec_ParkBot( player, npc, rec, legend )
 	}()
 	if ( loop )
 	{
@@ -2545,6 +2670,7 @@ void function MovementRecorder_OnPlayerDisconnected( entity player )
 	}
 	st.playbacks = []
 	MRec_StopProgramBots( st )
+	MRec_KickParkedBot( st )
 	try
 	{
 		LegendBot_KickAll( player )

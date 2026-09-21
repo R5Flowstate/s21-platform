@@ -28487,8 +28487,10 @@
 	"LAB_TARGETS_STRAFER_DESC" "앞에 스트레이핑 타깃을 생성하며 처치하면 다시 나타납니다. 타이머 없음."
 	"LAB_TARGETS_STRAFESPEED" "좌우 이동 속도"
 	"LAB_TARGETS_STRAFESPEED_DESC" "좌우 이동 더미가 얼마나 빠른지 설정합니다. 살아있는 봇과 새로 소환되는 봇에 적용됩니다."
-	"LAB_TARGETS_STRAFEWIDTH" "좌우 이동 폭"
-	"LAB_TARGETS_STRAFEWIDTH_DESC" "더미가 좌우로 움직이는 거리(유닛). 벽이 있으면 거기까지입니다."
+	"LAB_TARGETS_STRAFETIMEMAX" "좌우 이동 시간 최대"
+	"LAB_TARGETS_STRAFETIMEMAX_DESC" "스트레이퍼가 방향을 바꾸기 전 한 방향을 유지하는 최대 시간. 높을수록 느리고 예측하기 쉬운 움직임. 살아 있는 더미에도 적용됩니다."
+	"LAB_TARGETS_STRAFETIMEMIN" "좌우 이동 시간 최소"
+	"LAB_TARGETS_STRAFETIMEMIN_DESC" "스트레이퍼가 방향을 바꾸기 전 한 방향을 유지하는 최소 시간. 낮을수록 빠르고 반응적인 움직임. 살아 있는 더미에도 적용됩니다."
 
 	// FLOWSTATE
 	"FS_15_KILL_STREAK_SUBSTR" "%s 가 15연속 킬을 달성했습니다!"

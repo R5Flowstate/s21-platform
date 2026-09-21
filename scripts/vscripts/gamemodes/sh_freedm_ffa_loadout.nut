@@ -190,6 +190,7 @@ void function FreeDM_FFA_PrecacheForcedKit()
 	printt( "[FreeDM] FFA kit disableLoadouts=" + string( GetCurrentPlaylistVarBool( "ffa_disable_loadouts", false ) ) +
 		" forceWeapons=" + string( GetCurrentPlaylistVarBool( "ffa_force_weapons", false ) ) +
 		" akimbo=" + string( GetCurrentPlaylistVarBool( "ffa_akimbo", false ) ) +
+		" noSights=" + string( GetCurrentPlaylistVarBool( "ffa_no_sights", false ) ) +
 		" lockedSet=" + FreeDM_FFA_GetLockedSetChoice() +
 		" primary=" + FreeDM_FFA_PlaylistToken( "ffa_primary", "mp_weapon_r97" ) +
 		" secondary=" + FreeDM_FFA_PlaylistToken( "ffa_secondary", "mp_weapon_wingman" ) +
@@ -253,6 +254,15 @@ entity function FreeDM_FFA_GiveLockedWeapon( entity player, string weaponclass, 
 			{
 				classname = base
 			}
+		}
+	}
+
+	if ( GetCurrentPlaylistVarBool( "ffa_no_sights", false ) )
+	{
+		for ( int i = mods.len() - 1; i >= 0; i-- )
+		{
+			if ( IsModTypeSight( mods[i], classname ) )
+				mods.remove( i )
 		}
 	}
 

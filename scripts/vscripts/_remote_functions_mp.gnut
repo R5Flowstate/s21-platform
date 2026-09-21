@@ -96,7 +96,7 @@ void function RemoteFunctions_Init_Begin()
 	Remote_RegisterClientFunction( "AimTrainer_CL_DevPreviewResults" )
 	Remote_RegisterClientFunction( "AimTrainer_CL_DevPreviewFRCRecap" )
 	// flags bitfield (hit=1 shot=2 kill=4 dyn=8 bars=16 god=32; max 63 inclusive, max exclusive so 64) + durationSec (999=unlimited; max exclusive) + strafe speed tenths (5-20 inclusive; max exclusive so 21) + dummy armor selection (0=default, 1-4 tier, 10=random; max exclusive so 11) + strafer body (0=dummy, 1=legend) + strafer legend index (-1=same, else sorted visible ref)
-	Remote_RegisterClientFunction( "AimTrainer_CL_SyncDevMenuState", "int", 0, 512, "int", 0, 1000, "int", 0, 21, "int", 0, 11, "int", 0, 2, "int", -1, 64, "int", 0, 100, "int", 0, 1024 )
+	Remote_RegisterClientFunction( "AimTrainer_CL_SyncDevMenuState", "int", 0, 512, "int", 0, 1000, "int", 0, 21, "int", 0, 11, "int", 0, 2, "int", -1, 64, "int", 0, 101, "int", 0, 1025 )
 	// Server remotes must register here so CLIENT/UI can Remote_ServerCallFunction (not only ServerInit).
 	Remote_RegisterServerFunction( "AimTrainer_SV_OnStatsReset" )
 	Remote_RegisterServerFunction( "AimTrainer_SV_FinishChallenge" )

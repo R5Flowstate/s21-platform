@@ -557,7 +557,8 @@ global struct ServerPlayerStruct
 	bool aimTrainerStraferInfiniteHealth = false
 	bool aimTrainerStraferFire = false
 	int aimTrainerStraferAim = 50
-	int aimTrainerStrafeWidth = 512
+	int aimTrainerStrafeTimeMin = 2
+	int aimTrainerStrafeTimeMax = 6
 	bool aimTrainerFixedSpawn = false
 	vector aimTrainerFixedSpawnPos = <0, 0, 0>
 	// Lab dummy armor: eDummie_Selector_Shields tier (1-4, 10=random). 0 = default (white).

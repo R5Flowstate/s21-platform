@@ -24,7 +24,7 @@ global function LegendBot_StrafeHalfWidth
 global function LegendBot_SetFireAll
 global function LegendBot_SetAimAll
 global function LegendBot_CrosshairSpot
-global function LegendBot_SetStrafeWidthAll
+global function LegendBot_SetStrafeTimingAll
 
 const string LEGENDBOT_NAME_PREFIX = "R5F-"
 const int LEGENDBOT_KILL_HEAL = 50
@@ -289,14 +289,14 @@ LegendStraferPrefs function LegendBot_GetPrefs( entity player )
 	catch ( eKey )
 	{
 		LegendStraferPrefs fallback
-		fallback.body = "dummy"
+		fallback.body = "legend"
 		fallback.charRef = ""
 		return fallback
 	}
 	if ( !( key in file.prefs ) )
 	{
 		LegendStraferPrefs p
-		p.body = "dummy"
+		p.body = "legend"
 		p.charRef = ""
 		file.prefs[key] <- p
 	}
@@ -317,7 +317,7 @@ bool function LegendBot_GetBodyIsLegend( entity player )
 		return false
 	}
 	if ( !( key in file.prefs ) )
-		return false
+		return true
 	return file.prefs[key].body == "legend"
 }
 
@@ -394,8 +394,15 @@ void function LegendBot_SetBody( entity player, string v )
 		return
 	}
 	LegendStraferPrefs p = LegendBot_GetPrefs( player )
+	bool changed = p.body != want
 	p.body = want
 	printt( format( "[LegendBot] Strafer body = %s for %s", want, player.GetPlayerName() ) )
+
+	// A running autospawn session keeps the body it started with; restart it.
+	if ( changed && player.p.aimTrainerFreeroamMode == AIMTRAINER_FREEROAM_AUTOSPAWN )
+		DEV_AimFreeroam_Autospawn( player, player.p.aimTrainerChallengeActive )
+	else if ( changed && player.p.aimTrainerFreeroamMode == AIMTRAINER_FREEROAM_AUTOSPAWN_HARD )
+		DEV_AimFreeroam_AutospawnHard( player, player.p.aimTrainerChallengeActive )
 	try
 	{
 		AimTrainer_SyncDevMenuState( player )
@@ -904,6 +911,7 @@ void function LegendBot_StartStrafe( entity owner, entity bot, bool hard )
 	try
 	{
 		bot.BotCmd_Strafe( LegendBot_StrafeHalfWidth( bot ), hard, mult )
+		LegendBot_ApplyStrafeTiming( bot, owner )
 	}
 	catch ( eStrafe )
 	{
@@ -933,7 +941,16 @@ void function LegendBot_SetFire( entity bot, bool on )
 		return
 	}
 	if ( on )
+	{
+		try
+		{
+			SetInfiniteAmmoForPlayer( bot, true, [], true, true )
+		}
+		catch ( eAmmo )
+		{
+		}
 		thread LegendBot_FireLoop( bot )
+	}
 }
 
 void function LegendBot_SetFireAll( entity owner, bool on )
@@ -1077,6 +1094,8 @@ void function LegendBot_FireLoop( entity bot )
 				if ( !weapon.IsReloading() )
 					bot.BotCmd_PressButtons( IN_RELOAD )
 			}
+			if ( IsValid( weapon ) && weapon.GetWeaponPrimaryClipCount() <= 0 )
+				weapon.SetWeaponPrimaryClipCount( weapon.GetWeaponPrimaryClipCountMax() )
 			wait RandomFloatRange( LEGENDBOT_RELOAD_SETTLE_MIN, LEGENDBOT_RELOAD_SETTLE_MAX )
 			hadSight = false
 			continue
@@ -1089,21 +1108,27 @@ void function LegendBot_FireLoop( entity bot )
 	}
 }
 
-// Lab strafe width caps the lane the spawn fit found.
 float function LegendBot_ClampLane( entity owner, float fitHalf )
 {
-	int width = 512
-	try
-	{
-		width = owner.p.aimTrainerStrafeWidth
-	}
-	catch ( eWidth )
-	{
-	}
-	return min( fitHalf, max( float( width ) * 0.5, 16.0 ) )
+	return max( fitHalf, 16.0 )
 }
 
-void function LegendBot_SetStrafeWidthAll( entity owner, int width )
+void function LegendBot_ApplyStrafeTiming( entity bot, entity owner )
+{
+	int minIdx = 2
+	int maxIdx = 6
+	try
+	{
+		minIdx = owner.p.aimTrainerStrafeTimeMin
+		maxIdx = owner.p.aimTrainerStrafeTimeMax
+	}
+	catch ( eIdx )
+	{
+	}
+	bot.BotCmd_SetStrafeTiming( FRDummie_StrafeDurationIndexToSeconds( minIdx ), FRDummie_StrafeDurationIndexToSeconds( maxIdx ) )
+}
+
+void function LegendBot_SetStrafeTimingAll( entity owner )
 {
 	int key = LegendBot_KeyOf( owner )
 	if ( key < 0 || !( key in file.bots ) )
@@ -1113,13 +1138,11 @@ void function LegendBot_SetStrafeWidthAll( entity owner, int width )
 	{
 		if ( !IsValid( bot ) )
 			continue
-		float fit = ( bot in file.laneFit ) ? file.laneFit[bot] : LEGENDBOT_LANE_PROBE
-		file.lane[bot] <- LegendBot_ClampLane( owner, fit )
 		try
 		{
-			bot.BotCmd_Strafe( file.lane[bot], false, owner.p.aimTrainerStrafeSpeedMult )
+			LegendBot_ApplyStrafeTiming( bot, owner )
 		}
-		catch ( eStrafe )
+		catch ( eTiming )
 		{
 		}
 	}

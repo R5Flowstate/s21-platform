@@ -56,7 +56,7 @@ void function FS_1v1_OnCharacterSlotChanged( EHI playerEHI, ItemFlavor flavor )
 ItemFlavor function FS_1v1_CharacterResetOverride( EHI playerEHI )
 {
 	entity player = FromEHI( playerEHI )
-	ItemFlavor character = FS_1v1_GetCharacterByIndex( FS_1v1_ForcedCharacterIndex( player ) )
+	ItemFlavor character = FS_1v1_GetForcedCharacter( player )
 
 	// Only when it actually caught a stomp -- this runs on every respawn.
 	if ( LoadoutSlot_IsReady( playerEHI, Loadout_Character() )
@@ -86,17 +86,11 @@ int function FS_1v1_ForcedCharacterIndex( entity player )
 	return chosen
 }
 
-// flowstateChosenCharacterRef names a legend the index table does not carry.
 ItemFlavor function FS_1v1_GetForcedCharacter( entity player )
 {
-	string ref = strip( GetCurrentPlaylistVarString( "flowstateChosenCharacterRef", "" ) )
-	if ( ref != "" )
-	{
-		if ( IsValidItemFlavorCharacterRef( ref ) )
-			return GetItemFlavorByCharacterRef( ref )
-		printt( "[FS-1V1][LEGEND] flowstateChosenCharacterRef '" + ref + "' is not a registered character ref -- using flowstateChosenCharacter" )
-	}
-	return FS_1v1_GetCharacterByIndex( FS_1v1_ForcedCharacterIndex( player ) )
+	if ( IsValid( player ) && FlowState_ForceAdminCharacter() && IsAdmin( player ) )
+		return FS_1v1_GetCharacterByIndex( FS_1v1_ForcedCharacterIndex( player ) )
+	return FS_1v1_GetForcedCharacterFlavor()
 }
 
 // Never blocks. LoadoutSlot_WaitForItemFlavor parks until the slot publishes, and

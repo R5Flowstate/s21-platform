@@ -93,13 +93,13 @@ struct
 	bool aimTrainerHighlight = true
 	bool aimTrainerStraferFire = false
 	int aimTrainerStraferAim = 50
-	int aimTrainerStrafeWidth = 512
+	int aimTrainerStrafeTime = 26
 	bool aimTrainerFixedSpawn = false
 	int  aimTrainerDurationSec = 60
 	bool aimTrainerStraferGod = false
 	int  aimTrainerStrafeSpeedTenth = 10
 	int  aimTrainerDummyShield = 0
-	int  aimTrainerStraferBody = 0
+	int  aimTrainerStraferBody = 1
 	int  aimTrainerStraferLegendIdx = -1
 
 	// Main DevMenu toggle labels (UI mirror).
@@ -200,13 +200,13 @@ void function CafeMod_UI_ItemsState( int profileIndex, int physicsOn )
 // Server -> client -> UI: reconcile DevMenu aim-trainer toggle labels.
 // Must live outside #if DEVELOPER: global is always declared; DEVELOPER=0
 // (no -dev) would strip the body and fail UI compile.
-void function AimTrainer_UI_SyncDevMenuState( bool hit, bool shot, bool kill, bool dynStats, bool reconBars, int durationSec, bool straferGod, int strafeSpeedTenth, int dummyShield, int straferBody, int straferLegendIdx, bool highlight = true, bool straferFire = false, int straferAim = 50, int strafeWidth = 512, bool fixedSpawn = false )
+void function AimTrainer_UI_SyncDevMenuState( bool hit, bool shot, bool kill, bool dynStats, bool reconBars, int durationSec, bool straferGod, int strafeSpeedTenth, int dummyShield, int straferBody, int straferLegendIdx, bool highlight = true, bool straferFire = false, int straferAim = 50, int strafeTime = 26, bool fixedSpawn = false )
 {
 	bool changed = ( file.aimTrainerReloadHit != hit
 		|| file.aimTrainerHighlight != highlight
 		|| file.aimTrainerStraferFire != straferFire
 		|| file.aimTrainerStraferAim != straferAim
-		|| file.aimTrainerStrafeWidth != strafeWidth
+		|| file.aimTrainerStrafeTime != strafeTime
 		|| file.aimTrainerFixedSpawn != fixedSpawn
 		|| file.aimTrainerReloadShot != shot
 		|| file.aimTrainerReloadKill != kill
@@ -227,7 +227,7 @@ void function AimTrainer_UI_SyncDevMenuState( bool hit, bool shot, bool kill, bo
 	file.aimTrainerHighlight = highlight
 	file.aimTrainerStraferFire = straferFire
 	file.aimTrainerStraferAim = straferAim
-	file.aimTrainerStrafeWidth = strafeWidth
+	file.aimTrainerStrafeTime = strafeTime
 	file.aimTrainerFixedSpawn = fixedSpawn
 	file.aimTrainerStraferGod = straferGod
 	if ( strafeSpeedTenth > 0 )
@@ -242,7 +242,7 @@ void function AimTrainer_UI_SyncDevMenuState( bool hit, bool shot, bool kill, bo
 	printt( format( "[AimTrainer] UI SyncDevMenu hit=%s shot=%s kill=%s dyn=%s bars=%s dur=%d god=%s speed=%d shield=%d body=%d legIdx=%d",
 		string( hit ), string( shot ), string( kill ), string( dynStats ), string( reconBars ), durationSec, string( straferGod ), strafeSpeedTenth, dummyShield, straferBody, straferLegendIdx ) )
 
-	LabTargets_SetState( hit, shot, kill, dynStats, reconBars, durationSec, straferGod, strafeSpeedTenth, dummyShield, straferBody, straferLegendIdx, highlight, straferFire, straferAim, strafeWidth, fixedSpawn )
+	LabTargets_SetState( hit, shot, kill, dynStats, reconBars, durationSec, straferGod, strafeSpeedTenth, dummyShield, straferBody, straferLegendIdx, highlight, straferFire, straferAim, strafeTime, fixedSpawn )
 
 	// Function-ref compare is unreliable -- refresh any open DevMenu page.
 	if ( changed && GetActiveMenu() == GetMenu( "DevMenu" ) )

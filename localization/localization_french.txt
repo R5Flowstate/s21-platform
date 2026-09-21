@@ -28487,8 +28487,10 @@
 	"LAB_TARGETS_STRAFER_DESC" "Fait apparaitre une cible en strafe devant vous qui revient une fois tuee. Sans chrono."
 	"LAB_TARGETS_STRAFESPEED" "Vitesse du strafer"
 	"LAB_TARGETS_STRAFESPEED_DESC" "Vitesse des mannequins qui strafent. S'applique aux bots en vie et aux nouveaux spawns."
-	"LAB_TARGETS_STRAFEWIDTH" "Largeur de strafe"
-	"LAB_TARGETS_STRAFEWIDTH_DESC" "Distance parcourue de gauche à droite, en unités. Les murs la limitent quand même."
+	"LAB_TARGETS_STRAFETIMEMAX" "Temps de strafe max"
+	"LAB_TARGETS_STRAFETIMEMAX_DESC" "Durée la plus longue pendant laquelle un strafer garde une direction avant de changer. Plus haut = mouvement plus lent et plus prévisible. S'applique aussi aux strafers en vie."
+	"LAB_TARGETS_STRAFETIMEMIN" "Temps de strafe min"
+	"LAB_TARGETS_STRAFETIMEMIN_DESC" "Durée la plus courte pendant laquelle un strafer garde une direction avant de changer. Plus bas = mouvement plus rapide et plus réactif. S'applique aussi aux strafers en vie."
 
 	// FLOWSTATE
 	"FS_15_KILL_STREAK_SUBSTR" "%s a atteint une série de 15 éliminations !"

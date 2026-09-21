@@ -28487,8 +28487,10 @@
 	"LAB_TARGETS_STRAFER_DESC" "前方にストレイフする的を出し、倒すと戻ってくる。タイマーなし。"
 	"LAB_TARGETS_STRAFESPEED" "左右移動速度"
 	"LAB_TARGETS_STRAFESPEED_DESC" "左右移動ダミーの移動速度。生存中のボットと新規スポーンの両方に適用される。"
-	"LAB_TARGETS_STRAFEWIDTH" "左右移動の幅"
-	"LAB_TARGETS_STRAFEWIDTH_DESC" "ダミーが左右に動く距離（ユニット）。壁があればそこまで。"
+	"LAB_TARGETS_STRAFETIMEMAX" "左右移動時間（最大）"
+	"LAB_TARGETS_STRAFETIMEMAX_DESC" "ストレイファーが方向を切り替えるまでに一方向を保つ最長時間。高いほど遅く予測しやすい動きになる。生きているダミーにも即反映。"
+	"LAB_TARGETS_STRAFETIMEMIN" "左右移動時間（最小）"
+	"LAB_TARGETS_STRAFETIMEMIN_DESC" "ストレイファーが方向を切り替えるまでに一方向を保つ最短時間。低いほど速く反応的な動きになる。生きているダミーにも即反映。"
 
 	// FLOWSTATE
 	"FS_15_KILL_STREAK_SUBSTR" "%s が15連続キルを達成しました！"

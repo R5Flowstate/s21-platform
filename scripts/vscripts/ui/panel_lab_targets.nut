@@ -19,11 +19,11 @@ struct
 	float lastSpeedSent = 1.0
 	bool lastGodSent = false
 	int lastAimSent = -1
-	int lastWidthSent = -1
+	int lastStrafeTimeSent = -1
 
 	bool applyingValues = false
 	bool straferListsBuilt = false
-	bool straferIsLegend = false
+	bool straferIsLegend = true
 	int straferClass = -1
 } file
 
@@ -60,7 +60,7 @@ void function LabTargets_BindRows()
 	array<string> names = [
 		"ButtonStrafer", "ButtonStraferFast",
 		"SwitchStraferBody", "SwitchStraferClass", "SwitchStraferLegend",
-		"SldStrafeSpeed", "SwitchBotHealth", "SwitchBotFire", "SldBotAim", "SldStrafeWidth", "SwitchFixedSpawn", "ButtonSetSpawn", "SwitchDummyArmor",
+		"SldStrafeSpeed", "SwitchBotHealth", "SwitchBotFire", "SldBotAim", "SwitchStrafeTimeMin", "SwitchStrafeTimeMax", "SwitchFixedSpawn", "ButtonSetSpawn", "SwitchDummyArmor",
 		"SwitchAimMode", "SwitchDuration", "ButtonChallengeStart", "ButtonChallengeStop",
 		"SwitchReloadKill", "SwitchReloadHit", "SwitchReloadShot",
 		"SwitchDynStats", "SwitchReconBars", "SwitchHighlight", "ButtonQuitAimTrainer"
@@ -85,7 +85,12 @@ void function LabTargets_BindRows()
 	Lab_SetupRow( LabTargets_Row( "SwitchBotFire" ), "#LAB_TARGETS_BOTFIRE",
 		"#LAB_TARGETS_BOTFIRE_DESC" )
 	LabTargets_SetupSlider( LabTargets_Row( "SldBotAim" ), "#LAB_TARGETS_BOTAIM", "#LAB_TARGETS_BOTAIM_DESC" )
-	LabTargets_SetupSlider( LabTargets_Row( "SldStrafeWidth" ), "#LAB_TARGETS_STRAFEWIDTH", "#LAB_TARGETS_STRAFEWIDTH_DESC" )
+	Lab_SetupRow( LabTargets_Row( "SwitchStrafeTimeMin" ), "#LAB_TARGETS_STRAFETIMEMIN",
+		"#LAB_TARGETS_STRAFETIMEMIN_DESC" )
+	Lab_SetupRow( LabTargets_Row( "SwitchStrafeTimeMax" ), "#LAB_TARGETS_STRAFETIMEMAX",
+		"#LAB_TARGETS_STRAFETIMEMAX_DESC" )
+	LabTargets_BuildStrafeTimeList( LabTargets_Row( "SwitchStrafeTimeMin" ) )
+	LabTargets_BuildStrafeTimeList( LabTargets_Row( "SwitchStrafeTimeMax" ) )
 	Lab_SetupRow( LabTargets_Row( "SwitchFixedSpawn" ), "#LAB_TARGETS_FIXEDSPAWN",
 		"#LAB_TARGETS_FIXEDSPAWN_DESC" )
 	Lab_SetupRow( LabTargets_Row( "ButtonSetSpawn" ), "#LAB_TARGETS_SETSPAWN",
@@ -133,7 +138,8 @@ void function LabTargets_BindRows()
 	AddButtonEventHandler( LabTargets_Row( "SwitchBotHealth" ), UIE_CHANGE, LabTargets_OnBotHealth )
 	AddButtonEventHandler( LabTargets_Row( "SwitchBotFire" ), UIE_CHANGE, LabTargets_OnBotFire )
 	AddButtonEventHandler( LabTargets_Row( "SldBotAim" ), UIE_CHANGE, LabTargets_OnBotAim )
-	AddButtonEventHandler( LabTargets_Row( "SldStrafeWidth" ), UIE_CHANGE, LabTargets_OnStrafeWidth )
+	AddButtonEventHandler( LabTargets_Row( "SwitchStrafeTimeMin" ), UIE_CHANGE, LabTargets_OnStrafeTime )
+	AddButtonEventHandler( LabTargets_Row( "SwitchStrafeTimeMax" ), UIE_CHANGE, LabTargets_OnStrafeTime )
 	AddButtonEventHandler( LabTargets_Row( "SwitchFixedSpawn" ), UIE_CHANGE, LabTargets_OnFixedSpawn )
 	AddButtonEventHandler( LabTargets_Row( "ButtonSetSpawn" ), UIE_CLICK, LabTargets_ClickSetSpawn )
 	AddButtonEventHandler( LabTargets_Row( "SwitchDummyArmor" ), UIE_CHANGE, LabTargets_OnArmor )
@@ -205,6 +211,26 @@ void function LabTargets_BuildArmorList()
 	Hud_DialogList_AddListItem( button, Localize( "#LAB_TARGETS_ARMOR_RED" ), "4" )
 	Hud_DialogList_AddListItem( button, Localize( "#LAB_TARGETS_ARMOR_RANDOM" ), "10" )
 	Hud_SetDialogListSelectionValue( button, "1" )
+}
+
+// Same steps as the firing range dummy strafe duration list.
+void function LabTargets_BuildStrafeTimeList( var button )
+{
+	array< string > labels = [
+		"#FRSETTING_DUMMIESTRAFEDURATION_010",
+		"#FRSETTING_DUMMIESTRAFEDURATION_015",
+		"#FRSETTING_DUMMIESTRAFEDURATION_020",
+		"#FRSETTING_DUMMIESTRAFEDURATION_025",
+		"#FRSETTING_DUMMIESTRAFEDURATION_030",
+		"#FRSETTING_DUMMIESTRAFEDURATION_040",
+		"#FRSETTING_DUMMIESTRAFEDURATION_050",
+		"#FRSETTING_DUMMIESTRAFEDURATION_060",
+		"#FRSETTING_DUMMIESTRAFEDURATION_075",
+		"#FRSETTING_DUMMIESTRAFEDURATION_090",
+	]
+	Hud_DialogList_ClearList( button )
+	for ( int i = 0; i < labels.len(); i++ )
+		Hud_DialogList_AddListItem( button, Localize( labels[ i ] ), string( i ) )
 }
 
 void function LabTargets_BuildStraferBodyList()
@@ -342,7 +368,7 @@ void function OnLabTargetsPanel_Hide( var panel )
 }
 
 // Server -> client -> UI: reconcile the toggle labels with server truth.
-void function LabTargets_SetState( bool hit, bool shot, bool kill, bool dynStats, bool reconBars, int durationSec, bool straferGod, int strafeSpeedTenth, int dummyShield, int straferBody, int straferLegendIdx, bool highlight = true, bool straferFire = false, int straferAim = 50, int strafeWidth = 512, bool fixedSpawn = false )
+void function LabTargets_SetState( bool hit, bool shot, bool kill, bool dynStats, bool reconBars, int durationSec, bool straferGod, int strafeSpeedTenth, int dummyShield, int straferBody, int straferLegendIdx, bool highlight = true, bool straferFire = false, int straferAim = 50, int strafeTime = 26, bool fixedSpawn = false )
 {
 	if ( file.rows.len() == 0 )
 		return
@@ -365,9 +391,10 @@ void function LabTargets_SetState( bool hit, bool shot, bool kill, bool dynStats
 	Hud_SetDialogListSelectionValue( LabTargets_Row( "SwitchBotHealth" ), straferGod ? "1" : "0" )
 	Hud_SetDialogListSelectionValue( LabTargets_Row( "SwitchBotFire" ), straferFire ? "1" : "0" )
 	file.lastAimSent = straferAim
-	Hud_SliderControl_SetCurrentValue( LabTargets_Row( "SldBotAim" ), float( straferAim ) )
-	file.lastWidthSent = strafeWidth
-	Hud_SliderControl_SetCurrentValue( LabTargets_Row( "SldStrafeWidth" ), float( strafeWidth ) )
+	Hud_SliderControl_SetCurrentValue( LabTargets_Row( "SldBotAim" ), float( straferAim ) / 100.0 )
+	file.lastStrafeTimeSent = strafeTime
+	Hud_SetDialogListSelectionValue( LabTargets_Row( "SwitchStrafeTimeMin" ), string( ( strafeTime / 10 ) % 10 ) )
+	Hud_SetDialogListSelectionValue( LabTargets_Row( "SwitchStrafeTimeMax" ), string( strafeTime % 10 ) )
 	Hud_SetDialogListSelectionValue( LabTargets_Row( "SwitchFixedSpawn" ), fixedSpawn ? "1" : "0" )
 	// Selection 0 means default, which tiers as white.
 	int armorSel = dummyShield
@@ -416,6 +443,10 @@ void function LabTargets_ApplyGates()
 	bool legendLive = Lab_GetCheats() && file.straferIsLegend
 	Hud_SetEnabled( LabTargets_Row( "SwitchStraferClass" ), legendLive )
 	Hud_SetEnabled( LabTargets_Row( "SwitchStraferLegend" ), legendLive )
+	Hud_SetEnabled( LabTargets_Row( "SwitchBotFire" ), legendLive )
+	Hud_SetEnabled( LabTargets_Row( "SldBotAim" ), legendLive )
+	Hud_SetEnabled( LabTargets_Row( "SwitchStrafeTimeMin" ), legendLive )
+	Hud_SetEnabled( LabTargets_Row( "SwitchStrafeTimeMax" ), legendLive )
 }
 
 bool function LabTargets_Ignore()
@@ -525,22 +556,24 @@ void function LabTargets_OnBotAim( var button )
 {
 	if ( LabTargets_Ignore() )
 		return
-	int aim = int( Hud_SliderControl_GetCurrentValue( button ) + 0.5 )
+	int aim = int( Hud_SliderControl_GetCurrentValue( button ) * 100.0 + 0.5 )
 	if ( aim == file.lastAimSent )
 		return
 	file.lastAimSent = aim
 	ClientCommand( format( "dev_aimtrainer bot_aim %d", aim ) )
 }
 
-void function LabTargets_OnStrafeWidth( var button )
+void function LabTargets_OnStrafeTime( var button )
 {
 	if ( LabTargets_Ignore() )
 		return
-	int width = int( Hud_SliderControl_GetCurrentValue( button ) + 0.5 )
-	if ( width == file.lastWidthSent )
+	int minIdx = int( Hud_GetDialogListSelectionValue( LabTargets_Row( "SwitchStrafeTimeMin" ) ) )
+	int maxIdx = int( Hud_GetDialogListSelectionValue( LabTargets_Row( "SwitchStrafeTimeMax" ) ) )
+	int packed = minIdx * 10 + maxIdx
+	if ( packed == file.lastStrafeTimeSent )
 		return
-	file.lastWidthSent = width
-	ClientCommand( format( "dev_aimtrainer strafe_width %d", width ) )
+	file.lastStrafeTimeSent = packed
+	ClientCommand( format( "dev_aimtrainer strafe_time %d %d", minIdx, maxIdx ) )
 }
 
 void function LabTargets_OnFixedSpawn( var button )

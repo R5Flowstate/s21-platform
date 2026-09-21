@@ -26,6 +26,7 @@ Scripts:
 	feature_flags.gnut
 	sh_netvar_callbacks.gnut
 	sh_mod_callbacks.gnut
+	gamemodes/fs_movement_recorder/sh_movement_recorder.gnut
 	_clientcommands.gnut
 ]
 
@@ -635,7 +636,6 @@ Scripts:
 	ai/_ai_spawn.gnut
 	ai/_ai_spawn_content.gnut
 	ai/_ai_utility.gnut
-	gamemodes/fs_movement_recorder/sh_movement_recorder.gnut
 	gamemodes/fs_movement_recorder/_movement_recorder.nut
 	gamemodes/fs_aimtrainer/sh_gamemode_aimtrainer_freeroam.gnut
 	gamemodes/fs_aimtrainer/_gamemode_aimtrainer_freeroam.gnut

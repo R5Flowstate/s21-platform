@@ -28487,8 +28487,10 @@
 	"LAB_TARGETS_STRAFER_DESC" "Spawns a strafing target ahead of you that comes back when killed. No timer."
 	"LAB_TARGETS_STRAFESPEED" "Strafer Speed"
 	"LAB_TARGETS_STRAFESPEED_DESC" "How fast strafing dummies move. Applies to live bots and new spawns."
-	"LAB_TARGETS_STRAFEWIDTH" "Strafe Width"
-	"LAB_TARGETS_STRAFEWIDTH_DESC" "How far strafers move side to side, in units. Walls still cap it."
+	"LAB_TARGETS_STRAFETIMEMAX" "Strafe Time Max"
+	"LAB_TARGETS_STRAFETIMEMAX_DESC" "Longest time a strafer holds one direction before switching. Higher = slower, more predictable movement. Applies to live strafers too."
+	"LAB_TARGETS_STRAFETIMEMIN" "Strafe Time Min"
+	"LAB_TARGETS_STRAFETIMEMIN_DESC" "Shortest time a strafer holds one direction before switching. Lower = faster, more reactive-feeling movement. Applies to live strafers too."
 
 	// FLOWSTATE
 	"FS_15_KILL_STREAK_SUBSTR" "%s got 15 kill streak!"

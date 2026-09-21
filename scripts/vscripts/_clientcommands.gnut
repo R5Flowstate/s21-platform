@@ -23,6 +23,10 @@ struct
 	// Server-wide: killed players autorespawn after DEV_AUTO_RESPAWN_DELAY.
 	bool autoRespawnEnabled = false
 	bool autoRespawnCallbackInstalled = false
+	// Loadout, origin and view at the fatal hit, keyed by player handle.
+	table<int, MRecSnapshot> deathSnap
+	table<int, vector> deathOrigin
+	table<int, vector> deathAngles
 	// Map OOB/hurt/slip/etc triggers active (Disable/Enable, never Destroy).
 	bool mapTriggersEnabled = true
 	// set_respawn_override: off | allow | deny | bots (sh_dev_utility was DEV-only).
@@ -677,6 +681,7 @@ void function DevAutoRespawn_SetEnabled( bool enable )
 	if ( file.autoRespawnEnabled && !file.autoRespawnCallbackInstalled )
 	{
 		AddCallback_OnPlayerKilled( DevAutoRespawn_OnPlayerKilled )
+		AddDamageFinalCallback( "player", DevAutoRespawn_OnDamageFinal )
 		file.autoRespawnCallbackInstalled = true
 	}
 
@@ -691,6 +696,61 @@ void function DevAutoRespawn_SetEnabled( bool enable )
 				thread DevAutoRespawn_AfterDelay( p )
 		}
 	}
+}
+
+// Death boxes strip the loadout before the killed callbacks run, so the
+// snapshot is refreshed on every hit and the last one is the death state.
+void function DevAutoRespawn_OnDamageFinal( entity player, var damageInfo )
+{
+	if ( !file.autoRespawnEnabled || !IsValid( player ) || !player.IsPlayer() || !IsAlive( player ) )
+		return
+	int key = player.GetEncodedEHandle()
+	MRecSnapshot snap
+	MRec_TakeSnapshot( player, snap )
+	if ( snap.weapons.len() == 0 && snap.tactical == "" )
+		return
+	file.deathSnap[key] <- snap
+	file.deathOrigin[key] <- player.GetOrigin()
+	file.deathAngles[key] <- player.EyeAngles()
+}
+
+void function DevAutoRespawn_RestoreAfterSpawn( entity player )
+{
+	int key = player.GetEncodedEHandle()
+	if ( !( key in file.deathSnap ) )
+		return
+	MRecSnapshot snap = file.deathSnap[key]
+	vector origin = file.deathOrigin[key]
+	vector angles = file.deathAngles[key]
+	delete file.deathSnap[key]
+	delete file.deathOrigin[key]
+	delete file.deathAngles[key]
+
+	player.EndSignal( "OnDestroy" )
+	player.EndSignal( "OnDeath" )
+	float giveUp = Time() + 5.0
+	while ( !IsAlive( player ) && Time() < giveUp )
+		WaitFrame()
+	if ( !IsAlive( player ) )
+		return
+	WaitFrame()
+
+	player.SetOrigin( origin )
+	player.SetAngles( <0, angles.y, 0> )
+	player.SetVelocity( <0, 0, 0> )
+
+	snap.health = player.GetMaxHealth()
+	snap.shield = player.GetShieldHealthMax()
+	MRec_ApplySnapshot( player, snap, true )
+	try
+	{
+		player.ClearFirstDeployForAllWeapons()
+		player.DeployWeapon()
+	}
+	catch ( eDeploy )
+	{
+	}
+	printt( format( "[DevAutoRespawn] %s restored at death spot with %d weapons", player.GetPlayerName(), snap.weapons.len() ) )
 }
 
 void function DevAutoRespawn_OnPlayerKilled( entity victim, entity attacker, var damageInfo )
@@ -745,6 +805,7 @@ void function DevAutoRespawn_AfterDelay( entity player )
 	player.p.lastDeathTime = -1.0
 	ClearPlayerEliminated( player )
 	thread DevAutoRespawn_ClearPodLandedFlag( player )
+	thread DevAutoRespawn_RestoreAfterSpawn( player )
 	DecideRespawnPlayer( player, false )
 }
 

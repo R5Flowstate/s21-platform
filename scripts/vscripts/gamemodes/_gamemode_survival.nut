@@ -4071,6 +4071,10 @@ void function Survival_PlayerCharacterSetup( entity player, ItemFlavor character
 		{
 			existingMods.append( SLOW_STRAFE_MOD )
 		}
+
+		// Only the Axle setfile defines this mod; carrying it onto any other class is a script error.
+		if ( existingMods.contains( OVERDRIVE_SLIDE_CONTROL_PASSIVE ) && setFile != $"settings/player/mp/pilot_survival_overdrive.rpak" )
+			existingMods.fastremovebyvalue( OVERDRIVE_SLIDE_CONTROL_PASSIVE )
 	}
 
 	player.SetPlayerSettingsWithMods( setFile, existingMods )

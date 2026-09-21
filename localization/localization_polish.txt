@@ -28487,8 +28487,10 @@
 	"LAB_TARGETS_STRAFER_DESC" "Tworzy strafujacy cel przed toba, ktory wraca po smierci. Bez limitu czasu."
 	"LAB_TARGETS_STRAFESPEED" "Prędkość strafera"
 	"LAB_TARGETS_STRAFESPEED_DESC" "Jak szybko poruszają się manekiny strafe. Działa na żywe boty i nowe spawny."
-	"LAB_TARGETS_STRAFEWIDTH" "Szerokość strafe'u"
-	"LAB_TARGETS_STRAFEWIDTH_DESC" "Jak daleko straferzy chodzą na boki, w jednostkach. Ściany i tak to ograniczają."
+	"LAB_TARGETS_STRAFETIMEMAX" "Czas strafe'u maks"
+	"LAB_TARGETS_STRAFETIMEMAX_DESC" "Najdłuższy czas, przez jaki strafer trzyma jeden kierunek przed zmianą. Wyżej = wolniejszy, bardziej przewidywalny ruch. Działa też na żywych straferów."
+	"LAB_TARGETS_STRAFETIMEMIN" "Czas strafe'u min"
+	"LAB_TARGETS_STRAFETIMEMIN_DESC" "Najkrótszy czas, przez jaki strafer trzyma jeden kierunek przed zmianą. Niżej = szybszy, bardziej reaktywny ruch. Działa też na żywych straferów."
 
 	// FLOWSTATE
 	"FS_15_KILL_STREAK_SUBSTR" "%s osiągnął serię 15 zabójstw!"

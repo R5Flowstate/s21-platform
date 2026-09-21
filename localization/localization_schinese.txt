@@ -28487,8 +28487,10 @@
 	"LAB_TARGETS_STRAFER_DESC" "在你前方生成一个横移目标，被击杀后会回来。无计时。"
 	"LAB_TARGETS_STRAFESPEED" "扫射速度"
 	"LAB_TARGETS_STRAFESPEED_DESC" "扫射假人的移动速度。对现有机器人和新生成的目标生效。"
-	"LAB_TARGETS_STRAFEWIDTH" "扫射宽度"
-	"LAB_TARGETS_STRAFEWIDTH_DESC" "假人左右移动的距离（单位）。有墙仍会受限。"
+	"LAB_TARGETS_STRAFETIMEMAX" "扫射时间最大值"
+	"LAB_TARGETS_STRAFETIMEMAX_DESC" "假人切换方向前保持同一方向的最长时间。越高 = 越慢、更可预测的移动。对已存在的假人同样生效。"
+	"LAB_TARGETS_STRAFETIMEMIN" "扫射时间最小值"
+	"LAB_TARGETS_STRAFETIMEMIN_DESC" "假人切换方向前保持同一方向的最短时间。越低 = 越快、更灵敏的移动。对已存在的假人同样生效。"
 
 	// FLOWSTATE
 	"FS_15_KILL_STREAK_SUBSTR" "%s 达成 15 连杀！"

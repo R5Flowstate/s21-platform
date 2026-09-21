@@ -28487,8 +28487,10 @@
 	"LAB_TARGETS_STRAFER_DESC" "Spawnt ein strafendes Ziel vor dir, das nach dem Tod zurueckkommt. Ohne Timer."
 	"LAB_TARGETS_STRAFESPEED" "Strafer-Tempo"
 	"LAB_TARGETS_STRAFESPEED_DESC" "Wie schnell strafende Dummys sich bewegen. Gilt für lebende Bots und neue Spawns."
-	"LAB_TARGETS_STRAFEWIDTH" "Strafe-Breite"
-	"LAB_TARGETS_STRAFEWIDTH_DESC" "Wie weit Strafer seitlich laufen, in Einheiten. Wände begrenzen es trotzdem."
+	"LAB_TARGETS_STRAFETIMEMAX" "Strafe-Zeit max"
+	"LAB_TARGETS_STRAFETIMEMAX_DESC" "Längste Zeit, die ein Strafer eine Richtung hält, bevor er wechselt. Höher = langsamere, berechenbarere Bewegung. Gilt auch für lebende Strafer."
+	"LAB_TARGETS_STRAFETIMEMIN" "Strafe-Zeit min"
+	"LAB_TARGETS_STRAFETIMEMIN_DESC" "Kürzeste Zeit, die ein Strafer eine Richtung hält, bevor er wechselt. Niedriger = schnellere, reaktivere Bewegung. Gilt auch für lebende Strafer."
 
 	// FLOWSTATE
 	"FS_15_KILL_STREAK_SUBSTR" "%s hat eine 15er-Serie!"

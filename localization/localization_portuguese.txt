@@ -28487,8 +28487,10 @@
 	"LAB_TARGETS_STRAFER_DESC" "Gera um alvo em strafe a sua frente que volta ao morrer. Sem tempo."
 	"LAB_TARGETS_STRAFESPEED" "Velocidade do strafer"
 	"LAB_TARGETS_STRAFESPEED_DESC" "Quão rápido os bonecos de strafe se movem. Vale para bots vivos e novos spawns."
-	"LAB_TARGETS_STRAFEWIDTH" "Largura do strafe"
-	"LAB_TARGETS_STRAFEWIDTH_DESC" "O quanto os strafers andam de um lado ao outro, em unidades. Paredes ainda limitam."
+	"LAB_TARGETS_STRAFETIMEMAX" "Tempo de strafe máx"
+	"LAB_TARGETS_STRAFETIMEMAX_DESC" "Maior tempo que um strafer mantém uma direção antes de trocar. Mais alto = movimento mais lento e previsível. Vale também para strafers vivos."
+	"LAB_TARGETS_STRAFETIMEMIN" "Tempo de strafe mín"
+	"LAB_TARGETS_STRAFETIMEMIN_DESC" "Menor tempo que um strafer mantém uma direção antes de trocar. Mais baixo = movimento mais rápido e reativo. Vale também para strafers vivos."
 
 	// FLOWSTATE
 	"FS_15_KILL_STREAK_SUBSTR" "%s conseguiu uma série de 15 eliminações!"

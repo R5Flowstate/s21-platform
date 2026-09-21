@@ -28487,8 +28487,10 @@
 	"LAB_TARGETS_STRAFER_DESC" "ينشئ هدفاً يتحرك جانبياً أمامك ويعود عند قتله. بدون مؤقت."
 	"LAB_TARGETS_STRAFESPEED" "سرعة التحرك الجانبي"
 	"LAB_TARGETS_STRAFESPEED_DESC" "مدى سرعة دمى التحرك الجانبي. ينطبق على الروبوتات الحالية والجديدة."
-	"LAB_TARGETS_STRAFEWIDTH" "عرض التحرك الجانبي"
-	"LAB_TARGETS_STRAFEWIDTH_DESC" "مسافة تحرك الدمى جانبيًا بالوحدات. الجدران تحدها أيضًا."
+	"LAB_TARGETS_STRAFETIMEMAX" "الحد الأقصى لزمن التحرك الجانبي"
+	"LAB_TARGETS_STRAFETIMEMAX_DESC" "أطول مدة يثبت فيها المتحرك على اتجاه واحد قبل التبديل. الأعلى = حركة أبطأ وأكثر قابلية للتوقع. ينطبق على الدمى الحية أيضًا."
+	"LAB_TARGETS_STRAFETIMEMIN" "الحد الأدنى لزمن التحرك الجانبي"
+	"LAB_TARGETS_STRAFETIMEMIN_DESC" "أقصر مدة يثبت فيها المتحرك على اتجاه واحد قبل التبديل. الأقل = حركة أسرع وأكثر استجابة. ينطبق على الدمى الحية أيضًا."
 
 	// FLOWSTATE
 	"FS_15_KILL_STREAK_SUBSTR" "%s حقق سلسلة 15 قتلاً!"

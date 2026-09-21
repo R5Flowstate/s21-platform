@@ -28487,8 +28487,10 @@
 	"LAB_TARGETS_STRAFER_DESC" "Genera un bersaglio in strafe davanti a te che torna quando ucciso. Senza timer."
 	"LAB_TARGETS_STRAFESPEED" "Velocità dello strafer"
 	"LAB_TARGETS_STRAFESPEED_DESC" "Quanto veloce si muovono i manichini che strafano. Vale per i bot vivi e per i nuovi spawn."
-	"LAB_TARGETS_STRAFEWIDTH" "Ampiezza dello strafe"
-	"LAB_TARGETS_STRAFEWIDTH_DESC" "Quanto gli strafer si spostano lateralmente, in unità. I muri la limitano comunque."
+	"LAB_TARGETS_STRAFETIMEMAX" "Tempo di strafe max"
+	"LAB_TARGETS_STRAFETIMEMAX_DESC" "Tempo massimo in cui uno strafer mantiene una direzione prima di cambiare. Più alto = movimento più lento e prevedibile. Vale anche per gli strafer vivi."
+	"LAB_TARGETS_STRAFETIMEMIN" "Tempo di strafe min"
+	"LAB_TARGETS_STRAFETIMEMIN_DESC" "Tempo minimo in cui uno strafer mantiene una direzione prima di cambiare. Più basso = movimento più rapido e reattivo. Vale anche per gli strafer vivi."
 
 	// FLOWSTATE
 	"FS_15_KILL_STREAK_SUBSTR" "%s ha raggiunto una serie di 15 uccisioni!"

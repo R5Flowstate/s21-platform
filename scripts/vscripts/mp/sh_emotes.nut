@@ -1082,17 +1082,6 @@ bool function Emote_FlavorMatchesCharacter( ItemFlavor flavor, ItemFlavor charac
 	return owner == null || expect ItemFlavor( owner ) == character
 }
 
-bool function Emote_IsUnlockedForPlay( entity player, ItemFlavor flavor )
-{
-	if ( ItemFlavor_GetType( flavor ) != eItemType.character_emote )
-		return true
-
-	if ( !ItemFlavor_HasQuality( flavor ) || ItemFlavor_GetQuality( flavor, eRarityTier.COMMON ) < eRarityTier.LEGENDARY )
-		return true
-
-	return GRX_IsItemOwnedByPlayer_AllowOutOfDateData( flavor, player )
-}
-
 ItemFlavor function Emote_GetFallbackForCharacter( EHI playerEHI, ItemFlavor character )
 {
 	LoadoutEntry slot0 = Loadout_CharacterQuip( character, 0 )
@@ -1448,15 +1437,13 @@ void function RequestPlayerPerformEmote( entity player, ItemFlavor flavor )
 		return
 
 	ItemFlavor character = LoadoutSlot_GetItemFlavor( ToEHI( player ), Loadout_Character() )
-	if ( !Emote_FlavorMatchesCharacter( flavor, character ) || !Emote_IsUnlockedForPlay( player, flavor ) )
+	// No ownership check: the bridge has no GRX inventory, so a LEGENDARY gate would refuse every legendary emote.
+	if ( !Emote_FlavorMatchesCharacter( flavor, character ) )
 	{
 		ItemFlavor fallback = Emote_GetFallbackForCharacter( ToEHI( player ), character )
 		printt( "[EMOTE] " + player.GetPlayerName() + " asked for " + ItemFlavor_GetHumanReadableRef( flavor ) + " while playing " + ItemFlavor_GetHumanReadableRef( character ) + " -- remapped to " + ItemFlavor_GetHumanReadableRef( fallback ) )
 		flavor = fallback
 	}
-
-	if ( !Emote_IsUnlockedForPlay( player, flavor ) )
-		return
 
 	if ( GetPlayerIsEmoting( player ) )
 	{
@@ -1493,7 +1480,8 @@ void function PlayerPerformEmote( entity player, ItemFlavor flavor )
 	EndSignal( player, SIGNAL_END_EMOTE_PERFORMANCE )
 
 	ItemFlavor character = LoadoutSlot_GetItemFlavor( ToEHI( player ), Loadout_Character() )
-	if ( !Emote_FlavorMatchesCharacter( flavor, character ) || !Emote_IsUnlockedForPlay( player, flavor ) )
+	// No ownership check: the bridge has no GRX inventory, so a LEGENDARY gate would refuse every legendary emote.
+	if ( !Emote_FlavorMatchesCharacter( flavor, character ) )
 		return
 
 	string anim3p = CharacterQuip_GetAnim3p( flavor, character )

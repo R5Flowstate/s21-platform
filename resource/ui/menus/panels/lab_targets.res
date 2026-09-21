@@ -252,29 +252,41 @@
                 ControlName				SliderControl
                 InheritProperties		SliderControl
                 className               "SettingScrollSizer"
-                minValue				0
-                maxValue				100
-                stepSize				5
+                minValue				0.0
+                maxValue				1.0
+                stepSize				0.05
                 showLabel               3
                 navUp                   SwitchBotFire
-                navDown                 SldStrafeWidth
+                navDown                 SwitchStrafeTimeMin
                 pin_to_sibling			SwitchBotFire
                 pin_corner_to_sibling	TOP_LEFT
                 pin_to_sibling_corner	BOTTOM_LEFT
             }
 
-            SldStrafeWidth
+            SwitchStrafeTimeMin
             {
-                ControlName				SliderControl
-                InheritProperties		SliderControl
+                ControlName				RuiButton
+                InheritProperties		SwitchButton
                 className               "SettingScrollSizer"
-                minValue				32
-                maxValue				1024
-                stepSize				32
-                showLabel               3
+                style					DialogListButton
+                childGroupAlways        MultiChoiceButtonAlways
                 navUp                   SldBotAim
-                navDown                 SwitchFixedSpawn
+                navDown                 SwitchStrafeTimeMax
                 pin_to_sibling			SldBotAim
+                pin_corner_to_sibling	TOP_LEFT
+                pin_to_sibling_corner	BOTTOM_LEFT
+            }
+
+            SwitchStrafeTimeMax
+            {
+                ControlName				RuiButton
+                InheritProperties		SwitchButton
+                className               "SettingScrollSizer"
+                style					DialogListButton
+                childGroupAlways        MultiChoiceButtonAlways
+                navUp                   SwitchStrafeTimeMin
+                navDown                 SwitchFixedSpawn
+                pin_to_sibling			SwitchStrafeTimeMin
                 pin_corner_to_sibling	TOP_LEFT
                 pin_to_sibling_corner	BOTTOM_LEFT
             }
@@ -291,9 +303,9 @@
                     "#SETTING_ON"	1
                 }
                 childGroupAlways        ChoiceButtonAlways
-                navUp                   SldStrafeWidth
+                navUp                   SwitchStrafeTimeMax
                 navDown                 ButtonSetSpawn
-                pin_to_sibling			SldStrafeWidth
+                pin_to_sibling			SwitchStrafeTimeMax
                 pin_corner_to_sibling	TOP_LEFT
                 pin_to_sibling_corner	BOTTOM_LEFT
             }

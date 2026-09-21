@@ -169,7 +169,7 @@ void function AimTrainer_CL_PushChallengeFlagToUI()
 }
 
 // Server truth for DevMenu ON/OFF labels -- flags bitfield + duration + strafer sliders + dummy armor + strafer body/legend.
-void function AimTrainer_CL_SyncDevMenuState( int flags, int durationSec, int strafeSpeedTenth, int dummyShield, int straferBody, int straferLegendIdx, int straferAim, int strafeWidth )
+void function AimTrainer_CL_SyncDevMenuState( int flags, int durationSec, int strafeSpeedTenth, int dummyShield, int straferBody, int straferLegendIdx, int straferAim, int strafeTime )
 {
 	bool hit = ( flags & 1 ) != 0
 	bool shot = ( flags & 2 ) != 0
@@ -188,7 +188,7 @@ void function AimTrainer_CL_SyncDevMenuState( int flags, int durationSec, int st
 
 	try
 	{
-		RunUIScript( "AimTrainer_UI_SyncDevMenuState", hit, shot, kill, dynStats, reconBars, durationSec, straferGod, strafeSpeedTenth, dummyShield, straferBody, straferLegendIdx, highlight, straferFire, straferAim, strafeWidth, fixedSpawn )
+		RunUIScript( "AimTrainer_UI_SyncDevMenuState", hit, shot, kill, dynStats, reconBars, durationSec, straferGod, strafeSpeedTenth, dummyShield, straferBody, straferLegendIdx, highlight, straferFire, straferAim, strafeTime, fixedSpawn )
 	}
 	catch ( eUI )
 	{
