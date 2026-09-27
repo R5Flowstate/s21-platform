@@ -280,6 +280,8 @@ void function BombletExplosion( vector origin, vector angles, vector normal, ent
 	{
 		if ( !IsValid( victim ) || !victim.IsPlayer() || !IsAlive( victim ) || victim.IsPhaseShifted() || StatusEffect_HasSeverity( victim, eStatusEffect.mortar_ring_push ) )
 			continue
+		if ( !victim.DoesShareRealms( projectile ) )
+			continue
 
 		vector startOrigin  = bombExplosionOrigin
 		TraceResults result = TraceLineHighDetail( startOrigin, victim.GetWorldSpaceCenter(), [projectile, victim], TRACE_MASK_SHOT, TRACE_COLLISION_GROUP_NONE )
@@ -535,7 +537,7 @@ void function MortarRingCreateFireSegment( entity owner, FireSegmentData segment
 	entity preBurnControlPointEntity = CreateEntity( "info_target" )
 	preBurnControlPointEntity.kv.spawnflags = SF_INFOTARGET_ALWAYS_TRANSMIT_TO_CLIENT
 	DispatchSpawn( preBurnControlPointEntity )
-	//SetRealms( preBurnControlPointEntity, segment.realms )
+	SetRealms( preBurnControlPointEntity, segment.realms )
 	preBurnControlPointEntity.SetOrigin( controlPointWorldOrigin )
 	entity preburnEffect = CreateFireSegmentEffect( MORTAR_RING_MISSILE_PREBURN_FX, preBurnControlPointEntity, effectWorldOrigin, effectWorldAngles, segment.dirToCenter, MORTAR_RING_MISSILE_PREBURN_DURATION )
 	if( IsValid( segment.moveParent ) )
@@ -554,7 +556,7 @@ void function MortarRingCreateFireSegment( entity owner, FireSegmentData segment
 	entity burnControlPointEntity = CreateEntity( "info_target" )
 	burnControlPointEntity.kv.spawnflags = SF_INFOTARGET_ALWAYS_TRANSMIT_TO_CLIENT
 	DispatchSpawn( burnControlPointEntity )
-	//SetRealms( burnControlPointEntity, segment.realms )
+	SetRealms( burnControlPointEntity, segment.realms )
 	burnControlPointEntity.SetOrigin( controlPointWorldOrigin )
 	entity burnEffect = CreateFireSegmentEffect( MORTAR_RING_MISSILE_BURN_FX, burnControlPointEntity, effectWorldOrigin, effectWorldAngles, segment.dirToCenter, MORTAR_RING_MISSILE_BURN_DURATION )
 	if( IsValid( segment.moveParent ) )
@@ -588,8 +590,6 @@ void function MortarRingFireSegmentTriggerThread( entity effect, entity controlP
 	trigger.SetAboveHeight( height + MORTAR_RING_FIRE_SEGMENT_HEIGHT )
 	trigger.SetBelowHeight( height )
 	trigger.SetTriggerType( TT_MORTAR_RING_SEGMENT )
-	if( !preburn )
-		MortarRingSendSegmentEndpointsToClients( trigger, effect, controlPoint )
 	trigger.kv.triggerFilterNpc = "all"
 	trigger.kv.triggerFilterPlayer = "all"
 	trigger.kv.triggerFilterNonCharacter = 1
@@ -607,6 +607,10 @@ void function MortarRingFireSegmentTriggerThread( entity effect, entity controlP
 
 	trigger.RemoveFromAllRealms()
 	trigger.AddToOtherEntitysRealms( controlPoint )
+
+	// Sent once the trigger has its realms, so only this fight's players get it.
+	if( !preburn )
+		MortarRingSendSegmentEndpointsToClients( trigger, effect, controlPoint )
 
 	effect.EndSignal( "OnDestroy" )
 	trigger.EndSignal( "OnDestroy" )
@@ -819,6 +823,7 @@ void function BurnDamageThink( entity target, entity attacker, entity trigger )
 	{
 		target.EndSignal( "OnDeath" )
 		target.EndSignal( DEATH_TOTEM_RECALL_SIGNAL )
+		target.EndSignal( "CleanUpPlayerAbilities" )
 	}
 	target.EndSignal( "OnDestroy" )
 
@@ -883,7 +888,7 @@ void function BurnDamageThink( entity target, entity attacker, entity trigger )
 
 		if( !IsFriendlyTeam( damageOwner.GetTeam(), target.GetTeam() ) || ( damageOwner == target ) )
 
-			target.TakeDamage( damage, damageOwner, trigger, { damageSourceId = eDamageSourceId.mp_weapon_mortar_ring } )
+			target.TakeDamage( damage, damageOwner, IsValid( trigger ) ? trigger : damageOwner, { damageSourceId = eDamageSourceId.mp_weapon_mortar_ring } )
 
 		wait MORTAR_RING_MISSILE_TICK_INTERVAL
 
@@ -922,7 +927,7 @@ entity function AddMortarRingBombletWeapon( entity player )
 void function MortarRingAirburst( entity player, entity projectile, int numBombs, float launchAngle, float launchSpeed, float radiusModMin = 1.0, float radiusModMax = 1.0 )
 {
 	vector projectileOrigin = projectile.GetOrigin()
-	StartParticleEffectInWorld( GetParticleSystemIndex( MORTAR_RING_AIRBURST_EXPLOSION_VFX ), projectileOrigin, ZERO_VECTOR )
+	StartParticleEffectInWorldForRealms( GetParticleSystemIndex( MORTAR_RING_AIRBURST_EXPLOSION_VFX ), projectileOrigin, ZERO_VECTOR, projectile )
 	EmitSoundAtPosition( TEAM_ANY, projectileOrigin, MORTAR_RING_AIRBURST_EXPLOSION_SFX, projectile )
 
 	projectile.Destroy()

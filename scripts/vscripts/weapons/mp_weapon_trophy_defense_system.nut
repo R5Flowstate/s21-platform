@@ -1060,6 +1060,9 @@ entity function Trophy_GetTrophyInRangeOfEntity( entity ent, bool requireEnemy =
 		if ( requireEnemy && IsFriendlyTeam( vData.trophy.GetTeam(), ent.GetTeam() ) )
 			continue
 
+		if ( !vData.trophy.DoesShareRealms( ent ) )
+			continue
+
 		if ( Distance( vData.trophy.GetOrigin(), ent.GetOrigin() ) <= file.trophy_interceptProjectileRange )
 			return vData.trophy
 	}

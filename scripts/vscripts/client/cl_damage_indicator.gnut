@@ -392,6 +392,7 @@ bool function ShouldShowDamageArrows( int damageSourceId )
 		case eDamageSourceId.damagedef_ability_silence:
 
 		case eDamageSourceId.burn:
+		case eDamageSourceId.mp_weapon_bow_ult_missile:
 
 
 		case eDamageSourceId.caustic_toxin:
@@ -576,6 +577,8 @@ void function GrenadeArrowThink( entity player, entity grenade, float damageRadi
 	while ( true )
 	{
 		cockpit = player.GetCockpit()
+		if ( grenade.GetScriptName() == BOW_ULT_MISSILE_CLOSING_SCRIPT_NAME )
+			return
 
 		switch ( visibilityType )
 		{
@@ -792,6 +795,12 @@ asset function GetIndicatorModel( entity grenade )
 
 	if ( grenade.GetTargetName() == CREEPING_BOMBARDMENT_TARGETNAME )
 		return GRENADE_INDICATOR_BOMB
+
+	if ( grenade.GetScriptName() == BOW_ULT_MISSILE_SCRIPT_NAME || grenade.GetScriptName() == BOW_ULT_MISSILE_READY_SCRIPT_NAME || grenade.GetScriptName() == BOW_ULT_MISSILE_FIRING_SCRIPT_NAME )
+		return GRENADE_INDICATOR_ARCO_ULT
+
+	if ( grenade.GetScriptName() == SONAR_DART_SCRIPT_NAME )
+		return GRENADE_INDICATOR_GENERIC
 
 	if ( grenade.GetScriptName() == SONIC_BLAST_THREAT_TARGETNAME )
 		return GRENADE_INDICATOR_GENERIC

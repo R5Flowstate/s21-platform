@@ -12,6 +12,7 @@ global function Lab_AddGateListener
 global function Lab_SetDetails
 global function Lab_SetRowState
 global function Lab_SetupRow
+global function Lab_WasOpened
 
 struct
 {
@@ -21,6 +22,7 @@ struct
 	bool cheats = false
 	bool hostSeat = false
 	bool stateEverReceived = false
+	bool opened = false
 	int activeTabIndex = 0
 
 	array<void functionref()> gateListeners
@@ -47,13 +49,13 @@ void function InitLabPanel( var panel )
 		SetTabBaseWidth( tabDef, 170 )
 	}
 	{
+		TabDef tabDef = AddTab( panel, Hud_GetChild( panel, "LabChallengesPanel" ), "#LAB_TAB_CHALLENGES" )
+		SetTabBaseWidth( tabDef, 170 )
+	}
+	{
 		TabDef tabDef = AddTab( panel, Hud_GetChild( panel, "LabRecorderPanel" ), "#LAB_TAB_RECORDER" )
 		SetTabBaseWidth( tabDef, 170 )
 		tabDef.new = true
-	}
-	{
-		TabDef tabDef = AddTab( panel, Hud_GetChild( panel, "LabMatchPanel" ), "#LAB_TAB_MATCH" )
-		SetTabBaseWidth( tabDef, 170 )
 	}
 	{
 		TabDef tabDef = AddTab( panel, Hud_GetChild( panel, "LabModsPanel" ), "#LAB_TAB_MODS" )
@@ -71,6 +73,7 @@ void function InitLabPanel( var panel )
 
 void function OnLabPanel_Show( var panel )
 {
+	file.opened = true
 	DevHud_Apply()
 	Lab_RefreshState()
 
@@ -148,6 +151,11 @@ void function Lab_SetDetails( string title, string desc )
 
 // Shared row wiring: label, tooltip and the details pane all come from one call.
 // hostOnly drives the settings marker retail uses for leader-only rows.
+bool function Lab_WasOpened()
+{
+	return file.opened
+}
+
 void function Lab_SetupRow( var button, string name, string desc, bool hostOnly = false )
 {
 	SetupSettingsButton( button, name, desc, $"", false, hostOnly )

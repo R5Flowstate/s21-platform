@@ -1638,6 +1638,11 @@ bool function Minimap_IsUsingLargeMinimap()
 
 void function ServerCallback_RingPulseMinimap( vector origin, float radius, float duration, int pulseCount, vector color, bool reverse )
 {
+	// The ring is only cleaned up by a positive lifetime; a zero or NaN duration would leak it.
+	if ( !( duration > 0.0 ) || pulseCount < 1 )
+		return
+	duration = min( duration, 60.0 )
+
 	float pulseDuration = duration / pulseCount
 	float lifeTime      = duration
 
@@ -1700,6 +1705,9 @@ void function Minimap_DisableDraw()
 
 void function Minimap_EnableDraw()
 {
+	if ( file.minimapDisableDrawStackCount <= 0 )
+		return
+
 	file.minimapDisableDrawStackCount--
 	Assert( file.minimapDisableDrawStackCount >= 0, "Called Minimap_EnableDraw() but minimap wasn't disabled!" )
 
@@ -1926,9 +1934,9 @@ void function SetFullmapRuiResolutionsToScreenSize()
 string function GetRingClosingString(int roundNumber)
 {
 	if ( !SURVIVAL_IsFinalDeathFieldStage() )
-		return Localize( "#" + GameRules_GetGameMode().toupper() + "_CIRCLE_STATUS_ROUND_CLOSING", roundNumber )
+		return Localize( "#" + ( IsArenaMode() ? "ARENAS" : GameRules_GetGameMode().toupper() ) + "_CIRCLE_STATUS_ROUND_CLOSING", roundNumber )
 
-	return Localize( "#" + GameRules_GetGameMode().toupper() + "_CIRCLE_STATUS_ROUND_CLOSING_FINAL" )
+	return Localize( "#" + ( IsArenaMode() ? "ARENAS" : GameRules_GetGameMode().toupper() ) + "_CIRCLE_STATUS_ROUND_CLOSING_FINAL" )
 }
 
 

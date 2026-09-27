@@ -1,0 +1,36 @@
+resource/ui/menus/demo_controls.menu
+{
+	menu
+	{
+		ControlName				Frame
+		xpos					0
+		ypos					0
+		zpos					3
+		wide					f0
+		tall					f0
+		autoResize				0
+		pinCorner				0
+		visible					1
+		enabled					1
+		PaintBackgroundType		0
+		infocus_bgcolor_override	"0 0 0 0"
+		outoffocus_bgcolor_override	"0 0 0 0"
+
+		// The replay bar is a RUI; this invisible button only takes the clicks.
+		Hitbox
+		{
+			ControlName				Button
+			xpos					0
+			ypos					0
+			wide					f0
+			tall					f0
+			zpos					10
+			visible					1
+			enabled					1
+			labelText				""
+			paintbackground			0
+			paintborder				0
+			cursorPriority			1
+		}
+	}
+}

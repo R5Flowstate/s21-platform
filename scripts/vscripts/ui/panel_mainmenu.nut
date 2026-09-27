@@ -142,6 +142,7 @@ void function InitMainMenuPanel( var panel )
 	AddPanelFooterOption( panel, LEFT, BUTTON_SHOULDER_RIGHT, true, "#MAINMENU_CONNECT_LOCALHOST", "", ConnectFooter_OnActivate, IsConnectFooterValid )
 
 	AddPanelFooterOption( panel, LEFT, BUTTON_Y, true, "#BUTTON_REVIEW_TERMS", "#REVIEW_TERMS", OpenEULAReviewFromFooter, IsExitToDesktopFooterValid )
+	AddPanelFooterOption( panel, LEFT, KEY_J, true, "", "#DEMO_FOOTER_REPLAYS", OpenReplaysMenu )
 
 
 	file.hasReconnectFile = TryLoadReconnectFromLocalStorage()

@@ -384,6 +384,9 @@ void function Survival_UseHealthPack( entity player, string ref )
 
 void function ServerToClient_OnStartedUsingHealthPack( int kitType )
 {
+	if ( !SURVIVAL_Loot_IsHealthKitType( kitType ) )
+		return
+
 	HealthPickup kitData = SURVIVAL_Loot_GetHealthKitDataFromStruct( kitType )
 	LootData lootData    = kitData.lootData
 
@@ -937,6 +940,8 @@ void function SURVIVAL_Loot_UpdateRuiLastUseTime( entity ent, var rui = null )
 
 	if ( rui == null )
 		rui = GetLootPrompt( ent )
+	if ( rui == null )
+		return
 
 	RuiSetGameTime( rui, "lastUseTime", Time() )
 }
@@ -1773,7 +1778,7 @@ bool function ShouldLootHintBeVisible( entity prop )
 		return false
 
 	int index = prop.GetSurvivalInt()
-	if ( index < 0 )
+	if ( !SURVIVAL_Loot_IsLootIndexValid( index ) )
 		return false
 
 	if ( prop.e.isBusy )

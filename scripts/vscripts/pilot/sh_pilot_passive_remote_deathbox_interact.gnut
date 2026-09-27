@@ -47,7 +47,7 @@ struct
 
 	bool allowTakingArmor = false
 	bool allowTakingGuns = true
-	bool allowGrabbingBanners = false
+	bool allowGrabbingBanners = true
 
 	bool limitUses = true
 } tuning
@@ -390,7 +390,7 @@ void function GetExtendedRangeUseEntityCallbackForPlayer( entity player, array<e
 		{
 			Assert( IsValid( deathbox ) )
 
-			if ( !PlayerIsLinkedToDeathbox( player, deathbox ) )
+			if ( !PlayerIsLinkedToDeathbox( player, deathbox ) && deathbox.DoesShareRealms( player ) )
 			{
 				outEnts.append( deathbox )
 			}
@@ -582,7 +582,8 @@ void function PlayerAccessingBoxRemotely_Thread( entity player, entity deathbox 
 
 	OnThreadEnd( function () : ( player ) {
 		delete file.playerToDeathboxInUse[player]
-		player.SetPlayerNetEnt( REMOTE_DEATHBOX_ALTER_ACCESS_NETVAR, null )
+		if ( IsValid( player ) )
+			player.SetPlayerNetEnt( REMOTE_DEATHBOX_ALTER_ACCESS_NETVAR, null )
 	} )
 
 	file.playerToDeathboxInUse[ player ] <- deathbox

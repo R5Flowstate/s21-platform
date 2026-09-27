@@ -2525,6 +2525,16 @@ string function PlatformIDToIconString( int platformID )
 }
 #endif
 
+#if CLIENT
+string function PlayerInputIconString( entity player )
+{
+	if ( !IsValid( player ) || !player.IsPlayer() )
+		return ""
+
+	return player.GetPlayerNetBool( "FS_PlayerIsMnk" ) ? "%$rui/flowstate_custom/input_mouse%" : "%$rui/menu/crossplatform/controller%"
+}
+#endif
+
 
 #if SERVER || CLIENT
 void function DestroyEntities( array<entity> ents )
@@ -3679,7 +3689,7 @@ entity function SafeCallFunctionEntity( string functionName, entity defaultValue
 
 bool function IsArenaMode()
 {
-	return false
+	return GetCurrentPlaylistVarBool( "arenas_mode", false )
 }
 
 // S21 sh_utility_all — playlist-driven RevTakeover mode gate
@@ -3739,11 +3749,6 @@ void function Safe_CreateMovementMapDummieFromMapLoad( vector pos, vector ang )
 	ModCallbacks_CallVoidCallbackWithParams( "CreateMovementMapDummieFromMapLoad", params )
 }
 
-bool function Safe_isScenariosMode()
-{
-	return ModCallbacks_CallBoolCallback( "isScenariosMode", false )
-}
-
 bool function Safe_is1v1EnabledAndAllowed()
 {
 	return ModCallbacks_CallBoolCallback( "is1v1EnabledAndAllowed", false )
@@ -3754,31 +3759,6 @@ void function Safe_StartUpdatingArmorSwapLastTime()
 	ModCallbacks_CallVoidCallback( "StartUpdatingArmorSwapLastTime" )
 }
 
-void function Safe_FS_Scenarios_SaveBigDoorData( entity door )
-{
-	array<CallbackParam> params = ModCallbacks_CreateParams()
-	ModCallbacks_AddEntityParam( params, door )
-
-	ModCallbacks_CallVoidCallbackWithParams( "FS_Scenarios_SaveBigDoorData", params )
-}
-
-void function Safe_DropLoot_RefScenarios( entity player )
-{
-	array<CallbackParam> params = ModCallbacks_CreateParams()
-	ModCallbacks_AddEntityParam( params, player )
-
-	ModCallbacks_CallVoidCallbackWithParams( "DropLoot_RefScenarios", params )
-}
-
-void function Safe_AddToTrackedEnts_RefScenarios( entity player, entity ent )
-{
-	array<CallbackParam> params = ModCallbacks_CreateParams()
-	ModCallbacks_AddEntityParam( params, player )
-	ModCallbacks_AddEntityParam( params, ent )
-
-	ModCallbacks_CallVoidCallbackWithParams( "AddToTrackedEnts_RefScenarios", params )
-}
-
 bool function Safe_FS_Spies_IsVictimBackwardsToAttacker( entity attacker, entity victim, vector position )
 {
 	array<CallbackParam> params = ModCallbacks_CreateParams()
@@ -3787,22 +3767,6 @@ bool function Safe_FS_Spies_IsVictimBackwardsToAttacker( entity attacker, entity
 	ModCallbacks_AddVectorParam( params, position )
 
 	return ModCallbacks_CallBoolCallbackWithParams( "FS_Spies_IsVictimBackwardsToAttacker", params, false )
-}
-
-bool function Safe_FS_Scenarios_PlayerCanPing( entity player )
-{
-	array<CallbackParam> params = ModCallbacks_CreateParams()
-	ModCallbacks_AddEntityParam( params, player )
-
-	return ModCallbacks_CallBoolCallbackWithParams( "FS_Scenarios_PlayerCanPing", params, true )
-}
-
-void function Safe_FS_Scenarios_SaveLootbinData( entity player )
-{
-	array<CallbackParam> params = ModCallbacks_CreateParams()
-	ModCallbacks_AddEntityParam( params, player )
-
-	ModCallbacks_CallVoidCallbackWithParams( "FS_Scenarios_SaveLootbinData", params )
 }
 #endif // SERVER
 
@@ -4017,11 +3981,11 @@ void function _MenuExtendedUse_InternalThread( var focusElem, var holdToUseElem,
 
 	var rui = Hud_GetRui( holdToUseElem )
 	RuiSetBool( rui, "isVisible", true )
-	RuiSetGameTime( rui, "startTime", UITime() )
+	RuiSetGameTime( rui, "startTime", ClientTime() )
 	RuiSetFloat( rui, "duration", duration )
 	RuiSetString( rui, "holdButtonHint", isAltAction ? "%[X_BUTTON|MOUSE2]%" : "%[A_BUTTON|MOUSE1]%" )
 
-	float uiEndTime = UITime() + duration
+	float uiEndTime = ClientTime() + duration
 
 	if ( loopSound != "" )
 		EmitUISound( loopSound )
@@ -4035,7 +3999,7 @@ void function _MenuExtendedUse_InternalThread( var focusElem, var holdToUseElem,
 		if ( loopSound != "" )
 			StopUISound( loopSound )
 
-		if ( isForClientVM )
+		if ( isForClientVM && CanRunClientScript() )
 		{
 			RunClientScript( "_UIToClient_MenuExtendedUseEnded", success[0] )
 		}
@@ -4062,7 +4026,7 @@ void function _MenuExtendedUse_InternalThread( var focusElem, var holdToUseElem,
 		if ( !isButtonHeld )
 			break
 
-		if ( UITime() >= uiEndTime )
+		if ( ClientTime() >= uiEndTime )
 			break
 
 		if ( GetMouseFocus() != focusElem && !GetDpadNavigationActive() )
@@ -4078,7 +4042,7 @@ void function _MenuExtendedUse_InternalThread( var focusElem, var holdToUseElem,
 		WaitFrame()
 	}
 
-	if ( UITime() < uiEndTime )
+	if ( ClientTime() < uiEndTime )
 		return
 
 	if ( successSound != "" )
@@ -4453,23 +4417,27 @@ bool function IsStringNumber( string str )
 	if ( str.len() == 0 )
 		return false
 	
-    int start = ( str[0] == '-' && str.len() > 1 ) ? 1 : 0    
+    int start = ( str[0] == '-' && str.len() > 1 ) ? 1 : 0
 	bool dot = false
-	
-	for ( int i = start; i < str.len(); i++ ) 
+	bool digit = false
+
+	for ( int i = start; i < str.len(); i++ )
 	{
 		if (str[i] == '.')
 		{
 			if( dot )
 				return false
-			else 
+			else
 				dot = true
-		} 
+		}
 		else if ( str[i] < '0' || str[i] > '9' )
 			return false
+		else
+			digit = true
     }
-	
-    return true
+
+    // "." and "-." have no digits and would throw in tofloat().
+    return digit
 }
 
 int function stringcmp( string a, string b ) 

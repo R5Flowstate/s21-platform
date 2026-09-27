@@ -964,6 +964,8 @@ void function WreckingBall_GetTheBallRolling( entity ball, vector dir )
 
 			if ( IsFriendlyTeam( device.GetTeam(), ball.GetTeam() ) )
 				continue
+			if ( !device.DoesShareRealms( ball ) )
+				continue
 
 			vector deviceProjectedPosition = GetClosestPointOnLineSegment( ball.GetCenter(), ballPosLastFrame, device.GetOrigin() )
 			float distanceToProjection = Distance( deviceProjectedPosition, device.GetOrigin() )
@@ -1001,6 +1003,8 @@ void function WreckingBall_GetTheBallRolling( entity ball, vector dir )
 				continue
 
 			if ( IsFriendlyTeam( device.GetTeam(), ball.GetTeam() ) )
+				continue
+			if ( !device.DoesShareRealms( ball ) )
 				continue
 
 			vector deviceProjectedPosition = GetClosestPointOnLineSegment( ball.GetCenter(), ballPosLastFrame, device.GetOrigin() )
@@ -1230,10 +1234,10 @@ void function WreckingBall_CreateImpact( entity projectile, vector pos, vector a
 	if ( file.fxOption_playTempFX )
 
 		if( projectile in file.isBallOnFire && file.isBallOnFire[ projectile ] ) // upgrade_maggie_thermite_explosion
-			StartParticleEffectInWorld( GetParticleSystemIndex( WRECKING_BALL_GROUND_IMPACT_SMALL_FX_UPGRADE ), pos, angles )
+			StartParticleEffectInWorldForRealms( GetParticleSystemIndex( WRECKING_BALL_GROUND_IMPACT_SMALL_FX_UPGRADE ), pos, angles, projectile )
 		else
 
-			StartParticleEffectInWorld( GetParticleSystemIndex( WRECKING_BALL_GROUND_IMPACT_SMALL_FX ), pos, angles )
+			StartParticleEffectInWorldForRealms( GetParticleSystemIndex( WRECKING_BALL_GROUND_IMPACT_SMALL_FX ), pos, angles, projectile )
 }
 
 bool function WreckingBall_CheckForNearbyEnemies( entity ball, vector ballPosLastFrame, array<entity> ignoreArray )
@@ -1290,7 +1294,7 @@ void function WreckingBall_CreateFinalExplosion( entity ball, bool isFirstHit )
 	{
 		try
 		{
-			StartParticleEffectInWorld_ReturnEntity( GetParticleSystemIndex( WRECKING_BALL_FINAL_EXPLODE_FX ), explosionPos, explosionDir  )
+			StartParticleEffectInWorldForRealms( GetParticleSystemIndex( WRECKING_BALL_FINAL_EXPLODE_FX ), explosionPos, explosionDir, ball )
 		}
 		catch ( e )
 		{

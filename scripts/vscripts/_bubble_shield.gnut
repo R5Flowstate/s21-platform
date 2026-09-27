@@ -258,6 +258,9 @@ entity function CreateBubbleShieldWithSettings( int team, vector origin, vector 
 
 
 	SetTeam( bubbleShield, team )
+	// In the owner's realms before the sustain sound starts on it.
+	if ( IsValid( owner ) )
+		CopyRealmsFromTo( owner, bubbleShield )
 	array<entity> bubbleShieldFXs
 
 	if ( doVFX )

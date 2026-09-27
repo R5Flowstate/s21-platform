@@ -7,6 +7,7 @@ global function OnWeaponTossPrep_weapon_dirty_bomb
 
 #if SERVER
 global function RemoveCausticDirtyBomb
+global function DirtyBomb_Destruction
 #endif
 
 global const string DIRTY_BOMB_TARGETNAME = "caustic_trap"
@@ -403,7 +404,7 @@ void function RemoveCanister( entity canisterProxy, entity mover )
 }
 
 // Global interface
-void function RemoveCausticDirtyBomb( entity canisterProxy, entity mover )
+void function RemoveCausticDirtyBomb( entity canisterProxy, entity mover = null )
 {
 	thread RemoveCanister( canisterProxy, mover )
 }
@@ -620,7 +621,8 @@ void function DetonateDirtyBombCanister( entity canisterProxy )
 
 	entity owner = canisterProxy.GetBossPlayer()
 
-	owner.EndSignal( "CleanUpPlayerAbilities" )
+	if ( IsValid( owner ) )
+		owner.EndSignal( "CleanUpPlayerAbilities" )
 
 	//If the owner is alive we should use the owner, otherwise world is attacker
 	entity attacker = IsValid( owner ) ? owner : svGlobal.worldspawn
@@ -930,3 +932,20 @@ const asset DIRTY_BOMB_CANISTER_MODEL_BIG = $"mdl/props/caustic_gas_tank/caustic
 const float DIRTY_BOMB_TRACE_HEIGHT_END_OFFSET = 36
 
 const asset DIRTY_BOMB_CANISTER_EXPLODE_FX = $"P_gastrap_destroyed"
+
+#if SERVER
+void function DirtyBomb_Destruction( entity canisterProxy )
+{
+	int effectID
+	string destroySFX
+
+	if( IsValid( canisterProxy ) )
+	{
+		effectID = PrecacheParticleSystem( DIRTY_BOMB_CANISTER_EXPLODE_FX )
+		destroySFX 	= DIRTY_BOMB_CANISTER_EXPLODE_SOUND
+
+		StartParticleEffectInWorldForRealms( effectID, canisterProxy.GetOrigin(), canisterProxy.GetAngles(), canisterProxy )
+		EmitSoundAtPosition( TEAM_UNASSIGNED, canisterProxy.GetOrigin(), destroySFX, canisterProxy )
+	}
+}
+#endif

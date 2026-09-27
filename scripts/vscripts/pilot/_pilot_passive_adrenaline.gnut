@@ -193,7 +193,7 @@ void function PassiveAdrenaline_OnProjectileHitVortexTrigger( entity weapon, ent
 void function PassiveAdrenaline_Start( entity player )
 {
 	// no need to check both status effect, since he should never have one without the other.
-	if ( StatusEffect_GetTimeRemaining( player, eStatusEffect.speed_boost ) > 0 )
+	if ( file.playerStatusEffects[ player ].speedBoostID != SE_INVALID_HANDLE && StatusEffect_GetTimeRemaining( player, eStatusEffect.speed_boost ) > 0 )
 	{
 		StatusEffect_SetDuration( player, file.playerStatusEffects[ player ].adrenalineVisualsID, PassiveAdrenaline_GetAdrenalineDuration( player ) )
 		StatusEffect_SetDuration( player, file.playerStatusEffects[ player ].speedBoostID, PassiveAdrenaline_GetAdrenalineDuration( player ) )

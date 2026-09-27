@@ -17,7 +17,7 @@ var function OnWeaponPrimaryAttack_ItemSpawner( entity weapon, WeaponPrimaryAtta
 
 	vector attackOrigin = attackParams.pos - <0,0,16>
 	vector attackVec = attackParams.dir
-	entity lootEnt = SURVIVAL_ThrowLootFromPoint( attackOrigin, (attackVec * 5.0), ref, countPerDrop, null, null )
+	entity lootEnt = SURVIVAL_ThrowLootFromPoint( attackOrigin, (attackVec * 5.0), ref, countPerDrop, null, null, weaponOwner )
 #endif // SERVER
 
 #if CLIENT

@@ -11,6 +11,7 @@ global function SURVIVAL_Loot_GetDetailType2String
 global function SURVIVAL_Loot_GetHealthPickupTypeFromRef
 global function SURVIVAL_Loot_GetHealthPickupRefFromType
 global function SURVIVAL_Loot_GetHealthKitDataFromStruct
+global function SURVIVAL_Loot_IsHealthKitType
 global function SURVIVAL_Loot_GetHealthPickupCategoryFromData
 global function SURVIVAL_Loot_GetTotalHealthItems
 global function SURVIVAL_Loot_RegisterConditionalCheck
@@ -2239,12 +2240,22 @@ string function SURVIVAL_Loot_GetHealthPickupRefFromType( int pickupType )
 {
 	if ( WeaponDrivenConsumablesEnabled() )
 		return Consumable_GetConsumableInfo( pickupType ).lootData.ref
-	else
-		return file.healthPickups[pickupType].lootData.ref
+
+#if CLIENT
+	// The selected type reaches the HUD from server state; an unknown one reads as no kit.
+	if ( !( pickupType in file.healthPickups ) )
+		return ""
+#endif
+	return file.healthPickups[pickupType].lootData.ref
 
 	unreachable
 }
 
+
+bool function SURVIVAL_Loot_IsHealthKitType( int kitType )
+{
+	return kitType in file.healthPickups
+}
 
 HealthPickup function SURVIVAL_Loot_GetHealthKitDataFromStruct( int kitType )
 {

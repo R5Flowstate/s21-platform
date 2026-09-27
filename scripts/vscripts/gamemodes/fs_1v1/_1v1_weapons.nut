@@ -4,7 +4,9 @@ global function Gamemode1v1_AreCustomWeaponsAllowedForPlayer
 global function Gamemode1v1_GiveWeapon
 global function Gamemode1v1_TakeAll
 global function Gamemode1v1_SetWeaponAmmoStackAmount
-global function FS_Scenarios_GiveWeaponsToGroup
+global function FS_1v1_GiveScenarioLoadout
+global function FS_1v1_GiveLockedWeapon
+global function FS_1v1_LockedSetSuffixForChoice
 global function ValidateBlacklistedWeapons
 global function ClientCommand_GiveWeapon_1v1
 global function ClientCommand_SaveCurrentWeapons_1v1
@@ -27,63 +29,34 @@ void function EquipHostSetInventoryAttachments( entity player )
 		SURVIVAL_AddToPlayerInventory( player, optic )
 }
 
-void function FS_Scenarios_GiveWeaponsToGroup( array<entity> players )
+// Scenarios fight kit: consumables and melee always, the host's weapon pool only
+// when the fight does not start empty-handed.
+void function FS_1v1_GiveScenarioLoadout( entity player, bool giveWeapons )
 {
-	#if DEVELOPER
-		printt( "FS_Scenarios_GiveWeaponsToGroup" )
-	#endif
-
-	if( players.len() == 0 )
+	if( !IsValid( player ) )
 		return
 
-	scenariosGroupStruct ornull group = FS_Scenarios_ReturnGroupForPlayer( players[0] )
+	TakeAllWeapons( player )
+	Survival_SetInventoryEnabled( player, true )
+	SetPlayerInventory( player, [] )
 
-	if( group == null )
-		return
-
-	expect scenariosGroupStruct( group )
-
-	if( !group.isValid  )
-		return
-
-	EndSignal( group.dummyEnt, "FS_Scenarios_GroupFinished" )
-	//WaitSignal( group.dummyEnt, "FS_Scenarios_GroupIsReady" )
-
-	foreach( player in players )
+	if( giveWeapons )
 	{
-		if( !IsValid( player ) )
-			continue
-
-		TakeAllWeapons(player)
-		Survival_SetInventoryEnabled( player, true )
-		SetPlayerInventory( player, [] ) //clear
-
-		if( !FS_Scenarios_GetInventoryEmptyEnabled() )
-		{
-			string primaryWeaponWithAttachments = ReturnRandomPrimaryMetagame_1v1()
-			string secondaryWeaponWithAttachments = ReturnRandomSecondaryMetagame_1v1()
-
-			EquipHostSetInventoryAttachments( player )
-			GivePrimaryWeapon_1v1( player, primaryWeaponWithAttachments, WEAPON_INVENTORY_SLOT_PRIMARY_0 )
-			GivePrimaryWeapon_1v1( player, secondaryWeaponWithAttachments, WEAPON_INVENTORY_SLOT_PRIMARY_1 )
-		}
-
-		TakeAllPassives( player )
-
-		player.TakeOffhandWeapon( OFFHAND_SLOT_FOR_CONSUMABLES )
-		player.GiveOffhandWeapon( CONSUMABLE_WEAPON_NAME, OFFHAND_SLOT_FOR_CONSUMABLES, [] )
-
-		foreach( item in STANDARD_INV_LOOT )
-			SURVIVAL_AddToPlayerInventory( player, item, 2 )
-
-		if( FS_1v1_PlayerHasClient( player ) )
-			Remote_CallFunction_ByRef( player, "Minimap_EnableDraw" )
-
-		player.TakeNormalWeaponByIndexNow( WEAPON_INVENTORY_SLOT_PRIMARY_2 )
-		player.TakeOffhandWeapon( OFFHAND_MELEE )
-		player.GiveWeapon( "mp_weapon_melee_survival", WEAPON_INVENTORY_SLOT_PRIMARY_2, [] )
-		player.GiveOffhandWeapon( "melee_pilot_emptyhanded", OFFHAND_MELEE, [] )
+		EquipHostSetInventoryAttachments( player )
+		GivePrimaryWeapon_1v1( player, ReturnRandomPrimaryMetagame_1v1(), WEAPON_INVENTORY_SLOT_PRIMARY_0 )
+		GivePrimaryWeapon_1v1( player, ReturnRandomSecondaryMetagame_1v1(), WEAPON_INVENTORY_SLOT_PRIMARY_1 )
 	}
+
+	player.TakeOffhandWeapon( OFFHAND_SLOT_FOR_CONSUMABLES )
+	player.GiveOffhandWeapon( CONSUMABLE_WEAPON_NAME, OFFHAND_SLOT_FOR_CONSUMABLES, [] )
+
+	if( FS_1v1_PlayerHasClient( player ) )
+		Remote_CallFunction_ByRef( player, "Minimap_EnableDraw" )
+
+	player.TakeNormalWeaponByIndexNow( WEAPON_INVENTORY_SLOT_PRIMARY_2 )
+	player.TakeOffhandWeapon( OFFHAND_MELEE )
+	player.GiveWeapon( "mp_weapon_melee_survival", WEAPON_INVENTORY_SLOT_PRIMARY_2, [] )
+	player.GiveOffhandWeapon( "melee_pilot_emptyhanded", OFFHAND_MELEE, [] )
 }
 
 bool function Gamemode1v1_AreCustomWeaponsAllowedForPlayer( entity player )
@@ -206,14 +179,14 @@ void function FS_1v1_StampLockedSet( entity weapon )
 	SetWeaponLockedSetFromLootTags( [ setMod ], weapon )
 }
 
-entity function FS_1v1_GiveLockedWeapon( entity player, string weaponclass, int slot, array<string> fallbackMods )
+entity function FS_1v1_GiveLockedWeapon( entity player, string weaponclass, int slot, array<string> fallbackMods, string choiceOverride = "" )
 {
 	string classname = weaponclass
 	array<string> mods
 	foreach ( string m in fallbackMods )
 		mods.append( m )
 
-	string choice = FS_1v1_GetLockedSetChoice()
+	string choice = choiceOverride != "" ? choiceOverride : FS_1v1_GetLockedSetChoice()
 	string suffix = FS_1v1_LockedSetSuffixForChoice( choice )
 	string setMod = FS_1v1_LockedSetModForChoice( choice )
 	array<string> lootTags
@@ -350,6 +323,21 @@ void function GiveWeaponsToGroup( array<entity> players, MatchGroup groupRef )
 				return
 		}
 
+		if ( groupRef.p1PickPending || groupRef.p2PickPending )
+		{
+			waitthread FS_1v1_RunChallengePick( groupRef )
+
+			foreach( player in players )
+			{
+				if( !IsValid( player ) )
+					continue
+
+				int state = Gamemode1v1_GetPlayerGamestate( player )
+				if( state != e1v1State.SEQUENCE && state != e1v1State.IN_MATCH )
+					return
+			}
+		}
+
 		// Set MATCHING state after delay so minimap/HUD activate when match starts
 		foreach( player in players )
 		{
@@ -452,7 +440,7 @@ void function GiveWeaponsToGroup( array<entity> players, MatchGroup groupRef )
 				FS_GiveRandomMelee( player, true )
 			}
 
-			if( settings.bAllowAbilities )
+			if( FS_1v1_AbilitiesAllowed( player ) )
 				RechargePlayerAbilities( player )
 			else
 				FS_1v1_StripAbilities( player )

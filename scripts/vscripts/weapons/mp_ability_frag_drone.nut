@@ -548,7 +548,7 @@ void function FragDrone_Launch( entity weapon, entity owner, WeaponPrimaryAttack
 	vis.Anim_PlayOnly( DEPLOY_ANIM )
 	thread FragDrone_PlayIdleAfterDeploy( vis )
 
-	StartParticleEffectInWorld( GetParticleSystemIndex( VFX_FRAG_DRONE_DEPLOY ), startPos, angles )
+	StartParticleEffectInWorldForRealms( GetParticleSystemIndex( VFX_FRAG_DRONE_DEPLOY ), startPos, angles, owner )
 	StartParticleEffectOnEntity( vis, GetParticleSystemIndex( VFX_DRONE_SPAWN ), FX_PATTACH_ABSORIGIN_FOLLOW, ATTACHMENTID_INVALID )
 	EmitSoundOnEntity( mover, SEEKING_TARGET_SOUND_LOOP )
 
@@ -1063,7 +1063,7 @@ void function FragDrone_Detonate( entity mover, entity vis, entity owner, entity
 
 	vector origin = mover.GetOrigin()
 
-	StartParticleEffectInWorld( GetParticleSystemIndex( VFX_DRONE_DEST ), origin, <0, 0, 0> )
+	StartParticleEffectInWorldForRealms( GetParticleSystemIndex( VFX_DRONE_DEST ), origin, <0, 0, 0>, mover )
 	PlayImpactFXTable( origin, owner, IMPACT_FX_BOMB_EXPLODE )
 	EmitSoundAtPosition( TEAM_ANY, origin, DRONE_EXPLODE_SOUND, mover )
 
@@ -1177,7 +1177,7 @@ void function FragDrone_OnVisKilled( entity vis, var damageInfo )
 
 	vector origin = vis.GetOrigin()
 
-	StartParticleEffectInWorld( GetParticleSystemIndex( VFX_DRONE_DEST ), origin, <0, 0, 0> )
+	StartParticleEffectInWorldForRealms( GetParticleSystemIndex( VFX_DRONE_DEST ), origin, <0, 0, 0>, vis )
 	EmitSoundAtPosition( TEAM_ANY, origin, DRONE_DESTROYED_SOUND, vis )
 
 	if ( Time() - vis.e.axleLaunchTime < tuning.refundTime )

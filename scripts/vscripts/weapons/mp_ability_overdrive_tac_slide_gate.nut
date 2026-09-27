@@ -416,7 +416,7 @@ void function SlideGate_OnEnter_Server( entity trigger, entity ent )
 	float duration = SlideGate_GetMaxSlideTime( ent )
 	StatusEffect_AddTimed( ent, eStatusEffect.slide_gate_boosting, 1.0, duration, 0.0 )
 
-	EmitSoundOnEntity( ent, SLIDEGATE_LAUNCH_3P )
+	EmitSoundOnEntityExceptToPlayer( ent, ent, SLIDEGATE_LAUNCH_3P )
 	array<entity> boostFX
 	boostFX.append( StartParticleEffectOnEntity_ReturnEntity( ent, GetParticleSystemIndex( DoesPlayerHaveOverdrivePassive( ent ) ? SLIDEGATE_JUMPJETS_FX_OVERDRIVE : SLIDEGATE_JUMPJETS_FX ), FX_PATTACH_ABSORIGIN_FOLLOW, ATTACHMENTID_INVALID ) )
 	boostFX.append( StartParticleEffectOnEntity_ReturnEntity( ent, GetParticleSystemIndex( SLIDEGATE_TRAIL_FX ), FX_PATTACH_ABSORIGIN_FOLLOW, ATTACHMENTID_INVALID ) )
@@ -509,7 +509,7 @@ void function SlideGate_BoostThink( entity player, entity gate, float duration, 
 	player.EndSignal( "OnDeath" )
 	player.EndSignal( "OnDestroy" )
 
-	EmitSoundOnEntity( player, SLIDEGATE_EFFECT_ACTIVE_3P )
+	EmitSoundOnEntityExceptToPlayer( player, player, SLIDEGATE_EFFECT_ACTIVE_3P )
 
 	OnThreadEnd(
 		function() : ( player, gaveJump, stanceHandle, boostFX )
@@ -542,7 +542,8 @@ void function SlideGate_BoostThink( entity player, entity gate, float duration, 
 		WaitFrame()
 	}
 
-	EmitSoundOnEntity( player, SLIDEGATE_EFFECT_END_3P )
+	EmitSoundOnEntityOnlyToPlayer( player, player, SLIDEGATE_EFFECT_END_1P )
+	EmitSoundOnEntityExceptToPlayer( player, player, SLIDEGATE_EFFECT_END_3P )
 }
 #endif
 

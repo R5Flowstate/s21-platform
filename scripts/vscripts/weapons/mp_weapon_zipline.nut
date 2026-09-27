@@ -370,9 +370,10 @@ void function OnZiplineDestroyed( entity owner, entity startModel, entity endMod
 			if ( IsValid( startModel ) )
 			{
 				EmitSoundAtPosition( TEAM_UNASSIGNED, startModel.GetOrigin(), "coop_sentrygun_explode", startModel )
-				PlayFX( ZIPLINE_STATION_EXPLOSION, startModel.GetOrigin() )
-				CreatePhysExplosion( startModel.GetOrigin(), 50, PHYS_EXPLOSION_LARGE, 11 )
+				StartParticleEffectInWorldForRealms( GetParticleSystemIndex( ZIPLINE_STATION_EXPLOSION ), startModel.GetOrigin(), <0, 0, 0>, startModel )
+				CreatePhysExplosion( startModel.GetOrigin(), 50, PHYS_EXPLOSION_LARGE, 11, true, startModel )
 				entity shake = CreateShake( startModel.GetOrigin(), 5, 150, 1, 200 )
+				CopyRealmsFromTo( startModel, shake )
 				shake.kv.spawnflags = 4 // SF_SHAKE_INAIR
 				startModel.Destroy()
 			}
@@ -380,9 +381,10 @@ void function OnZiplineDestroyed( entity owner, entity startModel, entity endMod
 			if ( IsValid( endModel ) )
 			{
 				EmitSoundAtPosition( TEAM_UNASSIGNED, endModel.GetOrigin(), "coop_sentrygun_explode", endModel )
-				PlayFX( ZIPLINE_STATION_EXPLOSION, endModel.GetOrigin() )
-				CreatePhysExplosion( endModel.GetOrigin(), 50, PHYS_EXPLOSION_LARGE, 11 )
+				StartParticleEffectInWorldForRealms( GetParticleSystemIndex( ZIPLINE_STATION_EXPLOSION ), endModel.GetOrigin(), <0, 0, 0>, endModel )
+				CreatePhysExplosion( endModel.GetOrigin(), 50, PHYS_EXPLOSION_LARGE, 11, true, endModel )
 				entity shake = CreateShake( endModel.GetOrigin(), 5, 150, 1, 200 )
+				CopyRealmsFromTo( endModel, shake )
 				shake.kv.spawnflags = 4 // SF_SHAKE_INAIR
 				endModel.Destroy()
 			}

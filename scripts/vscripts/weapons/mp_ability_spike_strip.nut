@@ -370,7 +370,7 @@ void function OnProjectileCollision_ability_spike_strip( entity projectile, vect
 			"exp_ferro_tac_SM" )
 		EmitSoundAtPosition( TEAM_ANY, pos, SPIKE_STRIP_EXPLOSION_SFX, projectile )
 
-		StartParticleEffectInWorld( GetParticleSystemIndex( SPIKE_STRIP_CREATE_FX ), pos, ZERO_VECTOR )
+		StartParticleEffectInWorldForRealms( GetParticleSystemIndex( SPIKE_STRIP_CREATE_FX ), pos, ZERO_VECTOR, projectile )
 		vector projectileOrigin = projectile.GetOrigin()
 		vector flattenedDir = FlattenNormalizeVec( projectile.proj.savedDir )
 		float dot = DotProduct( projectile.GetUpVector(), < 0, 0, 1 > )
@@ -600,7 +600,7 @@ void function SpikeTotemThread( entity totem, entity owner  )
 			entity entToDelete = owner.e.activeTraps.top()
 			if ( IsValid( entToDelete ) )
 			{
-				StartParticleEffectInWorld( GetParticleSystemIndex( SPIKE_STRIP_CREATE_FX ), entToDelete.GetOrigin(), ZERO_VECTOR )
+				StartParticleEffectInWorldForRealms( GetParticleSystemIndex( SPIKE_STRIP_CREATE_FX ), entToDelete.GetOrigin(), ZERO_VECTOR, entToDelete )
 				EmitSoundAtPosition( TEAM_ANY, entToDelete.GetOrigin() + <0, 0, SPIKE_STRIP_SFX_Z_OFFSET>, SPIKE_STRIP_DISSOLVE_3P, entToDelete )
 				entToDelete.Destroy()
 			}
@@ -1326,7 +1326,7 @@ void function SpikeLifeTimeThread( entity owner, entity spike, entity mainSpike,
 		{
 			if ( IsValid( spike ) )
 			{
-				StartParticleEffectInWorld( GetParticleSystemIndex( SPIKE_STRIP_CREATE_FX ), spike.GetOrigin(), ZERO_VECTOR )
+				StartParticleEffectInWorldForRealms( GetParticleSystemIndex( SPIKE_STRIP_CREATE_FX ), spike.GetOrigin(), ZERO_VECTOR, spike )
 				EmitSoundOnEntity( spike, RESIN_CRUMBLE_3P_SOUND )
 				spike.Destroy()
 			}
@@ -1457,7 +1457,7 @@ void function SpikeTotemTriggerThread( entity totem, entity trigger, int teamId 
 		array< entity > ents = trigger.GetTouchingEntities()
 		foreach( ent in ents )
 		{
-			if( IsAlive( ent ) && ( ( ( ent.IsPlayer() || ent.IsPlayerDecoy() ) && IsEnemyTeam( ent.GetTeam(), trigger.GetTeam() ) ) || ( ( ent.IsNPC() && !ent.IsNonCombatAI() ) && !IsDropship( ent ) && !IsFriendlyTeam( ent.GetTeam(), trigger.GetTeam() ) ) ) && !ent.IsPhaseShifted() )
+			if( IsAlive( ent ) && ent.DoesShareRealms( trigger ) && ( ( ( ent.IsPlayer() || ent.IsPlayerDecoy() ) && IsEnemyTeam( ent.GetTeam(), trigger.GetTeam() ) ) || ( ( ent.IsNPC() && !ent.IsNonCombatAI() ) && !IsDropship( ent ) && !IsFriendlyTeam( ent.GetTeam(), trigger.GetTeam() ) ) ) && !ent.IsPhaseShifted() )
 			{
                                 
 					touchingEnemy = true
@@ -1562,7 +1562,7 @@ void function SpikeTotemTriggerThread( entity totem, entity trigger, int teamId 
 			entity damageOwner = IsValid( trigger.GetOwner() ) ? trigger.GetOwner()  : svGlobal.worldspawn
 			foreach( ent in ents )
 			{
-				if( !IsValid( ent ) || ent.IsPhaseShifted() || IsFriendlyTeam( damageOwner.GetTeam(), ent.GetTeam() ) || ( ent.IsPlayer() && PlayerHasPassive( ent, ePassives.PAS_LOCKDOWN ) ) )
+				if( !IsValid( ent ) || !ent.DoesShareRealms( trigger ) || ent.IsPhaseShifted() || IsFriendlyTeam( damageOwner.GetTeam(), ent.GetTeam() ) || ( ent.IsPlayer() && PlayerHasPassive( ent, ePassives.PAS_LOCKDOWN ) ) )
 					continue
 
 				if( SpikeStrip_InSpikes( totem, trigger, ent ) )
@@ -1739,7 +1739,7 @@ void function SpikeStripEnterThread( entity player, PassByReferenceBool visibleE
 
 void function SpikeTriggerEnter( entity trigger, entity ent )
 {
-	if ( IsAlive( ent ) && ( ent.IsPlayer() || ent.IsNPC() ) )
+	if ( IsAlive( ent ) && ( ent.IsPlayer() || ent.IsNPC() ) && ent.DoesShareRealms( trigger ) )
 		thread SpikeTriggerEnterThread( trigger, ent )
 }
 
@@ -1857,7 +1857,7 @@ void function OnLittleSpikeDamaged( entity spike, var damageInfo )
 
 	if( damage >= spike.GetHealth() )
 	{
-		StartParticleEffectInWorld( GetParticleSystemIndex( $"P_debris_blast_vert" ), pos, ZERO_VECTOR )
+		StartParticleEffectInWorldForRealms( GetParticleSystemIndex( $"P_debris_blast_vert" ), pos, ZERO_VECTOR, spike )
 		EmitSoundOnEntity( spike, RESIN_CRUMBLE_3P_SOUND )
 	}
 

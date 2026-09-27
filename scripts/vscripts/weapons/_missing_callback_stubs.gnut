@@ -24,10 +24,8 @@ global function OnAbilityStart_Defender_Sustained
 global function OnAbilityStart_LaserCannon
 global function OnWeaponActivate_BeamstickStave
 global function OnWeaponActivate_GenericVFX
-global function OnWeaponActivate_SonarDart
 global function OnWeaponActivate_ability_BunkerBuster
 global function OnWeaponActivate_ability_cheat_death
-global function OnWeaponActivate_ability_drone_rider
 global function OnWeaponActivate_ability_fire_wave
 global function OnWeaponActivate_ability_self_destruct
 global function OnWeaponActivate_ability_speed_zone
@@ -37,8 +35,6 @@ global function OnWeaponActivate_alternator_smg
 global function OnWeaponActivate_arc_wave
 global function OnWeaponActivate_concussive_breach
 global function OnWeaponActivate_flash_shield
-global function OnWeaponActivate_following_medic
-global function OnWeaponActivate_following_medic_orders
 global function OnWeaponActivate_handheld_breach
 global function OnWeaponActivate_melee_agnostic_breachbeam
 global function OnWeaponActivate_melee_agnostic_breachbeamsaber
@@ -61,8 +57,6 @@ global function OnWeaponActivate_weapon_agnostic_prorookie_primary
 global function OnWeaponActivate_weapon_agnostic_rivnation_primary
 global function OnWeaponActivate_weapon_agnostic_veloform_primary
 global function OnWeaponActivate_weapon_agnostic_whip_primary
-global function OnWeaponActivate_weapon_charge_gauntlet
-global function OnWeaponActivate_weapon_charge_gauntlet_alt_mode
 global function OnWeaponActivate_weapon_epg
 global function OnWeaponActivate_weapon_hook_sword_primary
 global function OnWeaponActivate_weapon_newcastle_heirloom_primary
@@ -72,7 +66,6 @@ global function OnWeaponActivate_weapon_vortex_shield
 global function OnWeaponAttemptOffhandSwitch_GunTurret_v2
 global function OnWeaponAttemptOffhandSwitch_ability_BunkerBuster
 global function OnWeaponAttemptOffhandSwitch_ability_cheat_death
-global function OnWeaponAttemptOffhandSwitch_ability_drone_rider
 global function OnWeaponAttemptOffhandSwitch_ability_earthshaker
 global function OnWeaponAttemptOffhandSwitch_ability_fire_wave
 global function OnWeaponAttemptOffhandSwitch_ability_phase_rewind
@@ -80,11 +73,8 @@ global function OnWeaponAttemptOffhandSwitch_ability_pilot_mode
 global function OnWeaponAttemptOffhandSwitch_ability_thermal_denial
 global function OnWeaponAttemptOffhandSwitch_ability_zapper
 global function OnWeaponAttemptOffhandSwitch_arc_wave
-global function OnWeaponAttemptOffhandSwitch_following_medic
 global function OnWeaponAttemptOffhandSwitch_stone_defense
 global function OnWeaponChargeBegin_ability_thermal_denial
-global function OnWeaponChargeBegin_weapon_charge_gauntlet
-global function OnWeaponChargeBegin_weapon_charge_gauntlet_alt_mode
 global function OnWeaponChargeBegin_weapon_flash_shield
 global function OnWeaponChargeBegin_weapon_handheld_breach
 global function OnWeaponChargeBegin_weapon_vortex_shield
@@ -94,20 +84,15 @@ global function OnWeaponChargeEnd_weapon_handheld_breach
 global function OnWeaponChargeEnd_weapon_vortex_shield
 global function OnWeaponDeactivate_BeamstickStave
 global function OnWeaponDeactivate_GenericVFX
-global function OnWeaponDeactivate_SonarDart
 global function OnWeaponDeactivate_ability_BunkerBuster
 global function OnWeaponDeactivate_ability_cheat_death
-global function OnWeaponDeactivate_ability_drone_rider
 global function OnWeaponDeactivate_ability_earthshaker
 global function OnWeaponDeactivate_ability_fire_wave
-global function OnWeaponDeactivate_ability_halo
 global function OnWeaponDeactivate_ability_horizon_tac_space_elevator
 global function OnWeaponDeactivate_ability_thermal_denial
 global function OnWeaponDeactivate_alternator_smg
 global function OnWeaponDeactivate_concussive_breach
 global function OnWeaponDeactivate_flash_shield
-global function OnWeaponDeactivate_following_medic
-global function OnWeaponDeactivate_following_medic_orders
 global function OnWeaponDeactivate_handheld_breach
 global function OnWeaponDeactivate_melee_agnostic_breachbeam
 global function OnWeaponDeactivate_melee_agnostic_breachbeamsaber
@@ -131,15 +116,12 @@ global function OnWeaponDeactivate_weapon_agnostic_prorookie_primary
 global function OnWeaponDeactivate_weapon_agnostic_rivnation_primary
 global function OnWeaponDeactivate_weapon_agnostic_veloform_primary
 global function OnWeaponDeactivate_weapon_agnostic_whip_primary
-global function OnWeaponDeactivate_weapon_charge_gauntlet
-global function OnWeaponDeactivate_weapon_charge_gauntlet_alt_mode
 global function OnWeaponDeactivate_weapon_epg
 global function OnWeaponDeactivate_weapon_hook_sword_primary
 global function OnWeaponDeactivate_weapon_newcastle_heirloom_primary
 global function OnWeaponDeactivate_weapon_shield_deconstructor
 global function OnWeaponDeactivate_weapon_shotgun_pistol
 global function OnWeaponDeactivate_weapon_vortex_shield
-global function OnWeaponOwnerChanged_ability_following_medic
 global function OnWeaponOwnerChanged_alternator_smg
 global function OnWeaponOwnerChanged_melee_hook_sword
 global function OnWeaponOwnerChanged_weapon_dragon_lmg
@@ -149,17 +131,14 @@ global function OnWeaponOwnerChanged_weapon_hook_sword_primary
 global function OnWeaponOwnerChanged_weapon_lmg
 global function OnWeaponOwnerChanged_weapon_newcastle_heirloom_primary
 global function OnWeaponOwnerChanged_weapon_vortex_shield
-global function OnWeaponPrimaryAttackAnimEvent_ability_follow_medic
 global function OnWeaponPrimaryAttackAnimEvent_ability_phase_rewind
 global function OnWeaponPrimaryAttackAnimEvent_ability_pilot_mode
 global function OnWeaponPrimaryAttackAnimEvent_ability_speed_zone
 global function OnWeaponPrimaryAttack_BeamstickStave
 global function OnWeaponPrimaryAttack_ability_BunkerBuster
 global function OnWeaponPrimaryAttack_ability_cheat_death
-global function OnWeaponPrimaryAttack_ability_drone_rider
 global function OnWeaponPrimaryAttack_ability_earthshaker
 global function OnWeaponPrimaryAttack_ability_fire_wave
-global function OnWeaponPrimaryAttack_ability_medic_orders
 global function OnWeaponPrimaryAttack_ability_phase_rewind
 global function OnWeaponPrimaryAttack_ability_pilot_mode
 global function OnWeaponPrimaryAttack_ability_self_destruct
@@ -171,8 +150,6 @@ global function OnWeaponPrimaryAttack_concussive_breach
 global function OnWeaponPrimaryAttack_flash_shield
 global function OnWeaponPrimaryAttack_handheld_breach
 global function OnWeaponPrimaryAttack_party_box
-global function OnWeaponPrimaryAttack_weapon_charge_gauntlet
-global function OnWeaponPrimaryAttack_weapon_charge_gauntlet_alt_mode
 global function OnWeaponPrimaryAttack_weapon_defender_sustained
 global function OnWeaponPrimaryAttack_weapon_epg
 global function OnWeaponPrimaryAttack_weapon_vortex_shield
@@ -194,25 +171,20 @@ global function OnWeaponStartZoomOut_R101
 global function OnWeaponStartZoomOut_doubletake
 global function OnWeaponStartZoomOut_weapon_dragon_lmg
 global function OnWeaponStartZoomOut_weapon_lmg
-global function OnWeaponTossCancel_ability_halo
 global function OnWeaponTossPrep_AmmoSteal
 global function OnWeaponTossPrep_ability_group_cloak
-global function OnWeaponTossPrep_ability_halo
 global function OnWeaponTossPrep_weapon_shield_deconstructor
 global function OnWeaponTossReleaseAnimEvent_AmmoSteal
 global function OnWeaponTossReleaseAnimEvent_GunTurret_v2
 global function OnWeaponTossReleaseAnimEvent_ability_group_cloak
-global function OnWeaponTossReleaseAnimEvent_ability_halo
 global function OnWeaponTossReleaseAnimEvent_ability_spectre_drop
 global function OnWeaponTossReleaseAnimEvent_black_egg
 global function OnWeaponTossReleaseAnimEvent_weapon_GenericVFX
-global function OnWeaponTossReleaseAnimEvent_weapon_SonarDart
 global function OnWeaponTossReleaseAnimEvent_weapon_flashbang
 global function OnWeaponTossReleaseAnimEvent_weapon_grenade_barrier
 global function OnWeaponTossReleaseAnimEvent_weapon_ranged_breach
 global function OnWeaponTossReleaseAnimEvent_weapon_shield_deconstructor
 global function OnWeaponTossRelease_ability_horizon_tac_space_elevator
-global function OnWeaponToss_ability_halo
 global function OnWeaponToss_weapon_ranged_breach
 global function PowerSword_OnStartZoomIn
 global function PowerSword_OnStartZoomOut
@@ -230,7 +202,6 @@ global function OnProjectileCollision_ability_self_destruct
 global function OnProjectileCollision_ability_spectre_drop
 global function OnProjectileCollision_ability_zapper
 global function OnProjectileCollision_weapon_GenericVFX
-global function OnProjectileCollision_weapon_SonarDart
 global function OnProjectileCollision_weapon_ball_noncombat
 global function OnProjectileCollision_weapon_epg
 global function OnProjectileCollision_weapon_flashbang
@@ -246,7 +217,6 @@ global function PowerSword_OnWeaponCustomActivityStart
 #if CLIENT
 global function BusterRifle_OnClientAnimEvent
 global function MeleeBat_OnClientAnimEvent
-global function OnClientAnimEvent_SoanrDart
 global function OnClientAnimEvent_weapon_agnostic_prorookie_primary
 global function OnClientAnimEvent_weapon_ranged_breach
 global function OnClientAnimEvent_weapon_smr
@@ -393,11 +363,6 @@ void function OnWeaponActivate_GenericVFX( entity weapon )
 	MissingCallbackStub_Note( "OnWeaponActivate_GenericVFX" )
 }
 
-void function OnWeaponActivate_SonarDart( entity weapon )
-{
-	MissingCallbackStub_Note( "OnWeaponActivate_SonarDart" )
-}
-
 void function OnWeaponActivate_ability_BunkerBuster( entity weapon )
 {
 	MissingCallbackStub_Note( "OnWeaponActivate_ability_BunkerBuster" )
@@ -406,11 +371,6 @@ void function OnWeaponActivate_ability_BunkerBuster( entity weapon )
 void function OnWeaponActivate_ability_cheat_death( entity weapon )
 {
 	MissingCallbackStub_Note( "OnWeaponActivate_ability_cheat_death" )
-}
-
-void function OnWeaponActivate_ability_drone_rider( entity weapon )
-{
-	MissingCallbackStub_Note( "OnWeaponActivate_ability_drone_rider" )
 }
 
 void function OnWeaponActivate_ability_fire_wave( entity weapon )
@@ -457,16 +417,6 @@ void function OnWeaponActivate_concussive_breach( entity weapon )
 void function OnWeaponActivate_flash_shield( entity weapon )
 {
 	MissingCallbackStub_Note( "OnWeaponActivate_flash_shield" )
-}
-
-void function OnWeaponActivate_following_medic( entity weapon )
-{
-	MissingCallbackStub_Note( "OnWeaponActivate_following_medic" )
-}
-
-void function OnWeaponActivate_following_medic_orders( entity weapon )
-{
-	MissingCallbackStub_Note( "OnWeaponActivate_following_medic_orders" )
 }
 
 void function OnWeaponActivate_handheld_breach( entity weapon )
@@ -579,16 +529,6 @@ void function OnWeaponActivate_weapon_agnostic_whip_primary( entity weapon )
 	MissingCallbackStub_Note( "OnWeaponActivate_weapon_agnostic_whip_primary" )
 }
 
-void function OnWeaponActivate_weapon_charge_gauntlet( entity weapon )
-{
-	MissingCallbackStub_Note( "OnWeaponActivate_weapon_charge_gauntlet" )
-}
-
-void function OnWeaponActivate_weapon_charge_gauntlet_alt_mode( entity weapon )
-{
-	MissingCallbackStub_Note( "OnWeaponActivate_weapon_charge_gauntlet_alt_mode" )
-}
-
 void function OnWeaponActivate_weapon_epg( entity weapon )
 {
 	MissingCallbackStub_Note( "OnWeaponActivate_weapon_epg" )
@@ -637,12 +577,6 @@ bool function OnWeaponAttemptOffhandSwitch_ability_cheat_death( entity weapon )
 	return true
 }
 
-bool function OnWeaponAttemptOffhandSwitch_ability_drone_rider( entity weapon )
-{
-	MissingCallbackStub_Note( "OnWeaponAttemptOffhandSwitch_ability_drone_rider" )
-	return true
-}
-
 bool function OnWeaponAttemptOffhandSwitch_ability_earthshaker( entity weapon )
 {
 	MissingCallbackStub_Note( "OnWeaponAttemptOffhandSwitch_ability_earthshaker" )
@@ -685,12 +619,6 @@ bool function OnWeaponAttemptOffhandSwitch_arc_wave( entity weapon )
 	return true
 }
 
-bool function OnWeaponAttemptOffhandSwitch_following_medic( entity weapon )
-{
-	MissingCallbackStub_Note( "OnWeaponAttemptOffhandSwitch_following_medic" )
-	return true
-}
-
 bool function OnWeaponAttemptOffhandSwitch_stone_defense( entity weapon )
 {
 	MissingCallbackStub_Note( "OnWeaponAttemptOffhandSwitch_stone_defense" )
@@ -700,18 +628,6 @@ bool function OnWeaponAttemptOffhandSwitch_stone_defense( entity weapon )
 bool function OnWeaponChargeBegin_ability_thermal_denial( entity weapon )
 {
 	MissingCallbackStub_Note( "OnWeaponChargeBegin_ability_thermal_denial" )
-	return true
-}
-
-bool function OnWeaponChargeBegin_weapon_charge_gauntlet( entity weapon )
-{
-	MissingCallbackStub_Note( "OnWeaponChargeBegin_weapon_charge_gauntlet" )
-	return true
-}
-
-bool function OnWeaponChargeBegin_weapon_charge_gauntlet_alt_mode( entity weapon )
-{
-	MissingCallbackStub_Note( "OnWeaponChargeBegin_weapon_charge_gauntlet_alt_mode" )
 	return true
 }
 
@@ -763,11 +679,6 @@ void function OnWeaponDeactivate_GenericVFX( entity weapon )
 	MissingCallbackStub_Note( "OnWeaponDeactivate_GenericVFX" )
 }
 
-void function OnWeaponDeactivate_SonarDart( entity weapon )
-{
-	MissingCallbackStub_Note( "OnWeaponDeactivate_SonarDart" )
-}
-
 void function OnWeaponDeactivate_ability_BunkerBuster( entity weapon )
 {
 	MissingCallbackStub_Note( "OnWeaponDeactivate_ability_BunkerBuster" )
@@ -778,11 +689,6 @@ void function OnWeaponDeactivate_ability_cheat_death( entity weapon )
 	MissingCallbackStub_Note( "OnWeaponDeactivate_ability_cheat_death" )
 }
 
-void function OnWeaponDeactivate_ability_drone_rider( entity weapon )
-{
-	MissingCallbackStub_Note( "OnWeaponDeactivate_ability_drone_rider" )
-}
-
 void function OnWeaponDeactivate_ability_earthshaker( entity weapon )
 {
 	MissingCallbackStub_Note( "OnWeaponDeactivate_ability_earthshaker" )
@@ -791,11 +697,6 @@ void function OnWeaponDeactivate_ability_earthshaker( entity weapon )
 void function OnWeaponDeactivate_ability_fire_wave( entity weapon )
 {
 	MissingCallbackStub_Note( "OnWeaponDeactivate_ability_fire_wave" )
-}
-
-void function OnWeaponDeactivate_ability_halo( entity weapon )
-{
-	MissingCallbackStub_Note( "OnWeaponDeactivate_ability_halo" )
 }
 
 void function OnWeaponDeactivate_ability_horizon_tac_space_elevator( entity weapon )
@@ -821,16 +722,6 @@ void function OnWeaponDeactivate_concussive_breach( entity weapon )
 void function OnWeaponDeactivate_flash_shield( entity weapon )
 {
 	MissingCallbackStub_Note( "OnWeaponDeactivate_flash_shield" )
-}
-
-void function OnWeaponDeactivate_following_medic( entity weapon )
-{
-	MissingCallbackStub_Note( "OnWeaponDeactivate_following_medic" )
-}
-
-void function OnWeaponDeactivate_following_medic_orders( entity weapon )
-{
-	MissingCallbackStub_Note( "OnWeaponDeactivate_following_medic_orders" )
 }
 
 void function OnWeaponDeactivate_handheld_breach( entity weapon )
@@ -948,16 +839,6 @@ void function OnWeaponDeactivate_weapon_agnostic_whip_primary( entity weapon )
 	MissingCallbackStub_Note( "OnWeaponDeactivate_weapon_agnostic_whip_primary" )
 }
 
-void function OnWeaponDeactivate_weapon_charge_gauntlet( entity weapon )
-{
-	MissingCallbackStub_Note( "OnWeaponDeactivate_weapon_charge_gauntlet" )
-}
-
-void function OnWeaponDeactivate_weapon_charge_gauntlet_alt_mode( entity weapon )
-{
-	MissingCallbackStub_Note( "OnWeaponDeactivate_weapon_charge_gauntlet_alt_mode" )
-}
-
 void function OnWeaponDeactivate_weapon_epg( entity weapon )
 {
 	MissingCallbackStub_Note( "OnWeaponDeactivate_weapon_epg" )
@@ -986,11 +867,6 @@ void function OnWeaponDeactivate_weapon_shotgun_pistol( entity weapon )
 void function OnWeaponDeactivate_weapon_vortex_shield( entity weapon )
 {
 	MissingCallbackStub_Note( "OnWeaponDeactivate_weapon_vortex_shield" )
-}
-
-void function OnWeaponOwnerChanged_ability_following_medic( entity weapon, WeaponOwnerChangedParams params )
-{
-	MissingCallbackStub_Note( "OnWeaponOwnerChanged_ability_following_medic" )
 }
 
 void function OnWeaponOwnerChanged_alternator_smg( entity weapon, WeaponOwnerChangedParams params )
@@ -1038,12 +914,6 @@ void function OnWeaponOwnerChanged_weapon_vortex_shield( entity weapon, WeaponOw
 	MissingCallbackStub_Note( "OnWeaponOwnerChanged_weapon_vortex_shield" )
 }
 
-var function OnWeaponPrimaryAttackAnimEvent_ability_follow_medic( entity weapon, WeaponPrimaryAttackParams params )
-{
-	MissingCallbackStub_Note( "OnWeaponPrimaryAttackAnimEvent_ability_follow_medic" )
-	return 0
-}
-
 var function OnWeaponPrimaryAttackAnimEvent_ability_phase_rewind( entity weapon, WeaponPrimaryAttackParams params )
 {
 	MissingCallbackStub_Note( "OnWeaponPrimaryAttackAnimEvent_ability_phase_rewind" )
@@ -1080,12 +950,6 @@ var function OnWeaponPrimaryAttack_ability_cheat_death( entity weapon, WeaponPri
 	return 0
 }
 
-var function OnWeaponPrimaryAttack_ability_drone_rider( entity weapon, WeaponPrimaryAttackParams params )
-{
-	MissingCallbackStub_Note( "OnWeaponPrimaryAttack_ability_drone_rider" )
-	return 0
-}
-
 var function OnWeaponPrimaryAttack_ability_earthshaker( entity weapon, WeaponPrimaryAttackParams params )
 {
 	MissingCallbackStub_Note( "OnWeaponPrimaryAttack_ability_earthshaker" )
@@ -1095,12 +959,6 @@ var function OnWeaponPrimaryAttack_ability_earthshaker( entity weapon, WeaponPri
 var function OnWeaponPrimaryAttack_ability_fire_wave( entity weapon, WeaponPrimaryAttackParams params )
 {
 	MissingCallbackStub_Note( "OnWeaponPrimaryAttack_ability_fire_wave" )
-	return 0
-}
-
-var function OnWeaponPrimaryAttack_ability_medic_orders( entity weapon, WeaponPrimaryAttackParams params )
-{
-	MissingCallbackStub_Note( "OnWeaponPrimaryAttack_ability_medic_orders" )
 	return 0
 }
 
@@ -1167,18 +1025,6 @@ var function OnWeaponPrimaryAttack_handheld_breach( entity weapon, WeaponPrimary
 var function OnWeaponPrimaryAttack_party_box( entity weapon, WeaponPrimaryAttackParams params )
 {
 	MissingCallbackStub_Note( "OnWeaponPrimaryAttack_party_box" )
-	return 0
-}
-
-var function OnWeaponPrimaryAttack_weapon_charge_gauntlet( entity weapon, WeaponPrimaryAttackParams params )
-{
-	MissingCallbackStub_Note( "OnWeaponPrimaryAttack_weapon_charge_gauntlet" )
-	return 0
-}
-
-var function OnWeaponPrimaryAttack_weapon_charge_gauntlet_alt_mode( entity weapon, WeaponPrimaryAttackParams params )
-{
-	MissingCallbackStub_Note( "OnWeaponPrimaryAttack_weapon_charge_gauntlet_alt_mode" )
 	return 0
 }
 
@@ -1297,12 +1143,6 @@ void function OnWeaponStartZoomOut_weapon_lmg( entity weapon )
 	MissingCallbackStub_Note( "OnWeaponStartZoomOut_weapon_lmg" )
 }
 
-var function OnWeaponTossCancel_ability_halo( entity weapon, WeaponPrimaryAttackParams params )
-{
-	MissingCallbackStub_Note( "OnWeaponTossCancel_ability_halo" )
-	return 0
-}
-
 void function OnWeaponTossPrep_AmmoSteal( entity weapon, WeaponTossPrepParams params )
 {
 	MissingCallbackStub_Note( "OnWeaponTossPrep_AmmoSteal" )
@@ -1311,11 +1151,6 @@ void function OnWeaponTossPrep_AmmoSteal( entity weapon, WeaponTossPrepParams pa
 void function OnWeaponTossPrep_ability_group_cloak( entity weapon, WeaponTossPrepParams params )
 {
 	MissingCallbackStub_Note( "OnWeaponTossPrep_ability_group_cloak" )
-}
-
-void function OnWeaponTossPrep_ability_halo( entity weapon, WeaponTossPrepParams params )
-{
-	MissingCallbackStub_Note( "OnWeaponTossPrep_ability_halo" )
 }
 
 void function OnWeaponTossPrep_weapon_shield_deconstructor( entity weapon, WeaponTossPrepParams params )
@@ -1341,12 +1176,6 @@ var function OnWeaponTossReleaseAnimEvent_ability_group_cloak( entity weapon, We
 	return 0
 }
 
-var function OnWeaponTossReleaseAnimEvent_ability_halo( entity weapon, WeaponPrimaryAttackParams params )
-{
-	MissingCallbackStub_Note( "OnWeaponTossReleaseAnimEvent_ability_halo" )
-	return 0
-}
-
 var function OnWeaponTossReleaseAnimEvent_ability_spectre_drop( entity weapon, WeaponPrimaryAttackParams params )
 {
 	MissingCallbackStub_Note( "OnWeaponTossReleaseAnimEvent_ability_spectre_drop" )
@@ -1362,12 +1191,6 @@ var function OnWeaponTossReleaseAnimEvent_black_egg( entity weapon, WeaponPrimar
 var function OnWeaponTossReleaseAnimEvent_weapon_GenericVFX( entity weapon, WeaponPrimaryAttackParams params )
 {
 	MissingCallbackStub_Note( "OnWeaponTossReleaseAnimEvent_weapon_GenericVFX" )
-	return 0
-}
-
-var function OnWeaponTossReleaseAnimEvent_weapon_SonarDart( entity weapon, WeaponPrimaryAttackParams params )
-{
-	MissingCallbackStub_Note( "OnWeaponTossReleaseAnimEvent_weapon_SonarDart" )
 	return 0
 }
 
@@ -1398,12 +1221,6 @@ var function OnWeaponTossReleaseAnimEvent_weapon_shield_deconstructor( entity we
 var function OnWeaponTossRelease_ability_horizon_tac_space_elevator( entity weapon, WeaponPrimaryAttackParams params )
 {
 	MissingCallbackStub_Note( "OnWeaponTossRelease_ability_horizon_tac_space_elevator" )
-	return 0
-}
-
-var function OnWeaponToss_ability_halo( entity weapon, WeaponPrimaryAttackParams params )
-{
-	MissingCallbackStub_Note( "OnWeaponToss_ability_halo" )
 	return 0
 }
 
@@ -1564,18 +1381,6 @@ void function OnProjectileCollision_weapon_GenericVFX( entity projectile, vector
 #endif
 
 #if CLIENT
-void function OnProjectileCollision_weapon_SonarDart( entity projectile, vector pos, vector normal, entity hitEnt, int hitbox, bool isCritical, bool isPassthrough )
-{
-	MissingCallbackStub_Note( "OnProjectileCollision_weapon_SonarDart" )
-}
-#else
-void function OnProjectileCollision_weapon_SonarDart( entity projectile, vector pos, vector normal, entity hitEnt, int hitbox, bool isCritical )
-{
-	MissingCallbackStub_Note( "OnProjectileCollision_weapon_SonarDart" )
-}
-#endif
-
-#if CLIENT
 void function OnProjectileCollision_weapon_ball_noncombat( entity projectile, vector pos, vector normal, entity hitEnt, int hitbox, bool isCritical, bool isPassthrough )
 {
 	MissingCallbackStub_Note( "OnProjectileCollision_weapon_ball_noncombat" )
@@ -1725,10 +1530,6 @@ void function MeleeBat_OnClientAnimEvent( entity weapon, string animEventName )
 #endif
 
 #if CLIENT
-void function OnClientAnimEvent_SoanrDart( entity weapon, string animEventName )
-{
-	MissingCallbackStub_Note( "OnClientAnimEvent_SoanrDart" )
-}
 #endif
 
 #if CLIENT

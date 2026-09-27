@@ -43,6 +43,9 @@ const bool REVIVE_SHIELD_IS_FASTER_THAN_CROUCH			= true
 const float REVIVE_SHIELD_MOVE_SLOW_SEVERITY 			= 0.05	//0.05 //Currently Unused in favour of Increased Revive Speed beyond crouch walk default
 const float REVIVE_SHIELD_TURN_SLOW_SEVERITY 			= 0.3 	//0.6
 const float REVIVE_SHIELD_SPEED_BOOST_SEVERITY			= 0.25	//
+const float REVIVE_SHIELD_SPEED_BOOST_SEVERITY_UPGRADED	= 0.75
+const int REVIVE_SHIELD_OVERRIDE_MAX_HP					= -1
+const int REVIVE_SHIELD_OVERRIDE_TIER					= -1
 const float REVIVE_SHIELD_MAX_SPEED 					= 200
 const float REVIVE_TARGET_USE_DEBOUNCE 					= 0.3
 const float AUTO_REVIVE_MAX_ALLOWED_DIST_FROM_GROUND 	= 200.0
@@ -51,9 +54,9 @@ const string KNOCKDOWN_SHIELD_BASIC 					= "incapshield_pickup_lv0"
 const int BLEEDOUT_DISABLED_WEAPON_TYPES 				= WPT_ALL_EXCEPT_VIEWHANDS_OR_INCAP
 
 //SHIELD HEALTH
-const int REVIVE_SHIELD_MAX_SHIELD_HEALTH_TIER_1 		= 200 //150 //200
-const int REVIVE_SHIELD_MAX_SHIELD_HEALTH_TIER_2 		= 300 //350 //450
-const int REVIVE_SHIELD_MAX_SHIELD_HEALTH_TIER_3 		= 500 //750
+const int REVIVE_SHIELD_MAX_SHIELD_HEALTH_TIER_1 		= 250
+const int REVIVE_SHIELD_MAX_SHIELD_HEALTH_TIER_2 		= 400
+const int REVIVE_SHIELD_MAX_SHIELD_HEALTH_TIER_3 		= 600
 
 const string NEWCASTLE_REVIVE_SHIELD_HEALTH_NETVAR 		= "newcastleReviveShieldHP"
 
@@ -97,6 +100,8 @@ struct
 	float reviveShield_MoveSlow		= REVIVE_SHIELD_MOVE_SLOW_SEVERITY
 	float reviveShield_TurnSlow		= REVIVE_SHIELD_TURN_SLOW_SEVERITY
 	float reviveShield_SpeedBoost	= REVIVE_SHIELD_SPEED_BOOST_SEVERITY
+	int reviveShield_overrideMaxHP	= REVIVE_SHIELD_OVERRIDE_MAX_HP
+	int reviveShield_overrideTier	= REVIVE_SHIELD_OVERRIDE_TIER
 
 	bool isFasterThanCrouchSpeed	= REVIVE_SHIELD_IS_FASTER_THAN_CROUCH
 
@@ -129,11 +134,11 @@ void function MpWeaponReviveShield_Init()
 	file.reviveShield_MoveSlow			= GetCurrentPlaylistVarFloat( "newcastle_revive_shield_move_slow_severity", REVIVE_SHIELD_MOVE_SLOW_SEVERITY )
 	file.reviveShield_TurnSlow			= GetCurrentPlaylistVarFloat( "newcastle_revive_shield_turn_slow_severity", REVIVE_SHIELD_TURN_SLOW_SEVERITY )
 	file.reviveShield_SpeedBoost		= GetCurrentPlaylistVarFloat( "newcastle_revive_shield_speed_boost_severity", REVIVE_SHIELD_SPEED_BOOST_SEVERITY )
+	file.reviveShield_overrideMaxHP		= GetCurrentPlaylistVarInt( "newcastle_revive_shield_override_max_hp", REVIVE_SHIELD_OVERRIDE_MAX_HP )
+	file.reviveShield_overrideTier		= GetCurrentPlaylistVarInt( "newcastle_revive_shield_override_tier", REVIVE_SHIELD_OVERRIDE_TIER )
 	file.isFasterThanCrouchSpeed		= GetCurrentPlaylistVarBool( "newcastle_revive_shield_isFasterThanCrouchSpeed", REVIVE_SHIELD_IS_FASTER_THAN_CROUCH )
 
-	#if SERVER || CLIENT
 	PrecacheModel( REVIVE_SHIELD_FX_COL )
-	#endif // SERVER || CLIENT
 
 	PrecacheParticleSystem( REVIVE_SHIELD_FX_WALL_FP )
 	PrecacheParticleSystem( REVIVE_SHIELD_FX_WALL )
@@ -155,7 +160,7 @@ void function MpWeaponReviveShield_Init()
 
 	AddCallback_OnPassiveChanged( ePassives.PAS_AXIOM, OnPassiveChanged )
 
-	RegisterNetworkedVariable( NEWCASTLE_REVIVE_SHIELD_HEALTH_NETVAR, SNDC_PLAYER_EXCLUSIVE, SNVT_INT, -1 )
+	RegisterNetworkedVariable( NEWCASTLE_REVIVE_SHIELD_HEALTH_NETVAR, SNDC_PLAYER_EXCLUSIVE, SNVT_BIG_INT, -1 )
 
 	Remote_RegisterServerFunction( "ClientCallback_Cancel_NewcastleRevive" )
 	Remote_RegisterClientFunction( "ServerToClient_DisplayCancelNewcastleReviveHintForPlayer" )
@@ -180,7 +185,7 @@ void function MpWeaponReviveShield_Init()
                     
 float function ReviveShield_GetUpgradeCoreHealthMultiplier()
 {
-	return GetCurrentPlaylistVarFloat( "passive_revive_shield_health_upgrade_multiplier", 1.25 )
+	return GetCurrentPlaylistVarFloat( "passive_revive_shield_health_upgrade_multiplier", 1.50 )
 }
 
 float function ReviveShield_GetUpgradedReviveExtraHealth()
@@ -192,6 +197,11 @@ float function ReviveShield_GetUpgradedReviveExtraHealth()
 /////
 int function ReviveShield_GetMaxShieldHealthFromTier( int tier, entity player )
 {
+	if ( tier > 0 && file.reviveShield_overrideMaxHP != REVIVE_SHIELD_OVERRIDE_MAX_HP )
+		return file.reviveShield_overrideMaxHP
+	if ( tier > 0 && file.reviveShield_overrideTier != REVIVE_SHIELD_OVERRIDE_TIER )
+		tier = file.reviveShield_overrideTier
+
 	int shieldHealth
 	switch( tier )
 	{
@@ -529,7 +539,7 @@ void function PassiveAxiom_EndActiveWeaponUse_Thread( entity reviver, entity wea
 			if( file.reviveShieldEnts.contains( reviver ) )
 				file.reviveShieldEnts.fastremovebyvalue( reviver )
 
-			if( IsValid( weapon ) )
+			if( IsValid( weapon ) && IsValid( reviver ) )
 				reviver.SetPlayerNetInt( NEWCASTLE_REVIVE_SHIELD_HEALTH_NETVAR, weapon.GetScriptInt0() )
 
 			if( IsValid( reviver ) )
@@ -559,6 +569,9 @@ void function NewcastleStatTrackerPassiveDistance( entity newcastle, entity weap
 	OnThreadEnd(
 		function() : ( newcastle, totalDistance, curPos )
 		{
+			if ( !IsValid( newcastle ) )
+				return
+
 			float distanceSinceLastCheck = (Distance( curPos, newcastle.GetOrigin() ) * INCHES_TO_METERS )
 			int distanceToAdd          = (totalDistance + distanceSinceLastCheck).tointeger()
 			StatsHook_NewcastleReviveDistanceTraveled( newcastle, distanceToAdd )
@@ -675,6 +688,7 @@ void function OnWeaponActivate_revive_shield( entity weapon )
 
 		weapon.SetWeaponUtilityEntity( shieldEnt )
 		AddEntityCallback_OnPostDamaged( shieldEnt, ReviveShield_OnShieldEntDamaged )
+		PassiveNewcastle_StartShieldRepel( shieldEnt, weaponOwner, true )
 	#endif // #if SERVER
 }
 
@@ -742,6 +756,7 @@ void function ReviveShield_OnShieldEntDamaged( entity shieldEnt, var damageInfo 
 			vector attachAngles	= player.GetAttachmentAngles( attachIdx )
 
 			entity fxEnt = StartParticleEffectInWorld_ReturnEntity( fxIdx, attachOrigin, attachAngles )
+			CopyRealmsFromTo( player, fxEnt )
 			EffectSetControlPointVector( fxEnt, 2, GetIncapShieldTriLerpColor( 1.0, IncapShield_GetShieldTier( player ) ) )
 
 			EmitSoundOnEntityExceptToPlayer( player, player, SOUND_PILOT_INCAP_SHIELD_END_3P )
@@ -914,6 +929,16 @@ int function PassiveAxiom_GetAxiomKDShieldHealth( entity player ) ///This functi
 	shieldHealth = player.GetPlayerNetInt( NEWCASTLE_REVIVE_SHIELD_HEALTH_NETVAR )
 
 	return shieldHealth
+}
+#endif
+
+#if SERVER
+float function PassiveAxiom_GetSpeedBoostSeverity( entity player )
+{
+	if ( PlayerHasPassive( player, ePassives.PAS_PAS_UPGRADE_ONE ) )
+		return REVIVE_SHIELD_SPEED_BOOST_SEVERITY_UPGRADED
+
+	return file.reviveShield_SpeedBoost
 }
 #endif
 
@@ -1388,7 +1413,7 @@ void function PassiveAxiom_EquipReviveShield_Thread( entity reviver, entity targ
 	if( isFasterThanCrouchSpeed )
 	{
 		statusEffect 	=  eStatusEffect.speed_boost
-		severity		= file.reviveShield_SpeedBoost
+		severity		= PassiveAxiom_GetSpeedBoostSeverity( reviver )
 	}
 
 	int slowTurnHandle	 		= StatusEffect_AddEndless( reviver, eStatusEffect.turn_slow, file.reviveShield_TurnSlow )
@@ -1428,6 +1453,7 @@ void function PassiveAxiom_EquipReviveShield_Thread( entity reviver, entity targ
 
 	reviver.DeployWeapon()
 
+	// ==================== Set 3rd person settings ================//
 	{
 		vector oldFacing = reviver.Player_GetWorldViewAngles()
 		reviver.SetTrackEntity( reviver )
@@ -1445,6 +1471,7 @@ void function PassiveAxiom_EquipReviveShield_Thread( entity reviver, entity targ
 		reviver.SetTrackEntityShouldViewAnglesFollowTrackedEntity( true )
 		reviver.SnapEyeAngles( oldFacing )
 	}
+
 
 	OnThreadEnd(
 		function() : ( reviver, equipSlot, lastActiveSlot, forceCrouchHandle, movementSpeedHandle, slowTurnHandle )

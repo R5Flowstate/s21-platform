@@ -700,7 +700,8 @@ void function Leaderboard_ReceivePlayerData( string name, int score, int kills, 
 	entry.deaths = deaths
 	entry.kd = kd
 	entry.damage = damage
-	entry.latency = latency
+	// Your own row shows the same live ping as the pause menu.
+	entry.latency = ( isLocal == 1 ) ? expect int( GetConnectionPingMs() ) : latency
 	entry.isLocal = ( isLocal == 1 )
 	entry.muted = ( muted != 0 )
 	entry.input = input

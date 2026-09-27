@@ -16,7 +16,6 @@ global function Gamemode1v1_AddPlayerToQueue
 global function Gamemode1v1_AddPlayerToQueueAfterDeath
 global function FS_1v1_GetPlayersWaiting
 global function FS_1v1_GetPlayersResting
-global function _3v3ModePlayerToRestingList
 global function Gamemode1v1_GetWaitingRoomLocation
 global function Gamemode1v1_TeleportPlayer
 global function FS_ClearRealmsAndAddPlayerToAllRealms
@@ -54,6 +53,7 @@ global function FS_1v1_ApplyLobbyLoadout
 global function FS_1v1_LobbyHasGuns
 global function FS_1v1_GatherPlayersToWaitingRoom
 global function FS_1v1_EnqueueFromRecap
+global function TryProcessRestRequest
 
 //===============================================================================
 //
@@ -105,6 +105,9 @@ bool function Gamemode1v1_ForcePilotRespawn( entity player )
 
 void function ForceAllRoundsToFinish_solomode()
 {
+	if ( settings.isScenariosMode )
+		FS_Scenarios_ForceAllGroupsToFinish()
+
 	// Full teardown first: free realms + drop match maps. Marking IsFinished alone
 	// never ran event cleanup and leaked realmSlots until MM starved.
 	array<int> matchHandles = []
@@ -209,6 +212,9 @@ void function FS_1v1_GatherPlayersToWaitingRoom()
 
 		if ( !IsAlive( player ) )
 			Gamemode1v1_ForcePilotRespawn( player )
+
+		if ( settings.isScenariosMode )
+			FS_Scenarios_PrepareForLobby( player )
 
 		Gamemode1v1_TeleportPlayer( player, FS_1v1_PickWaitingRoomLoc() )
 		FS_ClearRealmsAndAddPlayerToAllRealms( player )
@@ -354,6 +360,8 @@ void function HandleChallengeMatchRespawn( MatchGroup group, entity victimPlayer
 	// Clean up entities
 	_CleanupPlayerEntities( player1 )
 	_CleanupPlayerEntities( player2 )
+	if ( group.challengeLegendsGranted )
+		FS_Scenarios_SweepRealm( group.slotIndex, "1v1-challenge-round" )
 
 	// Handle rest requests (this also ends the challenge)
 	// This block is important to prevent exploits
@@ -558,6 +566,8 @@ void function FS_1v1_ParkFinishedPlayerForRoundEnd( entity player )
 
 void function HandleMatchEndCleanup( MatchGroup group )
 {
+	FS_Coaching_StopForGroup( group, group.winner, "round_end" )
+
 	// PostDeathThread is started AFTER OnPlayerKilled returns. Yield so it can
 	// EndSignal StopPostDeathLogic; then we respawn before BecomeRagdoll.
 	wait 0.1
@@ -1134,6 +1144,9 @@ void function Gamemode1v1_RemoveMatch( MatchGroup groupToRemove )
 	// Clear validity before map deletes so any late IsMatchValid holders fail closed.
 	groupToRemove.isValid = false
 
+	// Before the slot is released: the sweep must not reach a newer pair's realm.
+	FS_1v1_RetireChallengeLegends( groupToRemove )
+
 	// The realm slot is owned by the group: released here and nowhere else, so no
 	// teardown path can burn one. There are only MAX_REALM of them, and running out
 	// fails every future pairing.
@@ -1474,19 +1487,6 @@ bool function TryProcessRestRequest( entity player )
 	return false
 }
 
-void function _3v3ModePlayerToRestingList( entity player )
-{
-	int playerHandle = player.p.handle
-	Gamemode1v1_RemovePlayerFromWaitingList( playerHandle )
-	_AddPlayerToRestingList( playerHandle )
-
-	Gamemode1v1_SetPlayerGamestate( player, e1v1State.RESTING )
-	FS_1v1_ApplyLobbyLoadout( player )
-	FS_SetRealmForPlayer( player, 0 )
-	LocalMsg( player, "#FS_RESTING", "", eMsgUI.EVENT, settings.roundTime )
-
-	FS_1v1_RequestRestingNotificationRefresh()
-}
 
 void function _AddPlayerToRestingList( int playerHandle )
 {
@@ -1515,140 +1515,14 @@ entity function returnOpponentOfPlayer( entity player )
     return opponent
 }
 
-void function Scenarios_AddPlayerToQueue( entity player, bool isWinner = false )
-{
-	if( !IsValid( player ) || Gamemode1v1_IsPlayerWaiting( player ) )
-		return
-	if( player.IsBot() && GetCurrentPlaylistVarBool( "fs_1v1_skip_bots", false ) )
-		return
-
-	Gamemode1v1_SetPlayerGamestate( player, e1v1State.WAITING )
-	HolsterAndDisableWeapons_Raw( player )
-	FS_ClearRealmsAndAddPlayerToAllRealms( player )
-	Gamemode1v1_TeleportPlayer( player, FS_1v1_PickWaitingRoomLoc() )
-	thread _LobbyStateSanitize( player )
-
-	player.SetMinimapZoomScale( 0.75, 3.0 )
-
-	Remote_CallFunction_NonReplay( player, "FS_Scenarios_TogglePlayersCardsVisibility", false, true )
-
-	if( player.Player_IsFreefalling() )
-		Signal( player, "PlayerSkyDive" )
-
-	_CleanupPlayerEntities( player )
-	SetTeam( player, TEAM_IMC )
-
-	scenariosGroupStruct ornull playerGroup = FS_Scenarios_ReturnGroupForPlayer( player )
-	if( playerGroup != null )
-	{
-		expect scenariosGroupStruct( playerGroup )
-
-		if( playerGroup.isValid )
-		{
-			foreach( scenariosTeamStruct team in playerGroup.teams )
-			{
-				int maxIter = team.players.len() - 1
-
-				for( int i = maxIter; i >= 0; i-- )
-				{
-					entity splayer = team.players[i]
-
-					if( !IsValid( splayer ) || splayer == player )
-						team.players.remove( i )
-				}
-			}
-
-			if( player.p.handle in FS_Scenarios_GetPlayerToGroupMap() )
-				delete FS_Scenarios_GetPlayerToGroupMap()[ player.p.handle ]
-
-			player.SetShieldHealth( 0 )
-			player.SetShieldHealthMax( 0 )
-			Inventory_SetPlayerEquipment(player, "", "armor")
-			Inventory_SetPlayerEquipment(player, "", "backpack")
-			Inventory_SetPlayerEquipment(player, "", "incapshield")
-			Inventory_SetPlayerEquipment(player, "", "helmet")
-			if( IsAlive( player ) )
-				player.SetHealth( player.GetMaxHealth() )
-		}
-	}
-
-	//Remote_CallFunction_ByRef( player, "Minimap_DisableDraw" )
-	// Remote_CallFunction_ByRef( player, "Minimap_DisableDraw" )
-
-	ClearRecentDamageHistory( player )
-	ClearLastAttacker( player )
-
-	TakeAllPassives( player )
-	player.SetPlayerNetTime( "FS_Scenarios_currentDeathfieldRadius", 0 )
-	player.SetPlayerNetTime( "FS_Scenarios_currentDistanceFromCenter", -1 )
-	player.SetPlayerNetTime( "FS_Scenarios_gameStartTime", -1 )
-
-	if( Bleedout_IsBleedingOut( player ) )
-		Signal( player, "BleedOut_OnRevive" )
-
-	Signal(player, "InterruptSyncedMelee")
-
-	player.SetPlayerNetTime( "FS_Scenarios_timePlayerEnteredInLobby", Time() )
-	if( FS_1v1_PlayerHasClient( player ) )
-		Remote_CallFunction_NonReplay( player, "FS_DestroyCompass" )
-
-	SetPlayerInventory( player, [] ) //clear inventory.
-
-	// Clear all equipment slots
-	foreach ( slot, slotData in EquipmentSlot_GetAllEquipmentSlots() )
-		Inventory_SetPlayerEquipment( player, "", slot )
-
-	TakeAllWeapons( player )
-	FS_GiveRandomMelee( player, true )
-
-	QueuedPlayer playerStruct
-	playerStruct.player = player
-	playerStruct.handle = player.p.handle
-
-	if( !settings.isScenariosMode && !bIsCoachingMode() )
-	{
-		// Only apply victim penalty if player lost a match (has lastKiller)
-		// First-time joins (no lastKiller) should not be penalized
-		if( !isWinner && IsValid( player.p.lastKiller ) )
-		{
-			playerStruct.victimPenaltyExpire = Time() + penaltyDuration
-
-			// Start timer to trigger matchmaking when penalty expires
-			thread StartVictimPenaltyTimer( player, penaltyDuration )
-		}
-		else
-		{
-			playerStruct.victimPenaltyExpire = Time()
-		}
-
-		playerStruct.waitingTime = playerStruct.victimPenaltyExpire + QUEUE_TIMEOUT_EXTRA
-
-		if( player.p.IBMM_grace_period > 0 )
-			playerStruct.waitingTime += player.p.IBMM_grace_period
-	}
-
-	playerStruct.kd = _CalculateWeightedKD( player )
-	// Prefer duel foe (HandleOpponentInfo) over lastKiller for SBMM rematch avoid.
-	if ( IsValid( player.p.lastOpponent ) )
-		playerStruct.lastOpponent = player.p.lastOpponent
-	else
-		playerStruct.lastOpponent = player.p.lastKiller
-	playerStruct.queue_time = Time()
-
-	Gamemode1v1_RemovePlayerFromRestingList( player )
-	AddPlayerToWaitingList( playerStruct )
-
-	ResetIBMM( player ) //must be after adding to waiting list.
-
-	FS_1v1_ApplyLobbyLoadout( player )
-
-	LocalMsg( player, "#FS_IN_QUEUE", "", eMsgUI.EVENT, settings.roundTime )
-}
 
 void function Gamemode1v1_AddPlayerToRest( entity player ) //handles opponent to waiting list.
 {
 	if( !IsValid( player ) )
 		return
+
+	if( settings.isScenariosMode )
+		FS_Scenarios_PrepareForLobby( player )
 
 	if( !IsAlive( player ) )
 		Gamemode1v1_ForcePilotRespawn( player )
@@ -1693,7 +1567,7 @@ void function Gamemode1v1_AddPlayerToRest( entity player ) //handles opponent to
 		if( IsValid( opponent ) ) //opponent still valid
 			Gamemode1v1_AddPlayerToQueue( opponent ) //put opponent back in waiting list
 	}
-	else
+	else if( !settings.isScenariosMode )
 	{
 		endLock1v1( player, false )
 	}
@@ -1715,17 +1589,13 @@ void function Gamemode1v1_AddPlayerToQueueAfterDeath( entity player, bool isWinn
 
 void function Gamemode1v1_AddPlayerToQueue( entity player, bool isWinner = false, bool fromResting = false )
 {
-	// DumpStack
-	if( settings.isScenariosMode && !bIsCoachingMode() )
-	{
-		Scenarios_AddPlayerToQueue( player, isWinner )
-		return
-	}
-
 	if( !IsValid( player ) )
 		return
 	if( Gamemode1v1_IsPlayerWaiting( player ) )
 		return
+
+	if( settings.isScenariosMode )
+		FS_Scenarios_PrepareForLobby( player )
 
 	// Resting is a standing choice, not a per-round state: only the rest toggle itself
 	// ( fromResting ) may pull a player back into the queue. Every other route here is a
@@ -1984,6 +1854,7 @@ void function FS_SetRealmForPlayer( entity player, int realmIndex )
 	if( !GetCurrentPlaylistVarBool( "fs_1v1_use_realms", true ) )
 	{
 		player.AddToAllRealms()
+		FS_1v1_GrappleHookFollowRealms( player )
 		return
 	}
 
@@ -1998,6 +1869,22 @@ void function FS_SetRealmForPlayer( entity player, int realmIndex )
 	{
 		printt( "[FS-1V1] AddToRealm(" + string( realmIndex ) + ") empty mask " + player.GetPlayerName() + " -- AddToAllRealms" )
 		player.AddToAllRealms()
+	}
+	FS_1v1_GrappleHookFollowRealms( player )
+}
+
+// Every player owns a grapple_hook the client resolves each frame without a null
+// check; it is not parented, so a realm move must carry it or the owner's client
+// loses it and crashes.
+void function FS_1v1_GrappleHookFollowRealms( entity player )
+{
+	foreach ( entity hook in GetEntArrayByClass_Expensive( "grapple_hook" ) )
+	{
+		if ( !IsValid( hook ) || hook.GetOwner() != player )
+			continue
+		hook.RemoveFromAllRealms()
+		foreach ( int realm in player.GetRealms() )
+			hook.AddToRealm( realm )
 	}
 }
 
@@ -2021,9 +1908,15 @@ void function Gamemode1v1_BroadcastObituary( entity victim, entity attacker, var
 
 	array<int> victimPacked = Scoreboard1v1_PackName( victim.GetPlayerName() )
 
+	// Zone Wars: a player in a fight sees only that fight's kills; the lobby sees every kill.
+	bool scenarios = FS_IsScenarios()
+	int victimFight = scenarios ? FS_Scenarios_GetGroupHandleOfPlayer( victim ) : -1
+
 	foreach ( entity player in GetPlayerArrayIncludingSpectators() )
 	{
 		if ( !FS_1v1_PlayerHasClient( player ) )
+			continue
+		if ( scenarios && FS_Scenarios_IsPlayerInGroup( player ) && FS_Scenarios_GetGroupHandleOfPlayer( player ) != victimFight )
 			continue
 
 		Remote_CallFunction_NonReplay( player, "ServerCallback_1v1_Obituary",
@@ -2370,6 +2263,10 @@ void function StartWaitingRoomBoundaryMonitor( LocPair waitingRoomLocation )
 			if ( st == e1v1State.IN_MATCH || st == e1v1State.SEQUENCE || st == e1v1State.PREMATCH || st == e1v1State.MATCH_START )
 				continue
 
+			// Zone Wars fighters pick their legend at the fight spawn.
+			if ( settings.isScenariosMode && FS_Scenarios_IsPlayerInGroup( player ) )
+				continue
+
 			if ( sweepLoadouts && FS_1v1_IsLobbyState( Gamemode1v1_GetPlayerGamestate( player ) ) && FS_1v1_LobbyHasGuns( player ) )
 				FS_1v1_ApplyLobbyLoadout( player )
 
@@ -2412,8 +2309,13 @@ bool function ValidateSpawns( array<SpawnData> allSoloLocations )
 	}
 	else if( settings.isScenariosMode ) //(scenarios)
 	{
+		// Built-in spawns and sets authored for another team count are regenerated
+		// for the live team count, so only a matching authored set must divide evenly.
 		int modeTeamCount = FS_Scenarios_GetScenariosTeamCount()
-		if( ( allSoloLocations.len() % modeTeamCount ) != 0 )
+		string setTeamCount = SpawnSystem_GetPakInfoForKey( "teamCount" )
+		bool regenerated = SpawnSystem_GetCurrentSpawnSet().find( "trivial" ) == 0
+			|| ( setTeamCount != "_NOTFOUND" && setTeamCount.tointeger() != modeTeamCount )
+		if( !regenerated && ( allSoloLocations.len() % modeTeamCount ) != 0 )
 		{
 			Warning( warningmsg + " ( locpair must be multiples of " + modeTeamCount + " )" )
 			allSoloLocations.resize(0)
@@ -2455,7 +2357,7 @@ void function FS_1v1_AuditRealmSlots( string where )
 
 	int free = FS_1v1_CountFreeRealmSlots()
 	int used = MAX_REALM - free
-	int groups = file.activeMatches.len()
+	int groups = settings.isScenariosMode ? FS_Scenarios_GetGroupCount() : file.activeMatches.len()
 
 	if( used != groups )
 		Warning( "[FS-1V1][REALM-DRIFT] " + where + " used=" + string( used ) + " groups=" + string( groups ) + " free=" + string( free ) )
@@ -2825,8 +2727,5 @@ void function Gamemode1v1_RespawnForMatch( entity player, int respawnSlotIndex =
 		Inventory_SetPlayerEquipment( player, "", "armor" )
 	}
 
-	if( bIsCoachingMode() )
-	{
-		FS_Coaching_StartRecording( player )
-	}
+	FS_Coaching_StartRecording( player )
 }

@@ -79,10 +79,6 @@ global function __HighPingCheck
 global function SetPlayerCustomModel
 global function FS_GiveRandomMelee
 global function FS_ReturnLegendaryModelMapForWeaponFlavor
-// Coaching not ported -- stubs keep 1v1 bodies compiling.
-global function FS_Coaching_StartRecording
-global function FS_Coaching_StopRecording
-global function FS_Coaching_GetAvailableMatchIdentifier
 global function GetStartNewGameBool
 global function SetStartNewGameBool
 #endif
@@ -95,10 +91,10 @@ struct
 	array<void functionref()> tdmStateInProgressCallbacks
 	array<string> mAdmins
 	string authkey = ""
+	bool adminsLoaded = false
 	bool loggedMsg = false
 	bool loggedOITC = false
 	bool loggedCustomModel = false
-	bool loggedCoachingStub = false
 	// true so coaching wait-for-admin never hangs if that path is hit
 	bool startNewGame = true
 	bool scoreboardShowing = false
@@ -162,10 +158,13 @@ float function getkd( int kills, int deaths )
 	return ( float( floorkd ) ) / 100.0
 }
 
+// Read from the playlist directly: every mode checks IsAdmin, not only the ones
+// that load the Flowstate settings block.
 void function __InitAdmins()
 {
 	file.mAdmins.clear()
-	array<string> splitAdmins = split( flowstateSettings.Admins, " " )
+	file.adminsLoaded = true
+	array<string> splitAdmins = split( GetCurrentPlaylistVarString( "Admins", "" ), " " )
 	foreach ( string data in splitAdmins )
 	{
 		string username = strip( data )
@@ -178,10 +177,15 @@ bool function IsAdmin( entity player )
 {
 	if ( !IsValid( player ) )
 		return false
+	if ( !file.adminsLoaded )
+		__InitAdmins()
 	// player.p.isAdmin is ServerPlayerStruct-only
 	#if SERVER
-		if ( player.p.isAdmin )
+		if ( player.p.isAdmin || player.Cafe_IsLocalHostAdmin() )
 			return true
+		// A name is only proof of identity when the join token verified it.
+		if ( !player.Cafe_IsIdentityVerified() )
+			return false
 	#endif
 	return file.mAdmins.find( player.GetPlayerName() ) >= 0
 }
@@ -193,7 +197,9 @@ void function ClientCommand_adminlogin( entity player, array<string> args )
 	// Open self-elevation removed. Admins come from flowstateSettings.Admins (IsAdmin name list).
 	// Sticky isAdmin only if name is already allowlisted, or authkey is set and args[0] matches.
 	#if SERVER
-		bool allowlisted = file.mAdmins.find( player.GetPlayerName() ) >= 0
+		if ( !file.adminsLoaded )
+			__InitAdmins()
+		bool allowlisted = player.Cafe_IsIdentityVerified() && file.mAdmins.find( player.GetPlayerName() ) >= 0
 		bool authOk = file.authkey != "" && args.len() > 0 && args[0] == file.authkey
 		if ( !allowlisted && !authOk )
 		{
@@ -590,7 +596,7 @@ void function FS1v1_Stats_Load( entity player )
 				continue
 			float value = valStr.tofloat()
 			if ( name == "wait_time" && value >= 0 )
-				player.p.IBMM_grace_period = value
+				player.p.IBMM_grace_period = Clamp( value, 0.0, 30.0 )
 			else if ( name == "headglitch_time" && value >= 0 )
 				player.p.headglitchTime = value
 			else if ( name == "headglitch_peak" && value >= 0 )
@@ -1077,8 +1083,12 @@ void function Common_DissolveDropable( entity prop )
 
 			wait Flowstate_GetDissolveTime()
 
-			if ( IsValid( prop ) )
-				prop.Dissolve( ENTITY_DISSOLVE_CORE, <0, 0, 0>, 200 )
+			if ( !IsValid( prop ) )
+				return
+			// Zone Wars fight loot lasts the fight; its teardown removes it.
+			if ( FS_IsScenarios() && !prop.IsInRealm( 0 ) )
+				return
+			prop.Dissolve( ENTITY_DISSOLVE_CORE, <0, 0, 0>, 200 )
 		}
 	)()
 #endif
@@ -1190,25 +1200,6 @@ void function SetPlayerCustomModel( entity player, int index )
 			printt( "[FS-1V1] SetPlayerCustomModel unhandled index=" + string( index ) )
 			break
 	}
-}
-
-void function FS_Coaching_StartRecording( entity player )
-{
-	if ( !file.loggedCoachingStub )
-	{
-		file.loggedCoachingStub = true
-		printt( "[FS-1V1] coaching stubs active (not ported)" )
-	}
-}
-
-void function FS_Coaching_StopRecording( int matchIdentifier, entity victim, entity attacker )
-{
-	// coaching not ported
-}
-
-int function FS_Coaching_GetAvailableMatchIdentifier()
-{
-	return -1
 }
 
 // Coaching admin "start new" flag. Default true so wait loops do not hang.

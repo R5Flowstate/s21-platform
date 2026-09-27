@@ -2281,6 +2281,15 @@ void function TrackPlayerDebuffInfo( entity player, var rui )
 		bool isSilenced = false
 		int silenceOwner = -1
 
+		if ( StatusEffect_HasSeverity( player, eStatusEffect.on_hit_list ) )
+		{
+			debuffInfo debuff
+			debuff.timeRemaining = StatusEffect_GetTimeRemaining( player, eStatusEffect.on_hit_list )
+			debuff.duration = SonarDart_GetFullScanDuration()
+			debuff.icon = $"rui/hud/tactical_icons/tactical_sparrow"
+			debuffQueue.append( debuff )
+		}
+
 		
 
 		if( Deathfield_EnforcedRingLethality_Enabled() && Deathfield_EnforcedRingLethality_LowerIconEnabled())

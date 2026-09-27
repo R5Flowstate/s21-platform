@@ -676,6 +676,12 @@ void function ServerBrowserShared_OnConnect( var button )
 
 		printt( "[MOD-POLICY] need: " + joined )
 
+		if ( LauncherHandoff_IsAvailable() )
+		{
+			ServerBrowserShared_OfferLauncherInstall( index, joined )
+			return
+		}
+
 		string message = joined != "" ? Localize( "#BRIDGE_SB_MISSING_LIST", joined ) : Localize( "#BRIDGE_SB_MISSING_MODS" )
 		ConfirmDialogData data
 		data.headerText = "#BRIDGE_SB_MISSING_HEADER"
@@ -695,6 +701,30 @@ void function ServerBrowserShared_OnConnect( var button )
 
 	ClearConnectPassword()
 	ServerBrowserShared_KickoffConnect( index )
+}
+
+void function ServerBrowserShared_OfferLauncherInstall( int index, string missing )
+{
+	// The list can refresh while the dialog is open; only act on the same server.
+	string serverName = GetServerName( index )
+
+	ConfirmDialogData data
+	data.headerText = "#BRIDGE_SB_INSTALL_MODS_HEADER"
+	data.messageText = Localize( "#BRIDGE_SB_MISSING_LAUNCHER", missing )
+	data.resultCallback = void function ( int result ) : ( index, serverName )
+	{
+		if ( result != eDialogResult.YES )
+			return
+
+		if ( index < GetServerCount() && GetServerName( index ) == serverName && LauncherHandoff_JoinListedServer( index ) )
+			return
+
+		ConfirmDialogData failed
+		failed.headerText = "#BRIDGE_SB_MISSING_HEADER"
+		failed.messageText = "#BRIDGE_SB_HANDOFF_FAILED"
+		OpenOKDialogFromData( failed )
+	}
+	OpenConfirmDialogFromData( data )
 }
 
 void function ServerBrowserShared_PromptPassword( int index )

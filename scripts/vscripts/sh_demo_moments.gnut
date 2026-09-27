@@ -1,0 +1,25 @@
+// Moments a mode reports to each player's replay recorder.
+
+global enum eDemoMoment
+{
+	FIGHT_START,
+	FIGHT_WON,
+	FIGHT_LOST,
+	ROUND_START,
+	ROUND_WON,
+	ROUND_LOST,
+	RING,
+
+	_count
+}
+
+#if SERVER
+global function DemoMoment_Send
+
+void function DemoMoment_Send( entity player, int kind )
+{
+	if ( !IsValid( player ) || !player.IsPlayer() || player.IsBot() || kind < 0 || kind >= eDemoMoment._count )
+		return
+	Remote_CallFunction_NonReplay( player, "ServerCallback_Demo_Moment", kind )
+}
+#endif // SERVER

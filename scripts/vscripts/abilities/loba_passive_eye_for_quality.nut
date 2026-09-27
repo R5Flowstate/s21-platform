@@ -94,7 +94,7 @@ void function ServerThinkThread( entity player )
 	while ( true )
 	{
 		if ( Survival_HasPlayerJumpedOutOfPlane( player ) )
-			TriggerLootSpawnForLootBinsInRadius( player.EyePosition(), range, eLootTier.EPIC )
+			TriggerLootSpawnForLootBinsInRadius( player.EyePosition(), range, eLootTier.EPIC, -1, -1, player )
 		wait 0.4
 	}
 }

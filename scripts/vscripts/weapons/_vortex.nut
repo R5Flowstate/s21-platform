@@ -534,7 +534,7 @@ bool function TryVortexAbsorb( entity vortexSphere, entity attacker, vector orig
 
 		var impact_sound_3p = projectile.ProjectileGetWeaponInfoFileKeyField( "vortex_impact_sound_3p" )
 		if ( impact_sound_3p != null )
-			EmitSoundAtPosition( TEAM_UNASSIGNED, origin, impact_sound_3p )
+			EmitSoundAtPosition( TEAM_UNASSIGNED, origin, impact_sound_3p, vortexSphere )
 	}
 	else
 	{
@@ -547,7 +547,7 @@ bool function TryVortexAbsorb( entity vortexSphere, entity attacker, vector orig
 
 		var impact_sound_3p = GetWeaponInfoFileKeyField_Global( weaponName, "vortex_impact_sound_3p" )
 		if ( impact_sound_3p != null )
-			EmitSoundAtPosition( TEAM_UNASSIGNED, origin, impact_sound_3p )
+			EmitSoundAtPosition( TEAM_UNASSIGNED, origin, impact_sound_3p, vortexSphere )
 	}
 
 	VortexImpact impact = Vortex_CreateImpactEventData( vortexWeapon, attacker, origin, damageSourceID, weaponName, impactType )
@@ -1637,9 +1637,9 @@ bool function CodeCallback_OnVortexHitBullet( entity weapon, entity vortexSphere
 		}
 
 		if ( DamageInfo_GetAttacker( damageInfo ) && DamageInfo_GetAttacker( damageInfo ).IsTitan() )
-			EmitSoundAtPosition( teamNum, DamageInfo_GetDamagePosition( damageInfo ), "TitanShieldWall.Heavy.BulletImpact_3P_vs_3P" )
+			EmitSoundAtPosition( teamNum, DamageInfo_GetDamagePosition( damageInfo ), "TitanShieldWall.Heavy.BulletImpact_3P_vs_3P", vortexSphere )
 		else
-			EmitSoundAtPosition( teamNum, DamageInfo_GetDamagePosition( damageInfo ), "TitanShieldWall.Light.BulletImpact_3P_vs_3P" )
+			EmitSoundAtPosition( teamNum, DamageInfo_GetDamagePosition( damageInfo ), "TitanShieldWall.Light.BulletImpact_3P_vs_3P", vortexSphere )
 	#endif
 
 	if ( isAmpedWall )
@@ -1684,9 +1684,9 @@ bool function OnVortexHitBullet_BubbleShieldNPC( entity vortexSphere, var damage
 		//VortexSphereDrainHealthForDamage( vortexSphere, DamageInfo_GetWeapon( damageInfo ), null )
 
 		if ( DamageInfo_GetAttacker( damageInfo ) && DamageInfo_GetAttacker( damageInfo ).IsTitan() )
-			EmitSoundAtPosition( teamNum, DamageInfo_GetDamagePosition( damageInfo ), "TitanShieldWall.Heavy.BulletImpact_3P_vs_3P" )
+			EmitSoundAtPosition( teamNum, DamageInfo_GetDamagePosition( damageInfo ), "TitanShieldWall.Heavy.BulletImpact_3P_vs_3P", vortexSphere )
 		else
-			EmitSoundAtPosition( teamNum, DamageInfo_GetDamagePosition( damageInfo ), "TitanShieldWall.Light.BulletImpact_3P_vs_3P" )
+			EmitSoundAtPosition( teamNum, DamageInfo_GetDamagePosition( damageInfo ), "TitanShieldWall.Light.BulletImpact_3P_vs_3P", vortexSphere )
 	#endif
 	return true
 }
@@ -1809,7 +1809,7 @@ bool function CodeCallback_OnVortexHitProjectile( entity weapon, entity vortexSp
 		if ( impact_sound_3p == null )
 			impact_sound_3p = "TitanShieldWall.Explosive.BulletImpact_3P_vs_3P"
 
-		EmitSoundAtPosition( teamNum, contactPos, impact_sound_3p )
+		EmitSoundAtPosition( teamNum, contactPos, impact_sound_3p, vortexSphere )
 
 		int damageSourceID = projectile.ProjectileGetDamageSourceID()
 		switch ( damageSourceID )
@@ -1863,7 +1863,7 @@ bool function OnVortexHitProjectile_BubbleShieldNPC( entity vortexSphere, entity
 		PlayEffectOnVortexSphere( fxId, contactPos, damageAngles, vortexSphere )
 //		VortexSphereDrainHealthForDamage( vortexSphere, null, projectile )
 
-		EmitSoundAtPosition( teamNum, contactPos, "TitanShieldWall.Explosive.BulletImpact_3P_vs_3P" )
+		EmitSoundAtPosition( teamNum, contactPos, "TitanShieldWall.Explosive.BulletImpact_3P_vs_3P", vortexSphere )
 	#endif
 	return true
 }

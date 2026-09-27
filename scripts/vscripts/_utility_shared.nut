@@ -530,6 +530,7 @@ void function InitAbilityScripts()
 	MpWeaponReviveShield_Init()							// Newcastle Passive
 	MpAbilityShieldThrow_Init()							// Newcastle Tac
 	MpAbilityArmoredLeap_Init()							// Newcastle Ult
+	PassiveNewcastle_Init()								// Newcastle upgrades
 	PassiveVantage_Init()								// Vantage Passive
 	SniperRecon_Init()									// Vantage Passive
 	Companion_Launch_Init()								// Vantage Tac
@@ -555,6 +556,15 @@ void function InitAbilityScripts()
 		ShPassiveOverdrive_Init()					// Axle Passive
 		MpAbilitySlideGate_Init()					// Axle Tac
 		MpAbilityFragDrone_Init()					// Axle Ult
+		ShPassiveSparrow_Init()						// Sparrow Passive
+		MpWeaponSonarDart_Init()					// Sparrow Tac
+		MpWeaponChargeGauntlet_Init()				// Sparrow Ult
+		MpWeaponChargeGauntletAltMode_Init()		// Sparrow Ult
+		ShPassiveDroneRider_Init()					// Lifeline Passive
+		MpWeaponMedicOrders_Init()					// Lifeline Tac orders
+		MpWeaponFollowingMedic_Init()				// Lifeline Tac
+		MpAbilityHalo_Init()						// Lifeline Ult
+		UpgradedGlide_Init()						// Lifeline upgrades
        
 
 	                    

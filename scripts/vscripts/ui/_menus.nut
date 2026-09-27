@@ -674,14 +674,25 @@ void function ToggleMapOrOpenRangeSettings()
 	if ( Flowstate_IsGame1v1Type() || FS_HasCap( FS_CAP_CUSTOM_SCOREBOARD ) )
 	{
 		// toggle_map is FSLeaderboard (1v1 / instagib). Do not ShowFullmap.
+		// Zone Wars is the exception: M is the fullmap.
 		if ( GetActiveMenu() == GetMenu( "FSLeaderboard" ) )
+		{
 			TryCloseMatchLeaderboard()
-		return
+			return
+		}
+		if ( !FS_IsScenarios() )
+			return
 	}
 
 	float startTime = UITime()
 	float duration  = 0.3
 	float endTIme   = startTime + duration
+
+	if ( FS_IsScenarios() )
+	{
+		RunClientScript( "FS_Scenarios_ToggleMapKey" )
+		return
+	}
 
 	if ( !GameModeVariant_IsActive( eGameModeVariants.SURVIVAL_FIRING_RANGE ) )
 	{
@@ -2477,6 +2488,8 @@ void function InitMenus()
 	var serverBrowserMenu = AddMenu( "ServerBrowserMenu", $"resource/ui/menus/serverbrowser.menu", InitServerBrowserMenu )
 	AddPanel( serverBrowserMenu, "MainMenuServerBrowserPanel", InitMainMenuServerBrowserPanel )
 	AddMenu( "BridgeConnectDialog", $"resource/ui/menus/dialog_bridge_connect.menu", InitBridgeConnectDialog )
+	AddMenu( "ReplaysMenu", $"resource/ui/menus/dialog_replays.menu", InitReplaysMenu )
+	AddMenu( "DemoControlsMenu", $"resource/ui/menus/demo_controls.menu", InitDemoControlsMenu )
 
 	var crossProgressionDialog = AddMenu( "CrossProgressionDialog", $"resource/ui/menus/dialog_cross_progression.menu", InitCrossProgressionDialog )
 	var tabbedModal = AddMenu( "TabbedModal", $"resource/ui/menus/tabbed_modal.menu", RTKTabbedModal_InitTabbedModal )
@@ -2841,7 +2854,7 @@ void function InitMenus()
 	AddPanel( labPanel, "LabArmoryPanel", InitLabArmoryPanel )
 	AddPanel( labPanel, "LabTargetsPanel", InitLabTargetsPanel )
 	AddPanel( labPanel, "LabRecorderPanel", InitLabRecorderPanel )
-	AddPanel( labPanel, "LabMatchPanel", InitLabMatchPanel )
+	AddPanel( labPanel, "LabChallengesPanel", InitLabChallengesPanel )
 	AddPanel( labPanel, "LabModsPanel", InitLabModsPanel )
 
 	AddPanel( inventoryMenu, "CharacterDetailsPanel", InitCharacterAbilitiesPanel )
@@ -2850,8 +2863,14 @@ void function InitMenus()
 	AddMenu( "SurvivalQuickSwapMenu", $"resource/ui/menus/survival_quick_swap.menu", InitQuickSwapMenu )
 	AddMenu( "MapEditorModelMenu", $"resource/ui/menus/mapeditor_models.menu", InitMapEditorModelMenu )
 
+	AddMenu( "ArenasBuyMenu", $"resource/ui/menus/arenas_buy.menu", InitArenasBuyMenu, "Arenas Buy Menu" )
+	AddMenu( "ArenasSelectOptic", $"resource/ui/menus/dialogs/arenas_select_optic.menu", InitArenasSelectOpticDialog )
+	AddMenu( "ArenasPostRoundSummary", $"resource/ui/menus/arenas_post_round_summary.menu", InitArenasPostRoundSummary )
+
 	// Flowstate 1v1 settings (name keeps original triple-t typo from r5_flowstate_mod)
 	AddMenu( "1v1_SetttingsMenu", $"resource/ui/menus/fs_1v1/settings.menu", Init_1v1_SettingsMenu )
+
+	AddMenu( "FSScenariosStandings", $"resource/ui/menus/fs_scenarios/fs_scenarios.menu", InitFSScenariosStandingsMenu, "Standings" )
 
 	// Flowstate match leaderboard (toggle_map / FS_1v1_ToggleFullScoreboard)
 	var leaderboardMenu = AddMenu( "FSLeaderboard", $"resource/ui/menus/FlowstateLeaderboard/fs_leaderboard.menu", InitMatchLeaderboard, "Match Leaderboard" )

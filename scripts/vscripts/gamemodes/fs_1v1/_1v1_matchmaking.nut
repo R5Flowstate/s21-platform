@@ -57,6 +57,13 @@ void function ExecuteMatchmaking()
 	#endif
 
 	FS_1v1_SweepStaleMatchmakingState()
+
+	if ( isScenariosMode() )
+	{
+		FS_Scenarios_FormGroups()
+		return
+	}
+
 	FS_1v1_SampleQueueLatency()
 
 	// Pairs that cannot be created are excluded for the rest of this pass rather than
@@ -818,7 +825,7 @@ void function Init_IBMM( entity player )
 	player.p.input = player.IsBot() ? 1 : 0
 	FS_1v1_PublishInputState( player )
 
-	if( GetCurrentPlaylistName() == "fs_scenarios" )
+	if( FS_IsScenarios() )
 		return
 
 	if( FS_1v1_PlayerHasClient( player ) )

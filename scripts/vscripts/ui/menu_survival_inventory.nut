@@ -162,7 +162,8 @@ void function OpenSurvivalInventoryMenu( int tabIndex = 0 )
 	if ( labIndex >= 0 && tabIndex >= labIndex )
 		tabIndex++
 
-	if ( isDefaultOpen && labIndex >= 0 && GetConVarBool( LAB_STICKY_TAB_CONVAR ) )
+	// Competitive modes always open on the inventory, whatever the Lab left saved.
+	if ( isDefaultOpen && labIndex >= 0 && GetConVarBool( LAB_STICKY_TAB_CONVAR ) && !Flowstate_IsGame1v1Type() )
 		tabIndex = labIndex
 
 	Lab_RefreshState()
@@ -191,8 +192,10 @@ void function OnSurvivalInventoryMenu_Open()
 	} 
 
 	{
-		TabDef tabdef = AddTab( file.menu, Hud_GetChild( file.menu, "LabPanel" ), "LAB" )
+		// `1 draws the title in the accent color.
+		TabDef tabdef = AddTab( file.menu, Hud_GetChild( file.menu, "LabPanel" ), "`1LAB" )
 		tabdef.hideSubtabPips = true
+		tabdef.new = !Lab_WasOpened() && !GetConVarBool( LAB_STICKY_TAB_CONVAR )
 		SetTabBaseWidth( tabdef, 160 )
 	}
 
@@ -298,7 +301,8 @@ void function SaveLastInventoryTab()
 {
 	TabData tabData = GetTabDataForPanel( file.menu )
 	int labIndex = Tab_GetTabIndexByBodyName( tabData, "LabPanel" )
-	SetConVarBool( LAB_STICKY_TAB_CONVAR, labIndex >= 0 && tabData.activeTabIdx == labIndex )
+	if ( !Flowstate_IsGame1v1Type() )
+		SetConVarBool( LAB_STICKY_TAB_CONVAR, labIndex >= 0 && tabData.activeTabIdx == labIndex )
 }
 
 

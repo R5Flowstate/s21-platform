@@ -6,6 +6,7 @@ const int MANTLE_BOOST_STATE_INVALID    = 1
 struct
 {
 	var mantleBoostRui
+	bool hintThreadStarted
 } file
 
 void function ShPassiveMantleBoost_Init()
@@ -14,11 +15,35 @@ void function ShPassiveMantleBoost_Init()
 		return
 
 	AddCallback_CreatePlayerPassiveRui( PassiveMantleBoost_CreateHintRui )
+	AddClientCallback_OnResolutionChanged( PassiveMantleBoost_OnResolutionChanged )
 }
 
+// The hint reads local-player state only, so it lives for the whole match and
+// follows the local player itself rather than whichever entity triggered this.
 void function PassiveMantleBoost_CreateHintRui( entity player )
 {
-	if ( file.mantleBoostRui != null )
+	if ( file.hintThreadStarted )
+		return
+
+	file.hintThreadStarted = true
+	thread PassiveMantleBoost_ShowHint_Thread()
+}
+
+void function PassiveMantleBoost_OnResolutionChanged()
+{
+	if ( file.mantleBoostRui != null && RuiIsAlive( file.mantleBoostRui ) )
+		PassiveMantleBoost_SetResolution( file.mantleBoostRui )
+}
+
+void function PassiveMantleBoost_SetResolution( var rui )
+{
+	UISize screenSize = GetCurrentVirtualScreenSize( true )
+	RuiSetResolution( rui, float( screenSize.width ), float( screenSize.height ) )
+}
+
+void function PassiveMantleBoost_EnsureRui()
+{
+	if ( file.mantleBoostRui != null && RuiIsAlive( file.mantleBoostRui ) )
 		return
 
 	// The asset name is only known once its pak is loaded, so it cannot be
@@ -26,34 +51,47 @@ void function PassiveMantleBoost_CreateHintRui( entity player )
 	asset hintAsset = GetKeyValueAsAsset( { kn = "ui/mantle_boost.rpak" }, "kn" )
 
 	file.mantleBoostRui = CreateCockpitPostFXRui( hintAsset, 32000 )
-	thread PassiveMantleBoost_ShowHint_Thread( player )
+	PassiveMantleBoost_SetResolution( file.mantleBoostRui )
 }
 
-void function PassiveMantleBoost_ShowHint_Thread( entity player )
+void function PassiveMantleBoost_ShowHint_Thread()
 {
-	player.EndSignal( "OnDestroy", "OnDeath" )
-
 	OnThreadEnd(
 		function() : ()
 		{
 			RuiDestroyIfAlive( file.mantleBoostRui )
 			file.mantleBoostRui = null
+			file.hintThreadStarted = false
 		}
 	)
 
 	float showRuiPersistTime = GetCurrentPlaylistVarFloat( "mantle_boost_rui_persist_time", 0.25 )
 
+	entity trackedPlayer = null
 	float traversalProgress = 0.0
 	float lastMantleTime = 0.0
 	int mantleBoostState = MANTLE_BOOST_STATE_UNBUFFERED
 
 	while ( true )
 	{
+		PassiveMantleBoost_EnsureRui()
+
 		bool showHint = false
 		int inputSetting = GetConVarInt( "mantle_boost_input_setting" )
 		int uiSetting = MantleBoost_GetUiSetting()
 
-		if ( IsValid( player ) )
+		entity player = GetLocalClientPlayer()
+		bool isLocalView = IsValid( player ) && player == GetLocalViewPlayer() && IsAlive( player )
+
+		if ( player != trackedPlayer )
+		{
+			trackedPlayer = player
+			traversalProgress = 0.0
+			lastMantleTime = 0.0
+			mantleBoostState = MANTLE_BOOST_STATE_UNBUFFERED
+		}
+
+		if ( isLocalView )
 		{
 			bool isMantling = player.IsMantling()
 

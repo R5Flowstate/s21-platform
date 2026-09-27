@@ -157,7 +157,8 @@ void function DroneEMP( entity owner )
 				}
 			}
 
-			owner.SetPlayerNetBool( "isDoingEMPSequence", false )
+			if ( IsValid( owner ) )
+				owner.SetPlayerNetBool( "isDoingEMPSequence", false )
 		}
 	)
 	wait waitDuration

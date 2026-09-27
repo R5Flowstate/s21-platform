@@ -104,6 +104,14 @@ const bool TRANSPORT_PORTAL_DATAPAD_DEBUG = true
 global const bool TRANSPORT_PORTAL_NAVMESH_PATH_DEBUG = false
 #endif
 
+enum eKnockedAlliesStatus
+{
+	None,
+	OutOfRange,
+	Unavailable,
+	KnockedAlliesClose,
+}
+
 #if SERVER
 struct UltData
 {
@@ -111,6 +119,7 @@ struct UltData
 	entity          translocator
 	entity          receiver
 	array< entity > teammatesWhoHaveUsedReceiver
+	table< int, float > cooldownEndByPlayerIndex
 	array< entity > currentUsers
 	array< entity > allyPortals
 	array< entity > playersInTransit
@@ -171,10 +180,23 @@ struct{
 	float receiverLifespan = 120
 	float receiverLifespanUpgradeAmount = 30
 	bool receiverLastsForeverWithUpgrade = true
+	bool receiverLastsForeverByDefault = true
+
+	// Each player may reuse the Nexus once their own cooldown ends.
+	bool useIsCooldownBased = true
+	float cooldownTime = 60.0
+
+	bool canRemoteUseWhenKnocked = false
+	bool showKnockedDenyString = true
+	bool allowRecallUlt = false
+
+	// Standing at the Nexus, a hold pulls every knocked teammate in range to it.
+	bool summonAlliesWhenClose = true
+	float summonAlliesUseTime = 4.0
 
 	float incomingWarningRadius = 15.0
 
-	float maxUseDistance = 200
+	float maxUseDistance = 250
 
 	float portalWarmupTime = 1.0
 
@@ -217,26 +239,58 @@ global const bool TRANSPORT_PORTAL_HAS_USE_STATE = false
 
 bool function TransportPortal_GetRecallUsed( entity rootEnt, int playerIndex )
 {
-	if ( !TRANSPORT_PORTAL_HAS_USE_STATE )
+	if ( !IsValid( rootEnt ) )
 		return false
 
-	if ( !IsValid( rootEnt ) )
+	if ( tuning.useIsCooldownBased )
+		return TransportPortal_GetCooldownEnd( rootEnt, playerIndex ) > Time()
+
+	if ( !TRANSPORT_PORTAL_HAS_USE_STATE )
 		return false
 
 	return rootEnt.GetUseStateByIndex( playerIndex )
 }
 
+// The client only knows its own cooldown: it rides the player-exclusive expire netvar.
+float function TransportPortal_GetCooldownEnd( entity rootEnt, int playerIndex )
+{
+	#if SERVER
+		if ( !( rootEnt in file.rootEntToDataMap ) )
+			return 0.0
+
+		table< int, float > cooldowns = file.rootEntToDataMap[rootEnt].cooldownEndByPlayerIndex
+		return ( playerIndex in cooldowns ) ? cooldowns[playerIndex] : 0.0
+	#else
+		entity player = GetLocalViewPlayer()
+		if ( !IsValid( player ) || player.GetPlayerIndex() != playerIndex )
+			return 0.0
+
+		return player.GetPlayerNetTime( TRANSPORT_PORTAL_EXPIRE_TIME_NETVAR )
+	#endif
+}
+
 #if SERVER
 // Setting it is server-only; the client has the getter but not the setter.
-void function TransportPortal_SetRecallUsed( entity rootEnt, int playerIndex, bool used )
+void function TransportPortal_SetRecallUsed( entity rootEnt, entity player, bool used )
 {
+	if ( !IsValid( rootEnt ) || !IsValid( player ) )
+		return
+
+	if ( tuning.useIsCooldownBased )
+	{
+		if ( !( rootEnt in file.rootEntToDataMap ) )
+			return
+
+		float endTime = used ? Time() + tuning.cooldownTime : 0.0
+		file.rootEntToDataMap[rootEnt].cooldownEndByPlayerIndex[player.GetPlayerIndex()] <- endTime
+		player.SetPlayerNetTime( TRANSPORT_PORTAL_EXPIRE_TIME_NETVAR, endTime )
+		return
+	}
+
 	if ( !TRANSPORT_PORTAL_HAS_USE_STATE )
 		return
 
-	if ( !IsValid( rootEnt ) )
-		return
-
-	rootEnt.SetUseStateByIndex( playerIndex, used )
+	rootEnt.SetUseStateByIndex( player.GetPlayerIndex(), used )
 }
 #endif
 
@@ -371,6 +425,14 @@ void function SetupTuning()
 	tuning.receiverLifespan = 					GetCurrentPlaylistVarFloat	( "alter_ult_receiverLifespan", tuning.receiverLifespan )
 	tuning.receiverLifespanUpgradeAmount = 		GetCurrentPlaylistVarFloat	( "alter_ult_receiverLifespanUpgradeAmount", tuning.receiverLifespanUpgradeAmount )
 	tuning.receiverLastsForeverWithUpgrade = 	GetCurrentPlaylistVarBool	( "alter_ult_receiverLastsForeverWithUpgrade", tuning.receiverLastsForeverWithUpgrade )
+	tuning.receiverLastsForeverByDefault = 		GetCurrentPlaylistVarBool	( "alter_ult_receiverLastsForeverByDefault", tuning.receiverLastsForeverByDefault )
+	tuning.useIsCooldownBased = 				GetCurrentPlaylistVarBool	( "alter_ult_useIsCooldownBased", tuning.useIsCooldownBased )
+	tuning.cooldownTime = 						GetCurrentPlaylistVarFloat	( "alter_ult_cooldownTime", tuning.cooldownTime )
+	tuning.canRemoteUseWhenKnocked = 			GetCurrentPlaylistVarBool	( "alter_ult_canRemoteUseWhenKnocked", tuning.canRemoteUseWhenKnocked )
+	tuning.showKnockedDenyString = 				GetCurrentPlaylistVarBool	( "alter_ult_showKnockedDenyString", tuning.showKnockedDenyString )
+	tuning.allowRecallUlt = 					GetCurrentPlaylistVarBool	( "alter_ult_allowRecallUlt", tuning.allowRecallUlt )
+	tuning.summonAlliesWhenClose = 				GetCurrentPlaylistVarBool	( "alter_ult_summonAlliesWhenClose", tuning.summonAlliesWhenClose )
+	tuning.summonAlliesUseTime = 				GetCurrentPlaylistVarFloat	( "alter_ult_summonAlliesUseTime", tuning.summonAlliesUseTime )
 
 	tuning.incomingWarningRadius =				GetCurrentPlaylistVarFloat	( "alter_ult_incomingWarningRadius", tuning.incomingWarningRadius ) * METERS_TO_INCHES
 
@@ -566,6 +628,9 @@ void function OnPropScriptCreated( entity ent )
 #if SERVER
 void function ClientToServer_TransportPortal_RecallUlt( entity player )
 {
+	if ( !tuning.allowRecallUlt )
+		return
+
 	if ( !(player in file.alterToRootEntMap) )
 		return
 
@@ -617,6 +682,9 @@ void function ClientToServer_TransportPortal_RecallUlt( entity player )
 #if CLIENT
 void function TransportPortal_OnCharacterButtonPressed( entity player )
 {
+	if ( !tuning.allowRecallUlt )
+		return
+
 	Remote_ServerCallFunction( TRANSPORT_PORTAL_CLIENT_TO_SERVER_RECALL_ULT )
 }
 #endif
@@ -1080,6 +1148,17 @@ void function ManageReceiverLifetime_Thread( entity receiver )
 	)
 
 	#if SERVER
+		if ( tuning.receiverLastsForeverByDefault )
+		{
+			// The expire netvar now carries each player's reuse cooldown; start everyone ready.
+			foreach ( entity teammate in GetPlayerArrayOfTeam( team ) )
+			{
+				if ( IsValid( teammate ) )
+					teammate.SetPlayerNetTime( TRANSPORT_PORTAL_EXPIRE_TIME_NETVAR, 0.0 )
+			}
+			WaitForever()
+		}
+
 		float endTime = Time() + tuning.receiverLifespan
 		bool durationIsUpgraded = false
 		if ( PlayerHasPassive( owner, ePassives.PAS_ALTER_UPGRADE_ULT_DURATION ) )
@@ -1388,6 +1467,16 @@ bool function Receiver_CanUseCallback( entity player, entity receiver, int useFl
 	if ( !IsValid ( player ) || !IsValid( receiver ) )
 		return false
 
+	if ( Receiver_IsSummonRange( player, receiver ) )
+	{
+		array<entity> knockedTeammates
+		int summoningStatus = GetKnockedTeammates( player, receiver, knockedTeammates )
+		if ( knockedTeammates.len() > 0 )
+			return true
+
+		return summoningStatus != eKnockedAlliesStatus.KnockedAlliesClose
+	}
+
 	if ( !Receiver_CanUseStandardChecks( player, receiver ) )
 		return false
 
@@ -1408,9 +1497,12 @@ bool function Receiver_CanUseCallback( entity player, entity receiver, int useFl
 	return true
 }
 
-bool function Receiver_CanUseStandardChecks( entity player, entity receiver )
+bool function Receiver_CanUseStandardChecks( entity player, entity receiver, bool isSummoning = false )
 {
 	if ( !IsValid ( player ) || !IsValid( receiver ) )
+		return false
+
+	if ( !IsAlive( player ) )
 		return false
 
 	if ( receiver.GetTeam() != player.GetTeam() )
@@ -1447,7 +1539,7 @@ bool function Receiver_CanUseStandardChecks( entity player, entity receiver )
 	if ( IsBitFlagSet( player.GetWeaponDisableFlags(), WEAPON_DISABLE_FLAGS_MAIN) )
 		return false
 
-	if ( TransportPortal_GetRecallUsed( rootEnt, player.GetPlayerIndex() ) )
+	if ( !isSummoning && TransportPortal_GetRecallUsed( rootEnt, player.GetPlayerIndex() ) )
 		return false
 
 	entity weapon = player.GetOffhandWeapon( OFFHAND_EQUIPMENT )
@@ -1470,10 +1562,106 @@ void function OnUse_Receiver( entity receiver, entity player, int useInputFlags 
 	if ( IsBitFlagSet( useInputFlags, USE_INPUT_ALT ) )
 		return
 
+	if ( player.p.isInExtendedUse )
+		return
+
+	if ( Receiver_IsSummonRange( player, receiver ) )
+	{
+		if ( AnyKnockedTeammates( player, receiver ) )
+		{
+			#if CLIENT
+				CustomUsePrompt_SetLastUsedTime( Time() )
+			#endif
+			thread ReceiverSummonAllies_Thread( receiver, player )
+		}
+		return
+	}
+
+	if ( !tuning.canRemoteUseWhenKnocked && Bleedout_IsBleedingOut( player ) )
+		return
+
 	#if CLIENT
 		CustomUsePrompt_SetLastUsedTime( Time() )
 	#endif
 	thread ReceiverActivate_LongPress_Thread( receiver, player )
+}
+
+bool function Receiver_IsSummonRange( entity player, entity receiver )
+{
+	return tuning.summonAlliesWhenClose && !Bleedout_IsBleedingOut( player ) && IsPlayerWithinStandardDeathBoxUseDistance( player, receiver )
+}
+
+bool function AnyKnockedTeammates( entity player, entity receiver )
+{
+	array<entity> knockedTeammates
+	GetKnockedTeammates( player, receiver, knockedTeammates )
+	return knockedTeammates.len() > 0
+}
+
+int function GetKnockedTeammates( entity player, entity receiver, array<entity> knockedTeammates )
+{
+	bool knockedAllyClose = false
+	int errorType = eKnockedAlliesStatus.None
+	foreach ( entity teammate in GetPlayerArrayOfTeam_Alive( player.GetTeam() ) )
+	{
+		if ( teammate == player )
+			continue
+
+		if ( BleedoutState_GetPlayerBleedoutState( teammate ) != BS_BLEEDING_OUT )
+			continue
+
+		if ( Distance( receiver.GetOrigin(), teammate.GetOrigin() ) > tuning.maxUseDistance )
+		{
+			errorType = eKnockedAlliesStatus.OutOfRange
+			continue
+		}
+
+		if ( !Bleedout_PlayerCanBeRessed( teammate ) || !Receiver_CanUseStandardChecks( teammate, receiver, true ) )
+		{
+			errorType = eKnockedAlliesStatus.Unavailable
+			continue
+		}
+
+		if ( IsPlayerWithinStandardDeathBoxUseDistance( teammate, receiver ) )
+		{
+			knockedAllyClose = true
+			continue
+		}
+
+		knockedTeammates.append( teammate )
+	}
+
+	if ( knockedTeammates.len() > 0 )
+		return eKnockedAlliesStatus.None
+
+	return knockedAllyClose ? eKnockedAlliesStatus.KnockedAlliesClose : errorType
+}
+
+void function ReceiverSummonAllies_Thread( entity receiver, entity player )
+{
+	ExtendedUseSettings settings
+	settings.duration = tuning.summonAlliesUseTime
+
+	#if CLIENT
+		settings.loopSound = "survival_titan_linking_loop"
+		settings.hint = Localize( "#TRANSPORT_PORTAL_CHASE_PORTAL_CONFIRM_PROMPT" )
+		file.useStartTime = Time()
+	#elseif SERVER
+		settings.exclusiveUse = false
+		settings.movementDisable = true
+		settings.setUsableOnSuccess = true
+		settings.successFunc = OnReceiverSummonAllies_Success
+	#endif
+
+	#if CLIENT
+		thread SetUseStartTime_Thread( player )
+	#endif
+
+	waitthread ExtendedUse( receiver, player, settings )
+
+	#if CLIENT
+		player.Signal( TRANSPORT_PORTAL_LONG_HOLD_END )
+	#endif
 }
 
 void function ReceiverActivate_LongPress_Thread( entity receiver, entity player )
@@ -1534,12 +1722,35 @@ void function SetUseStartTime_Thread( entity player )
 #endif
 
 #if SERVER
+void function OnReceiverSummonAllies_Success( entity receiver, entity player, ExtendedUseSettings settings )
+{
+	if ( !IsValid( player ) || !IsValid( receiver ) )
+		return
+
+	entity rootEnt = receiver.GetOwner()
+	if ( !IsValid( rootEnt ) || !( rootEnt in file.rootEntToDataMap ) )
+		return
+
+	array<entity> knockedTeammates
+	GetKnockedTeammates( player, receiver, knockedTeammates )
+	foreach ( entity teammate in knockedTeammates )
+	{
+		if ( file.rootEntToDataMap[rootEnt].playersInTransit.contains( teammate ) )
+			continue
+
+		thread CreateChasePortal_Thread( rootEnt, teammate )
+	}
+}
+
 void function OnReceiverUse_Success( entity receiver, entity player, ExtendedUseSettings settings )
 {
 	if( !IsValid( player ) )
 		return
 
 	if ( !Receiver_CanUseStandardChecks( player, receiver ) )
+		return
+
+	if ( !tuning.canRemoteUseWhenKnocked && Bleedout_IsBleedingOut( player ) )
 		return
 
 	BeginUseOfDatapad( player, receiver )
@@ -1549,6 +1760,23 @@ void function OnReceiverUse_Success( entity receiver, entity player, ExtendedUse
 #if CLIENT
 string function Receiver_TextOverride( entity ent )
 {
+	entity player = GetLocalViewPlayer()
+	if ( IsValid( player ) && Receiver_IsSummonRange( player, ent ) )
+	{
+		array<entity> knockedTeammates
+		int summoningStatus = GetKnockedTeammates( player, ent, knockedTeammates )
+		if ( knockedTeammates.len() > 0 )
+			return "#TRANSPORT_PORTAL_SUMMON_ALLY_USE_PROMPT"
+		if ( summoningStatus == eKnockedAlliesStatus.OutOfRange )
+			return "#TRANSPORT_PORTAL_ALTER_SUMMONING_OUT_OF_RANGE"
+		if ( summoningStatus == eKnockedAlliesStatus.Unavailable )
+			return "#TRANSPORT_PORTAL_ALTER_SUMMONING_FAIL"
+		return "#TRANSPORT_PORTAL_TOO_CLOSE"
+	}
+
+	if ( IsValid( player ) && !tuning.canRemoteUseWhenKnocked && Bleedout_IsBleedingOut( player ) )
+		return tuning.showKnockedDenyString ? "#TRANSPORT_PORTAL_HINT_KNOCKED_DENY" : ""
+
 	return "#TRANSPORT_PORTAL_ALLY_RECALL_USE_PROMPT_LOOKING"
 }
 #endif
@@ -1672,6 +1900,9 @@ void function TransportPortalCreatedHint_Thread( entity receiver, entity player,
 void function OnBleedoutStarted( entity victim, float endTime )
 {
 	if ( victim != GetLocalViewPlayer() )
+		return
+
+	if ( !tuning.canRemoteUseWhenKnocked )
 		return
 
 	int team = victim.GetTeam()
@@ -1816,7 +2047,19 @@ void function ManageLookAtRui_Thread( entity receiver, entity player )
 		bool hasPlayerUsedRecal = TransportPortal_GetRecallUsed( rootEnt, player.GetPlayerIndex() )
 		RuiSetBool( regroupInfoRui, "playerHasUsedRecall", hasPlayerUsedRecal )
 
-		if ( file.ultPendingRuiDurationUpdate == receiver )
+		if ( tuning.useIsCooldownBased )
+		{
+			float cooldownEnd = TransportPortal_GetCooldownEnd( rootEnt, player.GetPlayerIndex() )
+			bool coolingDown = cooldownEnd > Time()
+			RuiSetBool( regroupInfoRui, "isEndless", !coolingDown )
+			RuiSetBool( iconRui, "isEndless", !coolingDown )
+			if ( coolingDown )
+			{
+				RuiSetGameTime( regroupInfoRui, "endTime", cooldownEnd )
+				RuiSetGameTime( iconRui, "endTime", cooldownEnd )
+			}
+		}
+		else if ( file.ultPendingRuiDurationUpdate == receiver )
 		{
 			file.ultPendingRuiDurationUpdate = null
 			endTime = player.GetPlayerNetTime( TRANSPORT_PORTAL_EXPIRE_TIME_NETVAR )
@@ -1836,7 +2079,7 @@ void function ManageLookAtRui_Thread( entity receiver, entity player )
 		bool isChanneling = TransportPortal_IsPlayerCurrentlyChanneling( player )
 		bool showText = false
 
-		if (  hasPlayerUsedRecal )
+		if ( !tuning.useIsCooldownBased && hasPlayerUsedRecal )
 		{
 			showText = ownedByPlayer
 		}
@@ -2082,7 +2325,7 @@ void function CreateChasePortal_Thread( entity rootEnt, entity player )
 		entity receiver = file.rootEntToDataMap[rootEnt].receiver
 
 		//receiver can be invalid if it was destroyed during channeling
-		if ( IsValid( receiver ) )
+		if ( IsValid( receiver ) && !tuning.useIsCooldownBased )
 		{
 			bool everyoneUsedUlt = true
 			foreach ( teammate in GetPlayerArrayOfTeam( rootEnt.GetTeam() ) )
@@ -2274,7 +2517,7 @@ void function ChasePortalDoTeleport( entity allyPortalRootEnt, entity player )
 	//if (!TRANSPORT_PORTAL_NAVMESH_PATH_DEBUG)
 	#endif
 	{
-		TransportPortal_SetRecallUsed( rootEnt, player.GetPlayerIndex(), true )
+		TransportPortal_SetRecallUsed( rootEnt, player, true )
 	}
 
 	PhaseTunnelPortalData portalData = file.allyPortalToDataMap[allyPortalRootEnt].tunnelData
@@ -2734,6 +2977,9 @@ void function CreateWaypointTrigger( entity allyPortalRootEnt )
 void function WaypointTriggerEnter( entity trigger, entity player )
 {
 	if ( !IsValid( player ) || !IsAlive( player ) || !player.IsPlayer() )
+		return
+
+	if ( !player.DoesShareRealms( trigger ) )
 		return
 
 	if ( player.e.isInPhaseTunnel )

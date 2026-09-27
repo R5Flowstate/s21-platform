@@ -297,6 +297,7 @@ void function CreateSilenceField( entity player, vector origin, entity mover, ve
 								if ( !IsValid( mover ) )
 								{
 									fx = StartParticleEffectInWorld_ReturnEntity( index, offsetCenter + FX_SILENCE_SMOKE_OFFSET, <0,0,0> )
+									CopyRealmsFromTo( player, fx )
 									EffectSetControlPointVector( fx, 1, center + FX_SILENCE_SMOKE_OFFSET )
 								}
 								else
@@ -306,7 +307,7 @@ void function CreateSilenceField( entity player, vector origin, entity mover, ve
 								}
 
 								smokeFXs[i][0] = fx
-								smokeFXs[i][1] = CreateTraceBlockerVolume( (offsetCenter + FX_SILENCE_SMOKE_OFFSET), (radius * 0.45), true, CONTENTS_BLOCK_PING, team, SILENCE_TRACE_SCRIPTNAME )
+								smokeFXs[i][1] = CreateTraceBlockerVolume( (offsetCenter + FX_SILENCE_SMOKE_OFFSET), (radius * 0.45), true, CONTENTS_BLOCK_PING, team, SILENCE_TRACE_SCRIPTNAME, player )
 
 								if ( IsValid( mover ) )
 									smokeFXs[i][1].SetParent( mover )
@@ -348,6 +349,7 @@ void function CreateSilenceField( entity player, vector origin, entity mover, ve
 					if ( !IsValid( mover ) )
 					{
 						fx = StartParticleEffectInWorld_ReturnEntity( index, offsetCenter + FX_SILENCE_SMOKE_OFFSET, <0,0,0> )
+						CopyRealmsFromTo( player, fx )
 						EffectSetControlPointVector( fx, 1, center + FX_SILENCE_SMOKE_OFFSET)
 					}
 					else
@@ -357,7 +359,7 @@ void function CreateSilenceField( entity player, vector origin, entity mover, ve
 					}
 
 					smokeFXs[i][0] = fx
-					smokeFXs[i][1] = CreateTraceBlockerVolume( (offsetCenter + FX_SILENCE_SMOKE_OFFSET), (radius * 0.45), true, CONTENTS_BLOCK_PING, team, SILENCE_TRACE_SCRIPTNAME )
+					smokeFXs[i][1] = CreateTraceBlockerVolume( (offsetCenter + FX_SILENCE_SMOKE_OFFSET), (radius * 0.45), true, CONTENTS_BLOCK_PING, team, SILENCE_TRACE_SCRIPTNAME, player )
 
 					if ( IsValid( mover ) )
 						smokeFXs[i][1].SetParent( mover )

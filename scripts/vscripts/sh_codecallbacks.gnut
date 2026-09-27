@@ -789,8 +789,8 @@ void function CodeCallback_OnPlayerChangedTeam( entity player )
 	int oldTeam = (player in file.currentPlayerTeamMap ? file.currentPlayerTeamMap[player] : TEAM_INVALID)
 	int newTeam = player.GetTeam()
 
-	// Prints for tracking down R5DEV-95050
-	printt( "CodeCallback_OnPlayerChangedTeam -", player, "changing to team", newTeam )
+	if ( oldTeam != newTeam )
+		printt( "CodeCallback_OnPlayerChangedTeam -", player, "changing to team", newTeam )
 
 	foreach ( void functionref(entity, int, int) callbackFunc in s_callbacksOnPlayerChangedTeam )
 		callbackFunc( player, oldTeam, newTeam )

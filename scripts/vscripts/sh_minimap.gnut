@@ -157,7 +157,9 @@ global enum eMinimapObject_prop_script
 
 	                             
 		REDEPLOY_BALLOON,
-		NITRO_GATE
+		NITRO_GATE,
+		SONAR_DART,
+		BOW_ULT
        
 
 	                    
@@ -183,6 +185,7 @@ global enum eMinimapObject_prop_script
                          
                   
                                
+	CASH_STATION,
 	COUNT
 }
 

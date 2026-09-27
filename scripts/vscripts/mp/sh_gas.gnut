@@ -957,7 +957,9 @@ void function CreateGasExposureRadius( SmokescreenStruct smokescreen )
 									EffectSetControlPointVector( fx, 1, center )
 
 								smokeFXs[i][0] = fx
-								smokeFXs[i][1] = CreateTraceBlockerVolume( (offsetCenter + FX_GAS_SMOKE_OFFSET), (radius * 0.45), true, CONTENTS_BLOCK_PING | CONTENTS_NOGRAPPLE| CONTENTS_BLOCKLOS, smokescreen.traceBlockerTeam, smokescreen.traceBlockerScriptName )
+								if ( IsValid( smokeFXs[i][1] ) )
+									smokeFXs[i][1].Destroy()
+								smokeFXs[i][1] = CreateTraceBlockerVolume( (offsetCenter + FX_GAS_SMOKE_OFFSET), (radius * 0.45), true, CONTENTS_BLOCK_PING | CONTENTS_NOGRAPPLE| CONTENTS_BLOCKLOS, smokescreen.traceBlockerTeam, smokescreen.traceBlockerScriptName, smokescreen.attacker )
 								smokeFXs[i][1].SetBox( <-20, -20, -16>, <35, 35, 100> )
 
 								smokeFXs[i][1].RemoveFromAllRealms()
@@ -1009,7 +1011,9 @@ void function CreateGasExposureRadius( SmokescreenStruct smokescreen )
 								EffectSetControlPointVector( fx, 1, center )
 
 							smokeFXs[i][0] = fx
-							smokeFXs[i][1] = CreateTraceBlockerVolume( (offsetCenter + FX_GAS_SMOKE_OFFSET), (radius * 0.45), true, CONTENTS_BLOCK_PING | CONTENTS_NOGRAPPLE| CONTENTS_BLOCKLOS, smokescreen.traceBlockerTeam, smokescreen.traceBlockerScriptName )
+							if ( IsValid( smokeFXs[i][1] ) )
+								smokeFXs[i][1].Destroy()
+							smokeFXs[i][1] = CreateTraceBlockerVolume( (offsetCenter + FX_GAS_SMOKE_OFFSET), (radius * 0.45), true, CONTENTS_BLOCK_PING | CONTENTS_NOGRAPPLE| CONTENTS_BLOCKLOS, smokescreen.traceBlockerTeam, smokescreen.traceBlockerScriptName, smokescreen.attacker )
 							smokeFXs[i][1].SetBox( <-20, -20, -16>, <35, 35, 100> )
 							
 							#if GAS_CLOUD_DEBUG_DRAW

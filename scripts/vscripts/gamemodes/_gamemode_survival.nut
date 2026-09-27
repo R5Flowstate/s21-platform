@@ -91,6 +91,7 @@ global function Survival_AddCallback_OnPlayerGameSummaryStatChanged
 
 global function Survival_AddCallback_OnPlayerSetupComplete
 global function Survival_SetCallback_ModeShouldSpawnPlayersDuringCharacterSelect
+global function Survival_RunCharacterSelectionNew_Thread
 global function Survival_OverrideGetLivingPlayerCountFunction
 global function Survival_OverrideGetRemainingSquadsFunction
 global function UpdatePlayerCounts
@@ -4061,6 +4062,14 @@ void function Survival_PlayerCharacterSetup( entity player, ItemFlavor character
 	{
 		existingMods = player.GetPlayerSettingsMods()
 
+		// A mod the new setfile does not define is a script error that aborts this setup before
+		// the new legend's passives and abilities are granted. Legend passives re-add their own.
+		for ( int i = existingMods.len() - 1; i >= 0; i-- )
+		{
+			if ( !player.IsClassModAvailableForPlayerSetting( string( setFile ), existingMods[i] ) )
+				existingMods.remove( i )
+		}
+
 		string SLOW_STRAFE_MOD = "slow_strafe"
 		bool slowStrafeNeeded  = CharacterClass_HasSlowStrafe( character )
 		if ( !slowStrafeNeeded && existingMods.contains( SLOW_STRAFE_MOD ) )
@@ -4071,10 +4080,6 @@ void function Survival_PlayerCharacterSetup( entity player, ItemFlavor character
 		{
 			existingMods.append( SLOW_STRAFE_MOD )
 		}
-
-		// Only the Axle setfile defines this mod; carrying it onto any other class is a script error.
-		if ( existingMods.contains( OVERDRIVE_SLIDE_CONTROL_PASSIVE ) && setFile != $"settings/player/mp/pilot_survival_overdrive.rpak" )
-			existingMods.fastremovebyvalue( OVERDRIVE_SLIDE_CONTROL_PASSIVE )
 	}
 
 	player.SetPlayerSettingsWithMods( setFile, existingMods )
@@ -4128,6 +4133,8 @@ void function Survival_PlayerCharacterSetup( entity player, ItemFlavor character
 			GivePassive( player, ePassives.PAS_LOWPROFILE )
 	}
 
+	UpgradeCore_ReapplySelectedUpgrades( player )
+
 	if ( !FS_Is1v1Playlist() )
 	{
 		// tactical
@@ -4179,7 +4186,7 @@ void function Survival_PlayerCharacterSetup( entity player, ItemFlavor character
 	// This is needed because they may be switching to a larget character that now is stuck in geo
 	// 1v1 / FFA / instagib keep engine spawn placement; navmesh relocate can lift them off geo.
 	entity parentEnt = player.GetParent()
-	if ( !IsValid( parentEnt ) && !player.Anim_IsActive() && !FS_Is1v1Playlist() && !FreeDM_IsFFA() && !FS_IsInstagib() )
+	if ( !IsValid( parentEnt ) && !player.Anim_IsActive() && !FS_Is1v1Playlist() && !FS_IsScenarios() && !FreeDM_IsFFA() && !FS_IsInstagib() )
 	{
 		array< vector > navmeshPositions = NavMesh_GetClosestPoints( player.GetOrigin(), 32 )
 
@@ -6178,6 +6185,9 @@ bool function SURVIVAL_IsCharacterClassLocked( entity player )
 	if ( GetCurrentPlaylistVarBool( "sur_dev_unrestricted_character_changes", false ) )
 		return false
 
+	if ( CharSelect_UsesPlayerState() )
+		return !CharSelect_IsPlayersTurn( player )
+
 	// Special cases for modes with character reselect.
 	if ( IsCharacterReselectEnabled() )
 	{
@@ -6846,9 +6856,7 @@ void function Survival_BotRecordStart( entity recordPlayer )
 		DEV_survivalBotPlaybackState.activeWeaponMods       = []
 		DEV_survivalBotPlaybackState.activeWeaponLoadedAmmo = 0
 	}
-	// TODO(s3): GetGlideMeter missing on S3 / compile — restore when bound
-	// DEV_survivalBotPlaybackState.glideMeter = recordPlayer.GetGlideMeter
-	DEV_survivalBotPlaybackState.glideMeter = 0.0
+	DEV_survivalBotPlaybackState.glideMeter = recordPlayer.GetGlideMeter()
 }
 
 void function Survival_BotPlaybackStart( entity playbackBot )
@@ -6865,7 +6873,7 @@ void function Survival_BotPlaybackStart( entity playbackBot )
 	Inventory_SetPlayerEquipment( playbackBot, DEV_survivalBotPlaybackState.helmetRef, "helmet" )
 	Inventory_SetPlayerEquipment( playbackBot, DEV_survivalBotPlaybackState.backpackRef, "backpack" )
 	Inventory_SetPlayerEquipment( playbackBot, DEV_survivalBotPlaybackState.incapShieldRef, "incapshield" )
-	//playbackBot.SetGlideMeter( DEV_survivalBotPlaybackState.glideMeter ) // TODO(s3): SetGlideMeter missing on S3
+	playbackBot.SetGlideMeter( DEV_survivalBotPlaybackState.glideMeter )
 
 	foreach ( string ordnanceName, int count in DEV_survivalBotPlaybackState.ordnanceCounts )
 	{
@@ -7763,8 +7771,13 @@ void function UpdateSquadDataForTeamChange( entity player, int oldIndex, int new
 	if ( !(newTeam in file.squadData) )
 		file.squadData[newTeam] <- {}
 
-	file.squadData[ newTeam ][ newIndex ] <- file.squadData[ oldTeam ][ oldIndex ]
-	delete file.squadData[ oldTeam ][ oldIndex ]
+	// Modes that assign teams without survival's connect bookkeeping (arenas) have no
+	// record under the old team, so only move what exists.
+	if ( oldTeam in file.squadData && oldIndex in file.squadData[ oldTeam ] )
+	{
+		file.squadData[ newTeam ][ newIndex ] <- file.squadData[ oldTeam ][ oldIndex ]
+		delete file.squadData[ oldTeam ][ oldIndex ]
+	}
 
 	//Updating file.squadPINData
 	if ( !(newTeam in file.squadPINData) )
@@ -7773,10 +7786,16 @@ void function UpdateSquadDataForTeamChange( entity player, int oldIndex, int new
 		file.squadPINData[newTeam] <- squadPINData
 	}
 	file.squadPINData[newTeam].numMembers++
-	file.squadPINData[oldTeam].numMembers--
 
-	file.squadPINData[newTeam].memberScores[newIndex] <- file.squadPINData[oldTeam].memberScores[oldIndex]
-	file.squadPINData[oldTeam].memberScores[oldIndex] = 0
+	if ( oldTeam in file.squadPINData )
+	{
+		file.squadPINData[oldTeam].numMembers--
+		if ( oldIndex in file.squadPINData[oldTeam].memberScores )
+		{
+			file.squadPINData[newTeam].memberScores[newIndex] <- file.squadPINData[oldTeam].memberScores[oldIndex]
+			file.squadPINData[oldTeam].memberScores[oldIndex] = 0
+		}
+	}
 }
 
 /*void function TrackSpectatedCount

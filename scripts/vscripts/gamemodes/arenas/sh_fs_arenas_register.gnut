@@ -1,0 +1,30 @@
+// fs_arenas registration: name + shared/server/client inits.
+
+global function FS_Arenas_RegisterMode
+
+void function FS_Arenas_RegisterMode()
+{
+	int modeId = RegisterGamemode( "fs_arenas" )
+	if ( modeId == eGameModes.invalid )
+	{
+		printt( "[FS-ARENAS] RegisterMode FAILED" )
+		return
+	}
+
+	// Arenas is a survival variant: it needs survival's shared and client setup (HUD,
+	// gamestate RUI, inventory remote functions) but runs its own server round loop.
+	#if SERVER || CLIENT
+		GameMode_AddSharedInitByName( "fs_arenas", GamemodeSurvivalShared_Init )
+		GameMode_AddSharedInitByName( "fs_arenas", Arenas_SharedInit )
+	#endif
+
+	#if SERVER
+		GameMode_AddServerInitByName( "fs_arenas", Arenas_ServerInit )
+	#endif
+
+	#if CLIENT
+		GameMode_AddClientInitByName( "fs_arenas", ClGamemodeSurvival_Init )
+		GameMode_AddClientInitByName( "fs_arenas", Arenas_ClientInit )
+	#endif
+
+}

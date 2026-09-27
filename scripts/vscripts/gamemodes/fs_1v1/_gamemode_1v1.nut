@@ -166,7 +166,14 @@ global struct MatchGroup
 	
 	int p1LegendIndex = -1
 	int p2LegendIndex = -1
-	
+
+	// Challenge legend picks, as character GUIDs; 0 = not picked.
+	int p1ChallengeLegend = 0
+	int p2ChallengeLegend = 0
+	bool p1PickPending = false
+	bool p2PickPending = false
+	bool challengeLegendsGranted = false
+
 	entity ring//ring boundaries
 	LocationsData &groupLocStruct
 
@@ -329,6 +336,8 @@ global struct _1v1SettingsStruct
 	bool bGiveSameRandomLegendToBothPlayers = false
 	bool bAllowLegend = false
 	bool bAllowAbilities = false
+	bool bChallengeLegends = false
+	float challengeLegendPickTime = 10.0
 	bool bChalServerMsg = false
 	bool bEnableStreaks = true
 	bool customWeaponsChallengeOnly = false
@@ -844,24 +853,22 @@ void function _Run1v1()
 
 		FS_1v1_GatherPlayersToWaitingRoom()
 
-		if( !isScenariosMode() )
-			SetDeathFieldParams( <0, 0, 0>, RING_DISABLED_RADIUS, 0, 90000, RING_DISABLED_RADIUS, 0 )
+		SetDeathFieldParams( <0, 0, 0>, RING_DISABLED_RADIUS, 0, 90000, RING_DISABLED_RADIUS, 0 )
 
 		// ---- START ROUND ----
 		// Triggers _OnTdmStateEnter_InProgress1v1 callback (resets challenges, sets timer, unfreezes)
 		SetTdmStateToInProgress()
 
 		// ---- ROUND TIMER LOOP ----
-		float roundEndTime = GetGlobalNetTime( "flowstate_DMRoundEndTime" )
-
+		// Re-read each tick: a mode may push the round end out while a fight runs.
 		if( FlowState_Timer() )
 		{
-			while( Time() <= roundEndTime && GetTDMState() == eTDMState.IN_PROGRESS )
+			while( Time() <= GetGlobalNetTime( "flowstate_DMRoundEndTime" ) && GetTDMState() == eTDMState.IN_PROGRESS )
 				wait 1
 		}
 		else
 		{
-			while( Time() <= roundEndTime )
+			while( Time() <= GetGlobalNetTime( "flowstate_DMRoundEndTime" ) )
 				wait 1
 		}
 
@@ -929,7 +936,7 @@ void function FS_1v1_NetworkedLatencyThread( entity player )
 
 	for( ; ; )
 	{
-		int latency = int( player.GetLatency() * 1000 )
+		int latency = int( player.GetConnectionLatencyMS() )
 		player.SetPlayerNetInt( "latency", ClampInt( latency, 0, 500 ) )
 		wait 0.5
 	}
@@ -956,11 +963,22 @@ void function FS_1v1_OnPlayerDamaged_Score( entity victim, var damageInfo )
 			return
 		}
 
-		MatchGroup group = Gamemode1v1_GetPlayerSoloGroup( victim )
-		if ( Gamemode1v1_IsMatchValid( group ) && attacker != group.player1 && attacker != group.player2 )
+		if ( isScenariosMode() )
 		{
-			DamageInfo_SetDamage( damageInfo, 0 )
-			return
+			if ( FS_Scenarios_ShouldBlockDamage( victim, attacker ) )
+			{
+				DamageInfo_SetDamage( damageInfo, 0 )
+				return
+			}
+		}
+		else
+		{
+			MatchGroup group = Gamemode1v1_GetPlayerSoloGroup( victim )
+			if ( Gamemode1v1_IsMatchValid( group ) && attacker != group.player1 && attacker != group.player2 )
+			{
+				DamageInfo_SetDamage( damageInfo, 0 )
+				return
+			}
 		}
 	}
 
@@ -979,6 +997,9 @@ void function FS_1v1_OnPlayerDamaged_Score( entity victim, var damageInfo )
 	MatchGroup group = Gamemode1v1_GetPlayerSoloGroup( attacker )
 	if ( !Gamemode1v1_IsMatchValid( group ) )
 		return
+
+	entity demoWeapon = DamageInfo_GetWeapon( damageInfo )
+	FS_Coaching_OnDamage( group, attacker, victim, IsValid( demoWeapon ) ? demoWeapon.GetWeaponClassName() : "", dmg )
 
 	if ( Flowstate_IsLGDuels() )
 	{
@@ -1245,14 +1266,16 @@ void function Gamemode1v1_Init( string mapName )
 		AddClientCommandCallback("CC_1v1_CamoColor", CC_1v1_CamoColor)
 		AddClientCommandCallback("CC_1v1_MaxEnemyLatency", CC_1v1_MaxEnemyLatency)
 		AddClientCommandCallback("CC_1v1_MaxIBMMTime", CC_1v1_MaxIBMMTime)
-		AddClientCommandCallback("CC_1v1_ScoreboardOpen", CC_1v1_ScoreboardOpen)
 	}
+	// every shell mode uses the shared board, round-end included
+	AddClientCommandCallback("CC_1v1_ScoreboardOpen", CC_1v1_ScoreboardOpen)
 	// Coaching mode not ported (FS_Init_1v1_Coaching / recordings).
 
 	if ( Flowstate_IsLGDuels() )
 		Flowstate_LgDuels1v1_Init()
 
-	// Scenarios not ported (Init_FS_Scenarios).
+	if ( isScenariosMode() )
+		FS_Scenarios_Init()
 
 	SpawnSystem_InitGamemodeOptions()
 		
@@ -1452,6 +1475,45 @@ bool function FS_1v1_WaitingRoomNeedsFallback( LocPair loc )
 	return Distance( loc.origin, <1408.2179, -4048.65088, 411.03125> ) < 8.0
 }
 
+// Engine start spawns can sit outside the playable map (drop staging); loot bins
+// never do. Use the bin nearest the middle of the bin field, on the navmesh.
+bool function FS_1v1_LootBinWaitingRoom( LocPair room )
+{
+	array<entity> bins = GetAllLootBins()
+	if ( bins.len() == 0 )
+		return false
+
+	array<float> xs
+	array<float> ys
+	foreach ( entity bin in bins )
+	{
+		xs.append( bin.GetOrigin().x )
+		ys.append( bin.GetOrigin().y )
+	}
+	xs.sort()
+	ys.sort()
+	vector middle = < xs[ xs.len() / 2 ], ys[ ys.len() / 2 ], 0 >
+
+	entity best = bins[ 0 ]
+	foreach ( entity bin in bins )
+	{
+		if ( Distance2D( bin.GetOrigin(), middle ) < Distance2D( best.GetOrigin(), middle ) )
+			best = bin
+	}
+
+	vector ornull clamped = NavMesh_ClampPointForHullWithExtents( best.GetOrigin(), HULL_HUMAN, <256, 256, 128> )
+	if ( clamped == null )
+		return false
+
+	vector origin = expect vector( clamped )
+	if ( !PositionIsInMapBounds( origin ) || Distance( origin, best.GetOrigin() ) > 512.0 )
+		return false
+
+	room.origin = origin
+	room.angles = <0, best.GetAngles().y, 0>
+	return true
+}
+
 void function FS_1v1_ApplyWaitingRoomSafeFallback( array<SpawnData> allSoloLocations )
 {
 	if ( !FS_1v1_WaitingRoomNeedsFallback( Gamemode1v1_GetWaitingRoomLocation() ) )
@@ -1464,6 +1526,14 @@ void function FS_1v1_ApplyWaitingRoomSafeFallback( array<SpawnData> allSoloLocat
 	{
 		Gamemode1v1_SetWaitingRoomLocation( allSoloLocations[0].spawn.origin, allSoloLocations[0].spawn.angles )
 		printt( "[FS-1V1] waiting room safe fallback disk spawn0=" + string( allSoloLocations[0].spawn.origin ) + " map=" + GetMapName() )
+		return
+	}
+
+	LocPair room
+	if ( FS_1v1_LootBinWaitingRoom( room ) )
+	{
+		Gamemode1v1_SetWaitingRoomLocation( room.origin, room.angles )
+		printt( "[FS-1V1] waiting room safe fallback loot bin=" + string( room.origin ) + " map=" + GetMapName() )
 		return
 	}
 
@@ -1659,6 +1729,10 @@ void function FS_1v1_DisableLootBin( entity lootBin )
 	if ( !IsValid( lootBin ) )
 		return
 
+	// Scenarios fills its own bins per fight; only the map's shared bins stay shut.
+	if ( isScenariosMode() && FS_Scenarios_Loot_OwnsLootBin( lootBin ) )
+		return
+
 	lootBin.UnsetUsable()
 	// CanUseLootBin checks this map before any other allow.
 	AddCallback_CanOpenLootBin( lootBin, FS_1v1_LootBinNeverOpen )
@@ -1807,17 +1881,16 @@ void function FS1v1_OnEntitiesDidLoad()
 
 	if( settings.isScenariosMode )
 	{
-		int teamAmount = GetCurrentPlaylistVarInt( "fs_scenarios_teamAmount", 3 )	
-		string potentialTeamCount = SpawnSystem_GetPakInfoForKey( "teamCount" )	
+		int teamAmount = FS_Scenarios_GetScenariosTeamCount()
+		string potentialTeamCount = SpawnSystem_GetPakInfoForKey( "teamCount" )
+
+		// A set authored for another team count cannot be regrouped; the location
+		// validator generates every location for this team count instead.
+		bool setMatches = potentialTeamCount == "_NOTFOUND" || potentialTeamCount.tointeger() == teamAmount
+		if( !setMatches )
+			Warning( "[FS-SCN][SPAWN] spawn set is for " + potentialTeamCount + " teams, playing " + string( teamAmount ) + "; generating locations" )
 		
-		int spawnPakTeamCount = -1
-		if( potentialTeamCount != "_NOTFOUND" )
-			spawnPakTeamCount = potentialTeamCount.tointeger()
- 
-		if( spawnPakTeamCount > SCENARIOS_MAX_ALLOWED_TEAMSIZE )
-			Warning( "[FS-1V1] spawn pak teamCount " + string( spawnPakTeamCount ) + " exceeds max " + string( SCENARIOS_MAX_ALLOWED_TEAMSIZE ) )
-		
-		for ( int i = 0; i < allSoloLocations.len(); i = i + teamAmount )
+		for ( int i = 0; setMatches && i + teamAmount <= allSoloLocations.len(); i = i + teamAmount )
 		{
 			LocationsData p	
 			for ( int j = 0; j < teamAmount; j++  )
@@ -1869,11 +1942,10 @@ void function FS1v1_OnEntitiesDidLoad()
 
 	if( settings.isScenariosMode )
 	{
-		FS_Scenarios_SetupPanels()
-		thread FS_Scenarios_Main_Thread()
-		return
+		FS_Scenarios_Spawns_Validate()
+		FS_Scenarios_OnEntitiesDidLoad()
 	}
-	
+
 	// default spawn behavior
 	AddCallback_OnPlayerRespawned( Gamemode1v1_OnSpawned )
 	AddDamageCallback( "player", FS_1v1_BlockWorldDamageWhileTriggerExempt )
@@ -1936,14 +2008,20 @@ void function FS1v1_OnEntitiesDidLoad()
 	BannerImages_1v1Init()
 	printt( "[FS-1V1] waiting room spawns face world banner at " + string( FS_1v1_WaitingRoomLookTarget() ) )
 
-	if( !bIsCoachingMode() )
+	if( bIsCoachingMode() )
 	{
-		Gamemode1v1_SetRestEnabled()
-		AddClientCommandCallback( "rest", CC_1v1_ToggleRest )
-		AddClientCommandCallback( "spectate_1v1", ClientCommand_SpectateNew )
+		Gamemode1v1_SetRestEnabled( false )
 	}
 	else
-		Gamemode1v1_SetRestEnabled( false )
+	{
+		Gamemode1v1_SetRestEnabled()
+		// Scenarios registers its own rest (leaving a fight costs points) and has no duel to spectate.
+		if( !settings.isScenariosMode )
+		{
+			AddClientCommandCallback( "rest", CC_1v1_ToggleRest )
+			AddClientCommandCallback( "spectate_1v1", ClientCommand_SpectateNew )
+		}
+	}
 	
 	thread FS_1v1_StartGame_THREAD( Gamemode1v1_GetWaitingRoomLocation() )
 }
@@ -2128,7 +2206,11 @@ void function INIT_PlaylistSettings()
 	settings.bGiveSameRandomLegendToBothPlayers		= GetCurrentPlaylistVarBool( "give_random_legend_on_spawn", false )
 	settings.bAllowLegend 							= GetCurrentPlaylistVarBool( "give_legend", false )
 	settings.bAllowAbilities 						= GetCurrentPlaylistVarBool( "give_legend_tactical", false )
-	settings.bChalServerMsg 						= bBotEnabled() ? GetCurrentPlaylistVarBool( "challenge_recap_server_message", true ) : false;
+	settings.bChallengeLegends						= GetCurrentPlaylistVarBool( "challenge_legends", false ) && CharSelect_UsesPlayerState()
+	settings.challengeLegendPickTime				= clamp( GetCurrentPlaylistVarFloat( "challenge_legend_pick_time", 10.0 ), 3.0, 30.0 )
+	if ( GetCurrentPlaylistVarBool( "challenge_legends", false ) && !CharSelect_UsesPlayerState() )
+		Warning( "[FS-1V1][CHAL-LEGEND] challenge_legends needs charselect_per_player_state 1; challenges stay on the playlist legend" )
+	settings.bChalServerMsg						= bBotEnabled() ? GetCurrentPlaylistVarBool( "challenge_recap_server_message", true ) : false;
 	settings.ibmm_wait_limit 						= GetCurrentPlaylistVarInt( "ibmm_wait_limit", 999 )
 	settings.default_ibmm_wait 						= GetCurrentPlaylistVarFloat( "default_ibmm_wait", 3 )
 	settings.enableChallenges						= GetCurrentPlaylistVarBool( "enable_challenges", true )
@@ -2289,6 +2371,7 @@ void function FS_1v1_OnPlayerDisconnected( entity player )
 		// Score the forfeit before the stats flush below, and while both entities
 		// are still valid -- the teardown itself is threaded and runs later.
 		FS_1v1_RecordForfeit( playerGroup, player )
+		FS_Coaching_StopForGroup( playerGroup, player == playerGroup.player1 ? playerGroup.player2 : playerGroup.player1, "disconnect" )
 		thread HandlePlayerDisconnectedDuringMatch( playerGroup, player )
 		// Continue to challenge cleanup below
 	}
@@ -2387,11 +2470,7 @@ void function Gamemode1v1_OnPlayerKilled( entity victim, entity attacker, var da
 	if( IsValid( attacker ) )
 		victim.p.lastKiller = attacker
 
-	if( bIsCoachingMode() )
-	{
-		//(cafe)stops recording
-		FS_Coaching_StopRecording( FS_Coaching_GetAvailableMatchIdentifier(), victim, attacker )
-	}
+	FS_Coaching_StopRecording( FS_Coaching_GetAvailableMatchIdentifier(), victim, attacker )
 
 	// Resting players (spectators/waiting) need immediate respawn when killed
 	// Replaces 60 FPS polling in main loop (lines 4390-4409)
@@ -2401,28 +2480,31 @@ void function Gamemode1v1_OnPlayerKilled( entity victim, entity attacker, var da
 		return // Don't process as match event
 	}
 
-	// Challenge matches (IsKeep = true) auto-respawn both players instead of ending
-	if( !isScenariosMode() )
+	if( isScenariosMode() )
 	{
-		MatchGroup group = Gamemode1v1_GetPlayerSoloGroup( victim )
+		FS_Scenarios_OnPlayerKilled( victim, attacker, damageInfo )
+		return
+	}
 
-		if( Gamemode1v1_IsMatchValid( group ) && group.IsKeep )
-		{
-			// Route to event-driven challenge match respawn handler
-			entity chalAttacker = ( IsValid( attacker ) && attacker.IsPlayer() ) ? attacker : null
-			thread HandleChallengeMatchRespawn( group, victim, chalAttacker )
-			return // Don't process as normal match end
-		}
+	// Challenge matches (IsKeep = true) auto-respawn both players instead of ending
+	MatchGroup group = Gamemode1v1_GetPlayerSoloGroup( victim )
 
-		// Normal match: process as match end
-		if( Gamemode1v1_IsMatchValid( group ) )
-		{
-			// trigger_hurt / world: pass null so HandleGroupIsFinished awards the opponent
-			entity duelAttacker = ( IsValid( attacker ) && attacker.IsPlayer() ) ? attacker : null
-			HandleGroupIsFinished( victim, duelAttacker )
-			victim.SetPlayerNetEnt( "FSDM_1v1_Enemy", null )
-			return
-		}
+	if( Gamemode1v1_IsMatchValid( group ) && group.IsKeep )
+	{
+		// Route to event-driven challenge match respawn handler
+		entity chalAttacker = ( IsValid( attacker ) && attacker.IsPlayer() ) ? attacker : null
+		thread HandleChallengeMatchRespawn( group, victim, chalAttacker )
+		return // Don't process as normal match end
+	}
+
+	// Normal match: process as match end
+	if( Gamemode1v1_IsMatchValid( group ) )
+	{
+		// trigger_hurt / world: pass null so HandleGroupIsFinished awards the opponent
+		entity duelAttacker = ( IsValid( attacker ) && attacker.IsPlayer() ) ? attacker : null
+		HandleGroupIsFinished( victim, duelAttacker )
+		victim.SetPlayerNetEnt( "FSDM_1v1_Enemy", null )
+		return
 	}
 		
 	if( Gamemode1v1_IsPlayerWaiting( victim ) )
@@ -2538,7 +2620,7 @@ void function Gamemode1v1_OnSpawned( entity player )
 			if ( ItemFlavor_GetType( character ) == eItemType.character )
 				Survival_PlayerCharacterSetup( player, character, true )
 			TakeAllPassives( player )
-			if ( !settings.bAllowAbilities )
+			if ( !FS_1v1_AbilitiesAllowed( player ) )
 				FS_1v1_StripAbilities( player )
 			ClearPlayerEliminated( player )
 			EnablePlayerCollision( player )
@@ -3358,9 +3440,14 @@ void function _ResetPlayerStats1v1( entity player )
 	}
 }
 
+int function FS_1v1_LiveMatchCount()
+{
+	return isScenariosMode() ? FS_Scenarios_GetGroupCount() : file.activeMatches.len()
+}
+
 void function FS_1v1_WaitForActiveMatchesToSettle()
 {
-	if ( file.activeMatches.len() == 0 )
+	if ( FS_1v1_LiveMatchCount() == 0 )
 		return
 
 	float grace = GetCurrentPlaylistVarFloat( "fs_1v1_round_end_grace", ROUND_END_GRACE_DEFAULT )
@@ -3383,16 +3470,16 @@ void function FS_1v1_WaitForActiveMatchesToSettle()
 		DirectClearPanel( player, eNotify.MATCHING )
 	}
 
-	printt( "[FS-1V1] round-end settle matches=" + string( file.activeMatches.len() ) + " grace=" + string( grace ) )
+	printt( "[FS-1V1] round-end settle matches=" + string( FS_1v1_LiveMatchCount() ) + " grace=" + string( grace ) )
 
 	float deadline = Time() + grace
 	int shownRemaining = -1
 
-	while ( file.activeMatches.len() > 0 )
+	while ( FS_1v1_LiveMatchCount() > 0 )
 	{
 		if ( Time() >= deadline )
 		{
-			printt( "[FS-1V1] round-end grace expired, still " + string( file.activeMatches.len() ) + " live matches -- forcing finish" )
+			printt( "[FS-1V1] round-end grace expired, still " + string( FS_1v1_LiveMatchCount() ) + " live matches -- forcing finish" )
 			break
 		}
 

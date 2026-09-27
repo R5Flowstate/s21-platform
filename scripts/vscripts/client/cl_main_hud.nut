@@ -961,6 +961,9 @@ bool function ShouldMainHudBeVisible( entity player )
 {
 	int ceFlags = player.GetCinematicEventFlags()
 
+	if ( Demo_IsPlaying() && Demo_GetHud() != 0 )
+		return false
+
 	if ( IsWatchingKillReplay() && ShouldScriptHideHudInKillreplay() )
 		return false
 
@@ -1080,6 +1083,9 @@ void function DEV_DebugHudStatusThread()
 
 bool function ShouldPermanentHudBeVisible( entity player )
 {
+	if ( Demo_IsPlaying() && Demo_GetHud() != 0 )
+		return false
+
 	if ( IsViewingSquadSummary() || IsViewingDeathRecap() )
 		return false
 

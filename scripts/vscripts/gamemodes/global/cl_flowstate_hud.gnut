@@ -127,16 +127,12 @@ void function FS_Hud_RefreshPlayerInfo_THREAD()
 	printt( "[FS-HUD] refresh populate settings=" + string( player.GetPlayerSettings() ) )
 }
 
-// HUD character. Playlist force outranks the slot; otherwise the live setfile
-// is the body. Local persistence is already "ready" (usually the lobby pick)
-// and on this dedi it does not round-trip, so the slot is the wrong legend.
+// HUD character: the live setfile is the body, and outranks the playlist force (1v1
+// challenges play picked legends). The slot does not round-trip here, so it goes last.
 ItemFlavor ornull function FS_Hud_TryGetCharacterFlavor( entity player )
 {
 	if ( !IsValid( player ) || !player.IsPlayer() )
 		return null
-
-	if ( FS_1v1_IsForceCharacter() && !FlowState_ForceAdminCharacter() )
-		return FS_1v1_GetForcedCharacterFlavor()
 
 	asset settings = player.GetPlayerSettings()
 	if ( settings != $"" && settings != SPECTATOR_SETTINGS )
@@ -149,6 +145,9 @@ ItemFlavor ornull function FS_Hud_TryGetCharacterFlavor( entity player )
 				return character
 		}
 	}
+
+	if ( FS_1v1_IsForceCharacter() && !FlowState_ForceAdminCharacter() )
+		return FS_1v1_GetForcedCharacterFlavor()
 
 	EHI ehi = ToEHI( player )
 	if ( LoadoutSlot_IsReady( ehi, Loadout_Character() ) )
@@ -212,6 +211,8 @@ string function FS_Hud_ModeChromeName( string pl )
 	{
 		case "fs_1v1":
 			return "FS 1v1"
+		case "fs_scenarios":
+			return "ZONE WARS"
 		case "fs_instagib":
 			return "INSTAGIB"
 		case "map_editor":

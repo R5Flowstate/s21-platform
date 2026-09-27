@@ -1,0 +1,154 @@
+// Flowstate Scenarios: team fights, one realm per fight, on the fs_1v1 shell.
+// Designed by @CafeFPS, stats and teams by mkos.
+
+global function FS_Scenarios_SharedInit
+global function FS_Scenarios_RegisterNetwork
+global function FS_Scenarios_GetEventScoreValue
+global function FS_Scenarios_LastScoreType
+
+global enum FS_ScoreType
+{
+	// Append only: standings rows and the score datatable are keyed by value.
+	PLAYERSCORE = -1,
+	SURVIVAL_TIME,
+	DOWNED,
+	KILL,
+	BONUS_DOUBLE_DOWNED,
+	BONUS_TRIPLE_DOWNED,
+	BONUS_TEAM_WIPE,
+	TEAM_WIN,
+	SOLO_WIN,
+	PENALTY_DEATH,
+	PENALTY_RING,
+	PENALTY_DESERTER,
+	BONUS_BECOMES_SOLO_PLAYER,
+	BONUS_KILLED_SOLO_PLAYER,
+}
+
+global enum eScenariosHudPhase
+{
+	NONE,
+	PICK,
+	DROP,
+	LIVE,
+	WON,
+	LOST,
+	_count
+}
+
+// Roster slots: 0-4 the viewer's squad (viewer first), 5-12 every other squad in fight order.
+global const int FS_SCENARIOS_HUD_FRIEND_SLOTS = 5
+global const int FS_SCENARIOS_HUD_SLOTS = 13
+
+global const int FS_SCENARIOS_STANDINGS_TOTAL = 1
+global const int FS_SCENARIOS_STANDINGS_ROUND = 2
+global const int FS_SCENARIOS_STAT_LIMIT = 100000
+
+struct
+{
+	bool inited = false
+	bool netRegistered = false
+	table<int, int> points
+} file
+
+int function FS_Scenarios_LastScoreType()
+{
+	return FS_ScoreType.BONUS_KILLED_SOLO_PLAYER
+}
+
+void function FS_Scenarios_SharedInit()
+{
+	#if SERVER || CLIENT
+		if ( file.inited || !FS_IsScenarios() )
+			return
+
+		file.inited = true
+
+		// Knockdowns read their timings from the bleedout types; survival's shared
+		// init registers them and this mode never runs it.
+		BleedoutShared_Init()
+
+		var dataTable = GetDataTable( $"datatable/flowstate_scenarios_score_system.rpak" )
+		int colEvent = GetDataTableColumnByName( dataTable, "event" )
+		int colPoints = GetDataTableColumnByName( dataTable, "points" )
+
+		for ( int i = 0; i < GetDataTableRowCount( dataTable ); i++ )
+		{
+			int scoreEvent = GetDataTableInt( dataTable, i, colEvent )
+			if ( scoreEvent < 0 || scoreEvent > FS_Scenarios_LastScoreType() )
+				continue
+
+			file.points[ scoreEvent ] <- GetDataTableInt( dataTable, i, colPoints )
+		}
+
+		// A teammate's lock makes the legend unavailable to the rest of the team.
+		AddCallback_CustomIsCharacterLockedForPlayer( FS_Scenarios_IsLegendTakenByTeammate )
+
+	#endif
+}
+
+int function FS_Scenarios_GetEventScoreValue( int scoreEvent )
+{
+	if ( scoreEvent in file.points )
+		return file.points[ scoreEvent ]
+	return 0
+}
+
+#if SERVER || CLIENT
+bool function FS_Scenarios_IsLegendTakenByTeammate( ItemFlavor character, entity player )
+{
+	if ( !IsValid( player ) || !player.IsPlayer() )
+		return false
+
+	foreach ( entity teammate in GetPlayerArrayOfTeam( player.GetTeam() ) )
+	{
+		if ( teammate == player || !IsValid( teammate ) )
+			continue
+		if ( !teammate.GetPlayerNetBool( CHARACTER_SELECT_NETVAR_HAS_LOCKED_IN_CHARACTER ) )
+			continue
+
+		EHI teammateEHI = ToEHI( teammate )
+		if ( !LoadoutSlot_IsReady( teammateEHI, Loadout_Character() ) )
+			continue
+		if ( LoadoutSlot_GetItemFlavor( teammateEHI, Loadout_Character() ) == character )
+			return true
+	}
+
+	return false
+}
+#endif
+
+// Appended after the shell's own registrations, so it never shifts their wire order.
+void function FS_Scenarios_RegisterNetwork()
+{
+	#if SERVER || CLIENT
+		if ( file.netRegistered || !FS_IsScenarios() )
+			return
+
+		file.netRegistered = true
+
+		RegisterNetworkedVariable( "FS_Scenarios_PlayerScore", SNDC_PLAYER_GLOBAL, SNVT_BIG_INT, 0 )
+		RegisterNetworkedVariable( "FS_Scenarios_MatchesWins", SNDC_PLAYER_GLOBAL, SNVT_BIG_INT, 0 )
+		RegisterNetworkedVariable( "FS_Scenarios_EnemiesAlive", SNDC_PLAYER_EXCLUSIVE, SNVT_INT, -1 )
+		RegisterNetworkedVariable( "FS_Scenarios_RingCloseTime", SNDC_PLAYER_GLOBAL, SNVT_TIME, -1 )
+
+		Remote_RegisterClientFunction( "ServerCallback_FS_Scenarios_Standing",
+			"int", FS_SCENARIOS_STANDINGS_TOTAL, FS_SCENARIOS_STANDINGS_ROUND + 1,
+			"int", FS_ScoreType.PLAYERSCORE, FS_Scenarios_LastScoreType() + 1,
+			"int", -FS_SCENARIOS_STAT_LIMIT, FS_SCENARIOS_STAT_LIMIT + 1,
+			"int", 0, FS_SCENARIOS_STAT_LIMIT + 1 )
+		Remote_RegisterClientFunction( "ServerCallback_FS_Scenarios_StandingsDone" )
+		Remote_RegisterClientFunction( "ServerCallback_FS_Scenarios_HudPhase",
+			"int", 0, eScenariosHudPhase._count,
+			"int", 0, INT_MAX,
+			"float", -1.0, FLT_MAX, 32,
+			"float", -1.0, FLT_MAX, 32,
+			"float", -1.0, FLT_MAX, 32 )
+		Remote_RegisterClientFunction( "ServerCallback_FS_Scenarios_HudSlot", "int", 0, FS_SCENARIOS_HUD_SLOTS, "int", INT_MIN, INT_MAX, "int", 0, FS_SCENARIOS_HUD_SLOTS )
+		Remote_RegisterClientFunction( "ServerCallback_FS_Scenarios_HudOut", "int", INT_MIN, INT_MAX )
+		Remote_RegisterClientFunction( "ServerCallback_FS_Scenarios_SquadSize", "int", 1, SCENARIOS_MAX_ALLOWED_TEAMSIZE + 1 )
+
+		// fs_1v1 never runs the survival shared init that registers the lock call.
+		Remote_RegisterServerFunction( "ClientCallback_Sur_UpdateCharacterLock", "bool" )
+	#endif
+}

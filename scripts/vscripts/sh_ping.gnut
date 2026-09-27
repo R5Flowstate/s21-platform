@@ -503,6 +503,8 @@ global enum ePingType
 	ABILITY_ECHO_LOCATOR,
 	PING_ABILITY_ECHO_LOCATOR_ENEMY,
 	PING_ABILITY_ECHO_LOCATOR_FRIENDLY,
+	PING_ABILITY_SONAR_DART,
+	PING_ABILITY_STINGER_BOLT,
 
 	                  
 		RAMPART_TT_MURAL,
@@ -924,6 +926,8 @@ string function Ping_GetSoundForLocationPing( entity wp, int pingType, bool isOu
 		case ePingType.VOID_RING:
 		case ePingType.ABILITY_SPACE_ELEVATOR:
 		case ePingType.ABILITY_ECHO_LOCATOR:
+		case ePingType.PING_ABILITY_SONAR_DART:
+		case ePingType.PING_ABILITY_STINGER_BOLT:
                      
                               
       
@@ -2446,6 +2450,8 @@ array<int> function GetReplyOptionsForWaypoint( entity player, entity wp )
                                                   
       
 					case ePingType.ABILITY_ECHO_LOCATOR:
+					case ePingType.PING_ABILITY_SONAR_DART:
+					case ePingType.PING_ABILITY_STINGER_BOLT:
 					case ePingType.ENEMY_TETHERED:
 						results.append( ePingReply.BLANK )
 						break
@@ -2532,6 +2538,8 @@ array<int> function GetReplyOptionsForWaypoint( entity player, entity wp )
 					case ePingType.ABILITY_MOBILE_SHIELD:
 					case ePingType.ABILITY_CASTLE_WALL:
 					case ePingType.ABILITY_ECHO_LOCATOR:
+					case ePingType.PING_ABILITY_SONAR_DART:
+					case ePingType.PING_ABILITY_STINGER_BOLT:
 					case ePingType.ENEMY_TETHERED:
 						results.append( ePingReply.BLANK )
 						break
@@ -4762,6 +4770,25 @@ PingCommandParams function GetPingParamsForHitEnt( entity hitEnt, entity player,
 		}
 	}
 
+	{
+		entity sonarDart = GetHitEntForScriptName( hitEntData, SONAR_DART_SCRIPT_NAME )
+		if ( IsValid( sonarDart ) )
+		{
+			result.hitEnt = sonarDart
+			result.pingType = ePingType.PING_ABILITY_SONAR_DART
+			return result
+		}
+	}
+	{
+		entity stingerBolt = GetHitEntForScriptName( hitEntData, BOW_ULT_MISSILE_SCRIPT_NAME ) || GetHitEntForScriptName( hitEntData, BOW_ULT_MISSILE_READY_SCRIPT_NAME ) || GetHitEntForScriptName( hitEntData, BOW_ULT_MISSILE_FIRING_SCRIPT_NAME ) || GetHitEntForScriptName( hitEntData, BOW_ULT_MISSILE_CLOSING_SCRIPT_NAME )
+		if ( IsValid( stingerBolt ) )
+		{
+			result.hitEnt = stingerBolt
+			result.pingType = ePingType.PING_ABILITY_STINGER_BOLT
+			return result
+		}
+	}
+
 	{ // Seer Exhibit
 		entity echoLocator = GetHitEntForScriptName( hitEntData, ECHO_LOCATOR_SCRIPT_NAME )
 		if ( IsValid( echoLocator ) )
@@ -6007,6 +6034,10 @@ int function GetCommsActionForPing( entity pingingPlayer, int pingType, entity p
 			return eCommsAction.PING_ABILITY_ECHO_LOCATOR_ENEMY
 		case ePingType.PING_ABILITY_ECHO_LOCATOR_FRIENDLY:
 			return eCommsAction.PING_ABILITY_ECHO_LOCATOR_FRIENDLY
+		case ePingType.PING_ABILITY_SONAR_DART:
+			return eCommsAction.PING_ABILITY_SONAR_DART
+		case ePingType.PING_ABILITY_STINGER_BOLT:
+			return eCommsAction.PING_ABILITY_STINGER_BOLT
 
 		case ePingType.BLOODHOUND_POI_TRAVELER:
 		case ePingType.BLOODHOUND_POI_TRAVELER_RECENT:
@@ -6384,6 +6415,10 @@ asset function Ping_IconForPing_Hud( entity player, int pingType, entity pingedE
 
 		case ePingType.ABILITY_ECHO_LOCATOR:
 			return $"rui/hud/ultimate_icons/ultimate_seer"
+		case ePingType.PING_ABILITY_SONAR_DART:
+			return $"rui/hud/tactical_icons/tactical_sparrow"
+		case ePingType.PING_ABILITY_STINGER_BOLT:
+			return $"rui/hud/ultimate_icons/ultimate_sparrow"
 
               
                              

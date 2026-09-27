@@ -172,6 +172,9 @@ void function OnPassiveChanged( entity player, int passive, bool didHave, bool n
 			return
 	#endif
 
+	if ( passive != ePassives.PAS_ASH && !PlayerHasPassive( player, ePassives.PAS_ASH ) )
+		return
+
 	if ( didHave && !nowHas )
 	{
 		#if SERVER

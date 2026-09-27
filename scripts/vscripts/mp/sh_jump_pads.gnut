@@ -477,6 +477,15 @@ void function RemoveDoubleJump ( entity player )
 		TakePlayerSettingsMods( player, [ "enable_doublejump" ] )
 }
 
+#if SERVER
+// The pad's double jump is free for Sparrow and leaves his own meter full.
+void function JumpPad_RefillSparrowDoubleJump( entity player )
+{
+	if ( PlayerHasPassive( player, ePassives.PAS_SPARROW ) )
+		player.SetSuitJumpPower( 100.0 )
+}
+#endif
+
 void function PlayUpgradedDoubleJumpFx( entity player )
 {
 	int vent_CenterAttachID_3P = player.LookupAttachment( "vent_Center" )
@@ -838,6 +847,7 @@ void function JumpPad_GiveDoubleJump( entity player )
 		#if SERVER
 			Remote_CallFunction_Replay( player, "ServerCallback_DisplayJumpPadHint" )
 			AddPlayerMovementEventCallback( player, ePlayerMovementEvents.TOUCH_GROUND, OnPlayerTouchGround )
+			JumpPad_RefillSparrowDoubleJump( player )
 		#endif
 
 		OnThreadEnd(
@@ -868,6 +878,7 @@ void function JumpPad_GiveDoubleJump( entity player )
 
 					#if SERVER
 						player.TouchGround()
+						JumpPad_RefillSparrowDoubleJump( player )
 						Remote_CallFunction_Replay( player, "ServerCallback_HideJumpPadHint" )
 						RemovePlayerMovementEventCallback( player, ePlayerMovementEvents.TOUCH_GROUND, OnPlayerTouchGround )
 					#endif

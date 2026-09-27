@@ -1176,7 +1176,12 @@ void function JetDriveClientThread( entity player )
 				StopSoundOnEntity( player, JET_DRIVE_LAUNCH_1P )
 
 				if ( player == GetLocalViewPlayer() )
+				{
 					thread WaitForGround_Thread( player )
+
+					if ( IsVantageBuffsEnabled() )
+						AttemptRecallCompanion( player )
+				}
 			}
 		}
 	)

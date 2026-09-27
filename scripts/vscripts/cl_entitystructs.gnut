@@ -208,6 +208,7 @@ global struct ClientPlayerStruct
 
 
 	float lastTimeDeactivatedJetpack
+	float lastTimeDeactivatedGlide
 	bool lightningGunReady = true
 	float lastTimeUsedRailjump = -1.0
 	float nextAllowUseValkUltTime
@@ -276,6 +277,7 @@ global struct ClientAIStruct
 
 global struct ClientWeaponStruct
 {
+	bool droneIsAssginedToATarget
 	float startChargeTime = 0.0
 	bool  wasCharged = false
 	bool wasFired

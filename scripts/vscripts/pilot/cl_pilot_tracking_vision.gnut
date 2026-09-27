@@ -1121,6 +1121,9 @@ void function TrackingVisionCreatePOIBlueprint( entity waypoint, int poiEventID,
 		case eTrackingVisionNetworkedPOITypes.PLAYER_ABILITY_ALTER_ULTIMATE_USED:
 		case eTrackingVisionNetworkedPOITypes.PLAYER_ABILITY_ALTER_TACTICAL_USED:
 		case eTrackingVisionNetworkedPOITypes.PLAYER_ABILITY_ALTER_PASSIVE_USED:
+		case eTrackingVisionNetworkedPOITypes.PLAYER_ABILITY_SPRROW_DOUBLE_JUMP:
+		case eTrackingVisionNetworkedPOITypes.PLAYER_ABILITY_SPRROW_TRACKER_DART:
+		case eTrackingVisionNetworkedPOITypes.PLAYER_ABILITY_SPRROW_STINGER_BOLT:
 			waypoint.WaypointAddFlag( WPF_VISBILITY_LOS | WPF_VISIBILITY_SONAR )
 			waypoint.WaypointSetCheckDist( TRACKING_VISION_DRAW_DIST_MAX )
 			break
@@ -1903,6 +1906,24 @@ void function TrackingVision_GetDrawInfo( entity waypoint, TrackingVisionDrawInf
 			drawInfo.displayText = "#TRACKING_ALTER_PASSIVE"
 			break
 
+		case eTrackingVisionNetworkedPOITypes.PLAYER_ABILITY_SPRROW_DOUBLE_JUMP:
+			drawInfo.drawSize = eTrackingPOIDrawSize.NORMAL
+			drawInfo.icon = $"rui/hud/poi_icons/poi_sparrow_passive"
+			drawInfo.displayText = "#WPN_ARTEMIS_PASSIVE"
+			break
+
+		case eTrackingVisionNetworkedPOITypes.PLAYER_ABILITY_SPRROW_TRACKER_DART:
+			drawInfo.drawSize = eTrackingPOIDrawSize.NORMAL
+			drawInfo.icon = $"rui/hud/poi_icons/poi_sparrow_tactical"
+			drawInfo.displayText = "#WPN_ARTEMIS_TACTICAL"
+			break
+
+		case eTrackingVisionNetworkedPOITypes.PLAYER_ABILITY_SPRROW_STINGER_BOLT:
+			drawInfo.drawSize = eTrackingPOIDrawSize.NORMAL
+			drawInfo.icon = $"rui/hud/poi_icons/poi_sparrow_ultimate"
+			drawInfo.displayText = "#WPN_ARTEMIS_ULTIMATE"
+			break
+
 
 
 		case eTrackingVisionNetworkedPOITypes.PLAYER_ABILITY_REDEPLOY_BALLOON:
@@ -2003,6 +2024,9 @@ int function GetPingTypeFromPOIType( entity waypoint )
 		case eTrackingVisionNetworkedPOITypes.PLAYER_ABILITY_ALTER_ULTIMATE_USED:
 		case eTrackingVisionNetworkedPOITypes.PLAYER_ABILITY_ALTER_TACTICAL_USED:
 		case eTrackingVisionNetworkedPOITypes.PLAYER_ABILITY_ALTER_PASSIVE_USED:
+		case eTrackingVisionNetworkedPOITypes.PLAYER_ABILITY_SPRROW_DOUBLE_JUMP:
+		case eTrackingVisionNetworkedPOITypes.PLAYER_ABILITY_SPRROW_TRACKER_DART:
+		case eTrackingVisionNetworkedPOITypes.PLAYER_ABILITY_SPRROW_STINGER_BOLT:
 
 			return (age > 30) ? ePingType.BLOODHOUND_POI_TRAVELER : ePingType.BLOODHOUND_POI_TRAVELER_RECENT
 

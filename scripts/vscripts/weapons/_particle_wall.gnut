@@ -255,7 +255,11 @@ void function PlayEffectOnVortexSphere( int fx, vector origin, vector angles, en
 	if ( !IsValid( vortexSphere.e.shieldWallFX ) )
 		return
 
-	StartParticleEffectInWorld( fx, origin, angles )
+	#if SERVER
+		StartParticleEffectInWorldForRealms( fx, origin, angles, vortexSphere )
+	#else
+		StartParticleEffectInWorld( fx, origin, angles )
+	#endif
 }
 
 void function StopShieldWallFX( entity vortexSphere )

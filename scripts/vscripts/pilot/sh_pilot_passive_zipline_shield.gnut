@@ -47,6 +47,7 @@ void function ZiplineShield_TryStart( entity player, entity zipline, vector star
 
 		int fxId = GetParticleSystemIndex( ENERGIZED_ZIPLINE_FX )
 		entity effect = StartParticleEffectInWorld_ReturnEntity( fxId, startPos, <0, 0, 0> )
+		CopyRealmsFromTo( player, effect )
 		EffectSetControlPointVector( effect, 1, endPos )
 		thread DisableEnergizedZipline( zipline, effect )
 	}

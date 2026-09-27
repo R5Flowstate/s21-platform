@@ -860,17 +860,20 @@ void function LootBin_RegisterRadiusSpawnFilter( int index, bool functionref( Lo
 	file.binSpawnFilters[index] <- filter
 }
 
-void function TriggerLootSpawnForLootBinsInRadius( vector pos, float radius, int lootTier, int spawnLimitPerFrame = -1, int spawnFilter = -1 )
+void function TriggerLootSpawnForLootBinsInRadius( vector pos, float radius, int lootTier, int spawnLimitPerFrame = -1, int spawnFilter = -1, entity realmEnt = null )
 {
 	if ( spawnLimitPerFrame != -1 && GetCurrentPlaylistVarBool( LOOT_BIN_DELAY_LOOT_SPAWNING_PLAYLIST_VAR, true ) )
 	{
-		thread TriggerLootSpawnForLootBinsInRadius_Thread( pos, radius, lootTier, spawnLimitPerFrame, spawnFilter )
+		thread TriggerLootSpawnForLootBinsInRadius_Thread( pos, radius, lootTier, spawnLimitPerFrame, spawnFilter, realmEnt )
 		return
 	}
 
 	foreach ( entity lootBin in GetScriptManagedEntArrayWithinCenter( file.lootBinSMEA, TEAM_ANY, pos, radius ) )
 	{
 		if( spawnFilter != -1  && spawnFilter in lootBin.e.spawnedFilters )
+			continue
+
+		if ( IsValid( realmEnt ) && !lootBin.DoesShareRealms( realmEnt ) )
 			continue
 
 		if ( lootBin.e.lootOfRarityHasBeenSpawned <= lootTier ) // Set to true by LootBin_SpawnAndSetupCompartmentLootInsideAsNecessary
@@ -884,12 +887,15 @@ void function TriggerLootSpawnForLootBinsInRadius( vector pos, float radius, int
 	}
 }
 
-void function TriggerLootSpawnForLootBinsInRadius_Thread( vector pos, float radius, int lootTier, int spawnLimitPerFrame, int spawnFilter )
+void function TriggerLootSpawnForLootBinsInRadius_Thread( vector pos, float radius, int lootTier, int spawnLimitPerFrame, int spawnFilter, entity realmEnt )
 {
 	int lootSpawnedSinceWait = 0
 	foreach ( entity lootBin in GetScriptManagedEntArrayWithinCenter( file.lootBinSMEA, TEAM_ANY, pos, radius ) )
 	{
 		if( spawnFilter != -1 && spawnFilter in lootBin.e.spawnedFilters )
+			continue
+
+		if ( IsValid( realmEnt ) && !lootBin.DoesShareRealms( realmEnt ) )
 			continue
 
 		if ( lootBin.e.lootOfRarityHasBeenSpawned <= lootTier ) // Set to true by LootBin_SpawnAndSetupCompartmentLootInsideAsNecessary

@@ -1,0 +1,458 @@
+global function IsPlayerLifelineRevived
+global function ShPassiveDroneRider_Init
+global function OnWeaponActivate_ability_drone_rider
+global function OnWeaponDeactivate_ability_drone_rider
+global function OnWeaponPrimaryAttack_ability_drone_rider
+global function OnWeaponAttemptOffhandSwitch_ability_drone_rider
+global function OnActivateGlideAnimEvent_drone_rider
+
+global function CodeCallback_OnPlayerGlideStop
+global function CodeCallback_OnPlayerGlideStart
+global function DroneRider_PassiveToggle
+
+#if SERVER
+// The client VM gets these from code.
+global const int GLIDE_ENGAGE_SUCCEED = 0
+global const int GLIDE_ENGAGE_OUT_OF_METER = 1
+global const int GLIDE_ENGAGE_FAILED_OTHER = 2
+#endif
+
+const asset LIFELINE_AMB_EXHAUST_FP = $"P_valk_spear_thruster_idle"
+const asset LIFELINE_AMB_EXHAUST_3P = $"P_valk_spear_thruster_idle_3P"
+const asset COMBAT_GLIDE_PHASE_FX = $"P_LLR_DOC_phase"
+const asset DRONE_MEDIC_JET_LOOP_FX_1P = $"P_LLR_glide_drone_jet_loop_FP"
+const asset DRONE_MEDIC_JET_LOOP_FX_3P = $"P_LL_med_drone_jet_loop"
+const asset DRONE_MEDIC_JET_LOOP_LOW_FUEL_1P = $"P_LLR_glide_drone_jet_sputter_FP"
+const asset DRONE_MEDIC_JET_LOOP_LOW_FUEL_3P = $"P_LLR_med_drone_jet_loop_sputter"
+const asset SHIELD_TRANSFER_WARP_BEAM_FX = $"P_generic_beam"
+const GLIDE_SCREEN_FX = $"P_LLR_glide_screen"
+
+global const string  DRONE_RIDER_WEAPON_NAME = "mp_ability_drone_rider"
+
+const asset GLIDE_DRONE_MODEL = $"mdl/props/lifeline_drone_rework/lifeline_drone_rework.rmdl"
+
+const float GLIDE_REACTIVATION_DELAY = 0.2
+const float HEAVY_GLIDE_ACTIVATION_FALL_SPEED = 800.0
+const float GLIDE_LOW_FUEL_PERC_THRESHOLD = 0.5
+const float GLIDE_VO_DEBOUNCE = 15
+
+struct
+{
+	table <entity, entity> activeDroneJetFX
+
+	#if CLIENT
+		table< entity, array<int> > glideFX
+		table< entity, bool > glideDroneFx3PActivated
+	#endif
+
+	#if SERVER
+		table< entity, float > lastGlideVOTime
+	#endif
+
+	bool glideActivatedByAnimEvent
+	float glideVODebounce
+	float lowFuelPercThreshold
+	float heavyFallSpeed
+	float reactivationDelay
+} file
+
+bool function IsPlayerLifelineRevived( entity player )
+{
+	return PlayerHasPassive( player, ePassives.PAS_DRONE_RIDER )
+}
+
+bool function IsActiveWeaponGlide( entity player, entity activeWeapon )
+{
+	return ( IsValid( activeWeapon ) && activeWeapon.GetWeaponClassName() == DRONE_RIDER_WEAPON_NAME )
+}
+
+bool function DoesPlayerHaveDroneRiderPassive( entity player )
+{
+	return PlayerHasPassive( player, ePassives.PAS_DRONE_RIDER )
+}
+
+bool function IsUsingAnimEventToActivateGlide()
+{
+	return file.glideActivatedByAnimEvent
+}
+
+void function ShPassiveDroneRider_Init()
+{
+	PrecacheWeapon( DRONE_RIDER_WEAPON_NAME )
+	PrecacheModel( GLIDE_DRONE_MODEL )
+	PrecacheParticleSystem( SHIELD_TRANSFER_WARP_BEAM_FX )
+	PrecacheParticleSystem( GLIDE_SCREEN_FX )
+	PrecacheParticleSystem( COMBAT_GLIDE_PHASE_FX )
+	PrecacheParticleSystem( LIFELINE_AMB_EXHAUST_FP )
+	PrecacheParticleSystem( LIFELINE_AMB_EXHAUST_3P )
+	PrecacheParticleSystem( DRONE_MEDIC_JET_LOOP_FX_1P )
+	PrecacheParticleSystem( DRONE_MEDIC_JET_LOOP_FX_3P )
+	PrecacheParticleSystem( DRONE_MEDIC_JET_LOOP_LOW_FUEL_1P )
+	PrecacheParticleSystem( DRONE_MEDIC_JET_LOOP_LOW_FUEL_3P )
+
+	RegisterSignal( "StopGlide" )
+
+	AddCallback_OnPassiveChanged( ePassives.PAS_DRONE_RIDER, DroneRider_PassiveToggle )
+
+	#if CLIENT
+		AddGlobalAnimEvent( "glide_fx_start", GlobalAnimEvent_GlideFXStart )
+	#endif
+
+	// The glide starts when the offhand weapon activates; the viewmodel anim event path needs the passive glide sequences.
+	file.glideActivatedByAnimEvent 	= GetCurrentPlaylistVarBool( "lifeline_glide_activated_by_animevent", false )
+	file.glideVODebounce 			= GetCurrentPlaylistVarFloat( "lifeline_glide_vo_debounce", GLIDE_VO_DEBOUNCE )
+	file.lowFuelPercThreshold		= GetCurrentPlaylistVarFloat( "lifeline_glide_low_fuel_perc_thresh", GLIDE_LOW_FUEL_PERC_THRESHOLD )
+	file.heavyFallSpeed				= GetCurrentPlaylistVarFloat( "lifeline_glide_heavy_fall_speed", HEAVY_GLIDE_ACTIVATION_FALL_SPEED )
+	file.reactivationDelay			= GetCurrentPlaylistVarFloat( "lifeline_glide_reactivation_delay", GLIDE_REACTIVATION_DELAY )
+}
+
+void function DroneRider_PassiveToggle( entity player, int pas, bool didHave, bool nowHas )
+{
+	if ( didHave )
+	{
+		#if SERVER
+			player.Signal( "StopGlide" )
+			TakePlayerOffhandEquipment( player, DRONE_RIDER_WEAPON_NAME )
+		#endif
+	}
+	if ( nowHas )
+	{
+		#if CLIENT
+			if ( player == GetLocalClientPlayer() )
+				UpdateAbilityToggleOrHoldBasedOnInput()
+		#elseif SERVER
+			GivePlayerOffhandEquipment( player, DRONE_RIDER_WEAPON_NAME )
+			player.SetGlideMeter( player.GetPlayerSettingFloat( "glideDuration" ) )
+		#endif
+	}
+}
+
+bool function OnWeaponAttemptOffhandSwitch_ability_drone_rider( entity weapon )
+{
+	entity weaponOwner = weapon.GetWeaponOwner()
+	if ( !IsValid( weaponOwner ) )
+		return false
+
+	if ( weaponOwner.GetPlayerNetBool( "isHealing" ) )
+		return false
+
+	float now = Time()
+	if ( now < weaponOwner.p.lastTimeDeactivatedGlide + file.reactivationDelay )
+		return false
+
+	if( !CanPlayerGlide( weaponOwner ) )
+		return false
+
+	int result = weaponOwner.CanUseGlide( weaponOwner.GetVelocity() )
+
+	if ( result == GLIDE_ENGAGE_OUT_OF_METER )
+	{
+		#if CLIENT
+			EmitSoundOnEntity( weaponOwner, "LifelineRevived_Glide_Start_Fail_1p" )
+		#endif
+	}
+
+	return ( result == GLIDE_ENGAGE_SUCCEED )
+}
+
+bool function CanPlayerGlide( entity player )
+{
+	if( player.IsWallRunning() || player.IsMantling() )
+		return false
+
+	if( Bleedout_IsBleedingOut( player ) )
+		return false
+
+	if( HoverVehicle_IsPlayerInAnyVehicle( player ) )
+		return false
+
+	if( player.IsZiplining() )
+		return false
+
+	#if CLIENT
+		if( player.IsZiprailRiding() )
+			return false
+	#endif
+
+	return true
+}
+
+void function OnWeaponActivate_ability_drone_rider( entity weapon )
+{
+	if( !IsValid( weapon ) )
+		return
+
+	entity owner = weapon.GetWeaponOwner()
+
+	if( !IsValid( owner ) )
+		return
+
+	#if CLIENT
+	if( InPrediction() )
+	#endif
+	{
+		weapon.RemoveMod( "glide_stow_mod" )
+		if( owner.GetVelocity().z < 0.0 && fabs( owner.GetVelocity().z ) >= file.heavyFallSpeed )
+			weapon.AddMod( "high_fall_speed_activation_mod" )
+	}
+
+	if( IsUsingAnimEventToActivateGlide() )
+		return
+
+	owner.SetActivateGlide( true )
+}
+
+void function OnWeaponDeactivate_ability_drone_rider( entity weapon )
+{
+	if( !IsValid( weapon ) )
+		return
+
+	#if CLIENT
+	if( InPrediction() )
+	#endif
+	{
+		weapon.RemoveMod( "high_fall_speed_activation_mod" )
+		weapon.RemoveMod( "glide_stow_mod" )
+	}
+
+	entity owner = weapon.GetWeaponOwner()
+	if ( !IsValid( owner ) )
+		return
+
+	owner.Signal( "StopGlide" )
+
+	owner.SetActivateGlide( false )
+	owner.p.lastTimeDeactivatedGlide = Time()
+}
+
+void function OnActivateGlideAnimEvent_drone_rider( entity weapon, entity player )
+{
+	if( !IsUsingAnimEventToActivateGlide() )
+		return
+
+	player.SetActivateGlide( true )
+}
+
+void function CodeCallback_OnPlayerGlideStop( entity player )
+{
+	player.SetActivateGlide( false )
+	player.Signal( "StopGlide" )
+
+	entity weapon = player.GetOffhandWeapon( OFFHAND_EQUIPMENT )
+
+	if ( IsValid( weapon ) )
+	{
+		#if CLIENT
+		if( InPrediction() )
+		#endif
+		{
+			weapon.AddMod( "glide_stow_mod" )
+		}
+	}
+}
+
+void function CodeCallback_OnPlayerGlideStart( entity player )
+{
+	player.Signal( "JumpPadStart" )
+
+	#if SERVER
+		float lastVO = ( player in file.lastGlideVOTime ) ? file.lastGlideVOTime[player] : -9999.0
+		if ( Time() - lastVO >= file.glideVODebounce )
+		{
+			file.lastGlideVOTime[player] <- Time()
+			PlayBattleChatterLineToSpeakerAndTeam( player, "bc_passiveGlide" )
+		}
+	#elseif CLIENT
+		if ( GetLocalViewPlayer() != player )
+			return
+
+		thread GlideFX_1P_Thread( player )
+	#endif
+}
+
+var function OnWeaponPrimaryAttack_ability_drone_rider( entity weapon, WeaponPrimaryAttackParams attackParams )
+{
+	return 0
+}
+
+#if CLIENT
+void function GlobalAnimEvent_GlideFXStart( entity glideDrone )
+{
+	if( !IsValid( glideDrone ) )
+		return
+
+	entity droneParent = glideDrone.GetParent()
+	if( !IsValid( droneParent ) )
+		return
+
+	if( !( droneParent in file.glideDroneFx3PActivated ) )
+		thread GlideFX_3P_Thread( glideDrone, droneParent )
+}
+
+void function GlideFX_3P_Thread( entity glideDrone, entity droneParent )
+{
+	Assert( IsValid( glideDrone ) )
+
+	EndSignal( droneParent, "OnDeath", "OnDestroy", "BleedOut_OnStartDying", "StopGlide" )
+	EndSignal( glideDrone, "OnDestroy" )
+
+	array<int> jetFxArray
+	array<int> sputterJetFxArray
+
+	int fxID_center = glideDrone.LookupAttachment( "center_column_attachment" )
+	int fxID_RF   = glideDrone.LookupAttachment( "VENT_RF" )
+	int fxID_LF   = glideDrone.LookupAttachment( "VENT_LF" )
+	int fxID_RR   = glideDrone.LookupAttachment( "VENT_RR" )
+	int fxID_LR   = glideDrone.LookupAttachment( "VENT_LR" )
+
+	OnThreadEnd(
+		function() : ( glideDrone, droneParent, fxID_center )
+		{
+			if( droneParent in file.glideFX )
+			{
+				foreach ( fx in file.glideFX[droneParent] )
+				{
+					if ( EffectDoesExist( fx ) )
+						EffectStop( fx, true, true )
+				}
+				delete file.glideFX[droneParent]
+			}
+
+			if( IsValid( glideDrone ) )
+			{
+				vector phasePos = fxID_center > 0 ? glideDrone.GetAttachmentOrigin( fxID_center ) : glideDrone.GetOrigin()
+				StartParticleEffectInWorld( GetParticleSystemIndex( COMBAT_GLIDE_PHASE_FX ), phasePos, <0,0,0> )
+			}
+			if ( droneParent in file.glideDroneFx3PActivated )
+				delete file.glideDroneFx3PActivated[droneParent]
+		}
+	)
+
+	file.glideDroneFx3PActivated[droneParent] <- true
+
+	float maxGlide = droneParent.GetPlayerSettingFloat( "glideDuration" )
+
+	while( true )
+	{
+		if( !IsValid( droneParent ) || !IsValid( glideDrone )  )
+			return
+
+		float remainingGlidePerc = maxGlide > 0 ? droneParent.GetGlideMeter() / maxGlide : 0.0
+		if( remainingGlidePerc > file.lowFuelPercThreshold && jetFxArray.len() <= 0 )
+		{
+			jetFxArray.append( StartParticleEffectOnEntity( glideDrone, GetParticleSystemIndex( DRONE_MEDIC_JET_LOOP_FX_3P ), FX_PATTACH_POINT_FOLLOW, fxID_RF ) )
+			jetFxArray.append( StartParticleEffectOnEntity( glideDrone, GetParticleSystemIndex( DRONE_MEDIC_JET_LOOP_FX_3P ), FX_PATTACH_POINT_FOLLOW, fxID_LF ) )
+			jetFxArray.append( StartParticleEffectOnEntity( glideDrone, GetParticleSystemIndex( DRONE_MEDIC_JET_LOOP_FX_3P ), FX_PATTACH_POINT_FOLLOW, fxID_RR ) )
+			jetFxArray.append( StartParticleEffectOnEntity( glideDrone, GetParticleSystemIndex( DRONE_MEDIC_JET_LOOP_FX_3P ), FX_PATTACH_POINT_FOLLOW, fxID_LR ) )
+
+			if( droneParent in file.glideFX )
+				file.glideFX[droneParent] = jetFxArray
+			else
+				file.glideFX[droneParent] <- jetFxArray
+		}
+		else if( remainingGlidePerc <= file.lowFuelPercThreshold && sputterJetFxArray.len() <= 0 )
+		{
+			if( jetFxArray.len() > 0 )
+			{
+				foreach( jetFx in jetFxArray )
+				{
+					if ( EffectDoesExist( jetFx ) )
+						EffectStop( jetFx, true, true )
+				}
+				jetFxArray.clear()
+
+				if( droneParent in file.glideFX )
+					delete file.glideFX[droneParent]
+			}
+
+			sputterJetFxArray.append( StartParticleEffectOnEntity( glideDrone, GetParticleSystemIndex( DRONE_MEDIC_JET_LOOP_LOW_FUEL_3P ), FX_PATTACH_POINT_FOLLOW, fxID_RF ) )
+			sputterJetFxArray.append( StartParticleEffectOnEntity( glideDrone, GetParticleSystemIndex( DRONE_MEDIC_JET_LOOP_LOW_FUEL_3P ), FX_PATTACH_POINT_FOLLOW, fxID_LF ) )
+			sputterJetFxArray.append( StartParticleEffectOnEntity( glideDrone, GetParticleSystemIndex( DRONE_MEDIC_JET_LOOP_LOW_FUEL_3P ), FX_PATTACH_POINT_FOLLOW, fxID_RR ) )
+			sputterJetFxArray.append( StartParticleEffectOnEntity( glideDrone, GetParticleSystemIndex( DRONE_MEDIC_JET_LOOP_LOW_FUEL_3P ), FX_PATTACH_POINT_FOLLOW, fxID_LR ) )
+
+			if( droneParent in file.glideFX )
+				file.glideFX[droneParent] = sputterJetFxArray
+			else
+				file.glideFX[droneParent] <- sputterJetFxArray
+		}
+
+		WaitFrame()
+	}
+}
+
+void function GlideFX_1P_Thread( entity player )
+{
+	EndSignal( player, "OnDestroy", "OnDeath", "StopGlide" )
+
+	int screenFXID = GetParticleSystemIndex( GLIDE_SCREEN_FX )
+	int screenFXHandle = StartParticleEffectOnEntityWithPos( player, screenFXID, FX_PATTACH_ABSORIGIN_FOLLOW, ATTACHMENTID_INVALID, player.EyePosition(), <0, 0, 0> )
+	EffectSetIsWithCockpit( screenFXHandle, true )
+
+	array<int> jetFxArray
+	array<int> sputterJetFxArray
+
+	OnThreadEnd(
+		function() : ( player, screenFXHandle, jetFxArray, sputterJetFxArray )
+		{
+			if ( EffectDoesExist( screenFXHandle ) )
+				CleanupFXHandle( screenFXHandle, true, true )
+
+			foreach( jet in jetFxArray )
+			{
+				if ( EffectDoesExist( jet ) )
+					EffectStop( jet, true, true )
+			}
+
+			foreach( sputterJet in sputterJetFxArray )
+			{
+				if ( EffectDoesExist( sputterJet ) )
+					EffectStop( sputterJet, true, true )
+			}
+		}
+	)
+
+	entity viewModelEntity = player.GetViewModelEntity()
+	if( !IsValid( viewModelEntity ) )
+		return
+
+	int fxID_RF   = viewModelEntity.LookupAttachment( "VENT_RF" )
+	int fxID_LF   = viewModelEntity.LookupAttachment( "VENT_LF" )
+	int fxID_RR   = viewModelEntity.LookupAttachment( "VENT_RR" )
+	int fxID_LR   = viewModelEntity.LookupAttachment( "VENT_LR" )
+
+	if( ( fxID_RF <= 0 ) || ( fxID_LF <= 0 ) || ( fxID_RR <= 0 ) || ( fxID_LR <= 0 ) )
+		return
+
+	float maxGlide = player.GetPlayerSettingFloat( "glideDuration" )
+
+	while( IsValid( viewModelEntity ) )
+	{
+		float remainingGlidePerc = maxGlide > 0 ? player.GetGlideMeter() / maxGlide : 0.0
+		if( remainingGlidePerc <= file.lowFuelPercThreshold && sputterJetFxArray.len() <= 0 )
+		{
+			if( jetFxArray.len() > 0 )
+			{
+				foreach( jetFx in jetFxArray )
+				{
+					if ( EffectDoesExist( jetFx ) )
+						EffectStop( jetFx, true, true )
+				}
+			}
+
+			sputterJetFxArray.append( StartParticleEffectOnEntity( viewModelEntity, GetParticleSystemIndex( DRONE_MEDIC_JET_LOOP_LOW_FUEL_1P ), FX_PATTACH_POINT_FOLLOW, fxID_RF ) )
+			sputterJetFxArray.append( StartParticleEffectOnEntity( viewModelEntity, GetParticleSystemIndex( DRONE_MEDIC_JET_LOOP_LOW_FUEL_1P ), FX_PATTACH_POINT_FOLLOW, fxID_LF ) )
+			sputterJetFxArray.append( StartParticleEffectOnEntity( viewModelEntity, GetParticleSystemIndex( DRONE_MEDIC_JET_LOOP_LOW_FUEL_1P ), FX_PATTACH_POINT_FOLLOW, fxID_RR ) )
+			sputterJetFxArray.append( StartParticleEffectOnEntity( viewModelEntity, GetParticleSystemIndex( DRONE_MEDIC_JET_LOOP_LOW_FUEL_1P ), FX_PATTACH_POINT_FOLLOW, fxID_LR ) )
+		}
+		else if( remainingGlidePerc > file.lowFuelPercThreshold && jetFxArray.len() <= 0 )
+		{
+			jetFxArray.append( StartParticleEffectOnEntity( viewModelEntity, GetParticleSystemIndex( DRONE_MEDIC_JET_LOOP_FX_1P ), FX_PATTACH_POINT_FOLLOW, fxID_RF ) )
+			jetFxArray.append( StartParticleEffectOnEntity( viewModelEntity, GetParticleSystemIndex( DRONE_MEDIC_JET_LOOP_FX_1P ), FX_PATTACH_POINT_FOLLOW, fxID_LF ) )
+			jetFxArray.append( StartParticleEffectOnEntity( viewModelEntity, GetParticleSystemIndex( DRONE_MEDIC_JET_LOOP_FX_1P ), FX_PATTACH_POINT_FOLLOW, fxID_RR ) )
+			jetFxArray.append( StartParticleEffectOnEntity( viewModelEntity, GetParticleSystemIndex( DRONE_MEDIC_JET_LOOP_FX_1P ), FX_PATTACH_POINT_FOLLOW, fxID_LR ) )
+		}
+
+		WaitFrame()
+	}
+}
+#endif

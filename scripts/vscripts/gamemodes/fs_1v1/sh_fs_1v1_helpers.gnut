@@ -1,7 +1,6 @@
 // Minimal shared helpers for fs_1v1 port (Wave 0).
 // Prefer playlist-name strings over R5V ePlaylists enums.
 
-// From sh_gamemode_scenarios (scenarios not ported; const still needed by 1v1 init).
 global const int SCENARIOS_MAX_ALLOWED_TEAMSIZE = 5
 // Indices into LEGEND_CHARACTER_REFS. Anything above the last entry is a custom
 // pilot model, not a legend, and resolves through SetPlayerCustomModel instead.
@@ -27,6 +26,7 @@ global array<string> LEGEND_CHARACTER_REFS =
 ]
 
 global function FS_Is1v1Playlist
+global function FS_IsScenarios
 global function FS_Is1v1GameMode
 global function FS_1v1_IsLobbyState
 global function FS_1v1_ShouldBlockLobbyMelee
@@ -124,6 +124,13 @@ bool function FS_Is1v1Playlist()
 {
 	string pl = GetCurrentPlaylistName()
 	return pl == "fs_1v1" || pl == "fs_vamp_1v1" || pl == "fs_lgduels_1v1" || pl == "fs_1v1_headshots_only" || pl == "fs_1v1_coaching"
+}
+
+// Scenarios runs on the fs_1v1 shell (waiting room, queue, realms, rounds) with
+// team fights instead of duels.
+bool function FS_IsScenarios()
+{
+	return GetCurrentPlaylistName() == "fs_scenarios"
 }
 
 bool function FS_Is1v1GameMode()

@@ -1,0 +1,42 @@
+"WeaponData"
+{
+	"printname" "Map Editor"
+	"shortprintname" "Map Editor"
+	"description" "Place, move and delete props"
+	"longdesc" "Place, move and delete props"
+
+	"viewmodel" "mdl/weapons/empty_handed/ptpov_emptyhand.rmdl"
+	"playermodel" "mdl/weapons/empty_handed/w_empty_handed_human.rmdl"
+	"activitymodifier3P" "unarmed"
+
+	"weapon_type_flags" "WPT_OTHER"
+	"weaponClass" "human"
+	"give_command_forced_inventory_slot" "3"
+	"weight" "0"
+	"item_flags" "0"
+	"flyoutEnabled" "0"
+
+	// No ammo and no reload: the attack press is the editor's place key and
+	// must never fire, punch or dry-fire.
+	"fire_mode" "automatic"
+	"is_semi_auto" "1"
+	"ammo_clip_size" "0"
+	"ammo_default_total" "0"
+	"ammo_stockpile_max" "0"
+	"ammo_min_to_fire" "1"
+	"allow_empty_fire" "0"
+	"allow_empty_click" "0"
+	"reload_enabled" "0"
+	"cycle_to_next_when_out_of_ammo" "0"
+	"primary_fire_does_not_block_sprint" "1"
+	"sound_dryfire" ""
+
+	"ads_dof_disable" "1"
+	"zoom_effects" "0"
+
+	"deploy_time" "0.25"
+	"deployfirst_time" "0.25"
+	"holster_time" "0.15"
+	"raise_time" "0.25"
+	"lower_time" "0.15"
+}

@@ -243,7 +243,7 @@ void function OnRevShellDamaged( entity grenadeProxy, var damageInfo )
 			Signal( grenade, "RevShellEnd" )
 			int fxIndex = GetParticleSystemIndex( VFX_REV_SHELL_DESTROY )
 			EmitSoundAtPosition( TEAM_ANY, grenade.GetOrigin(), REV_SHELL_DESTROY_SOUND, grenade )
-			StartParticleEffectInWorld( fxIndex, grenade.GetOrigin(), < 0, 0, 0 > )
+			StartParticleEffectInWorldForRealms( fxIndex, grenade.GetOrigin(), < 0, 0, 0 >, grenade )
 			grenadeProxy.Destroy()
 			grenade.Destroy()
 		}
@@ -641,7 +641,7 @@ void function RevShell_SearchForEnemies( entity player, entity projectile, entit
 				int fxIndex = GetParticleSystemIndex( VFX_REV_SHELL_FIZZLE )
 				vector facing    = projectile.GetVelocity()
 				vector facingAng = VectorToAngles( facing )
-				StartParticleEffectInWorld( fxIndex, projectile.GetOrigin(), facingAng )
+				StartParticleEffectInWorldForRealms( fxIndex, projectile.GetOrigin(), facingAng, projectile )
 				projectile.Destroy()
 			}
 

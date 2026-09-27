@@ -39,6 +39,7 @@ struct
 	var shieldRegenRui
 	#if SERVER
 		bool allowCarryoverDamage
+		table<entity, bool> shieldActive
 	#endif
 } file
 
@@ -218,11 +219,6 @@ bool function OnWeaponChargeBegin_ability_gibraltar_shield( entity weapon )
 
 #if SERVER
 
-	if ( player.IsBot() )
-	{
-		printt( format( "[GunShield] ignoring charge on bot %s (zoomFrac %.2f)", player.GetPlayerName(), player.GetZoomFrac() ) )
-		return true
-	}
 	thread GibraltarShield_ChargeThread( player, weapon )
 
 #elseif CLIENT
@@ -303,7 +299,8 @@ void function GibraltarShield_ChargeThread( entity player, entity weapon )
 
 		if ( player.GetSharedEnergyCount() > 0 )
 		{
-			//if ( !shieldEnt.GetCollisionAllowed() )
+			// Stands in for the collision-allowed latch: one active thread per shield.
+			if ( !( shieldEnt in file.shieldActive ) )
 			{
 				thread GibraltarShield_ShieldActiveThread( player, weapon )
 			}
@@ -328,6 +325,7 @@ void function GibraltarShield_ShieldActiveThread( entity player, entity weapon )
 	GunShieldSettings gs = GibraltarShield_GetGunShieldSettings( player, weapon )
 	StartGunAttachedShieldFX( gs, shieldEnt )
 
+	file.shieldActive[ shieldEnt ] <- true
 	//shieldEnt.SetCollisionAllowed( true )
 	shieldEnt.SetTakeDamageType( DAMAGE_EVENTS_ONLY )
 
@@ -339,6 +337,9 @@ void function GibraltarShield_ShieldActiveThread( entity player, entity weapon )
 	OnThreadEnd(
 		function () : ( player, weapon, shieldEnt )
 		{
+			if ( shieldEnt in file.shieldActive )
+				delete file.shieldActive[ shieldEnt ]
+
 			if ( IsValid( shieldEnt ) )
 			{
 				if ( IsValid( shieldEnt.e.shieldWallFX ) )

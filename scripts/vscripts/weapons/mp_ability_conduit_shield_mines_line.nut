@@ -333,7 +333,7 @@ void function OnProjectileCollision_ability_shield_mines_line( entity projectile
 			if ( hitEnt.IsMoverOrChildOfMover() )
 				parentTo = hitEnt
 
-			DestroyEnemyMinesInRange( projectile.GetTeam(), projectile.GetOrigin() )
+			DestroyEnemyMinesInRange( projectile.GetTeam(), projectile.GetOrigin(), projectile )
 			thread ShieldMineLifetime_Thread( player, projectile.GetOrigin(), GetMineRadius( player ), parentTo )
 		}
 		//DebugDrawSphere( projectile.GetOrigin(), range, int(COLOR_DARK_BLUE.x), int(COLOR_DARK_BLUE.y), int(COLOR_DARK_BLUE.z), false, ignitionTime )
@@ -635,13 +635,13 @@ bool function PositionTooCloseToOtherMines( entity player, vector pos )
 	return false
 }
 
-int function DestroyEnemyMinesInRange( int playerTeam, vector pos )
+int function DestroyEnemyMinesInRange( int playerTeam, vector pos, entity realmsEntity )
 {
 	int numDestroyed = 0
 	array<entity> allShieldMines = GetEntArrayByScriptName( SHIELD_MINE_PROP_SCRIPTNAME )
 	foreach( shieldMine in allShieldMines )
 	{
-		if ( !IsValid( shieldMine ) )
+		if ( !IsValid( shieldMine ) || !shieldMine.DoesShareRealms( realmsEntity ) )
 			continue
 
 		if ( IsFriendlyTeam( playerTeam, shieldMine.GetTeam() ) )

@@ -60,6 +60,8 @@ const vector BLACK_MARKET_BOUND_MINS = <-16, -16, 0>
 const vector BLACK_MARKET_BOUND_MAXS = <16, 16, 80>
 const vector BLACK_MARKET_PLACEMENT_DOWN_TRACE_OFFSET = <0, 0, 94>
 const float BLACK_MARKET_PLACEMENT_MAX_GROUND_DIST = 12.0
+// Use range plus movement while the market menu is open.
+const float BLACK_MARKET_OPEN_MAX_DIST = 320.0
 
 const vector BLACK_MARKET_PLACEMENT_COLOR = <1, 1, 1>
 const float BLACK_MARKET_PLACEMENT_PLAYER_ALPHA = 1.0
@@ -707,7 +709,7 @@ void function BlackMarketDeployThread( entity owner, PlacementInfo placementInfo
 
 	if ( GetCurrentPlaylistVarBool( LOOT_BIN_DELAY_LOOT_SPAWNING_PLAYLIST_VAR, true ) )
 	{
-		TriggerLootSpawnForLootBinsInRadius( blackMarket.GetOrigin(), lootGrabDist, eLootTier.NONE, 10 )
+		TriggerLootSpawnForLootBinsInRadius( blackMarket.GetOrigin(), lootGrabDist, eLootTier.NONE, 10, -1, blackMarket )
 	}
 
 	WaitFrame()
@@ -741,7 +743,7 @@ void function BlackMarketDeployThread( entity owner, PlacementInfo placementInfo
 
 	while( true )
 	{
-		TriggerLootSpawnForLootBinsInRadius( blackMarket.GetOrigin(), lootGrabDist, eLootTier.NONE )
+		TriggerLootSpawnForLootBinsInRadius( blackMarket.GetOrigin(), lootGrabDist, eLootTier.NONE, -1, -1, blackMarket )
 		wait 0.5
 	}
 }
@@ -787,7 +789,7 @@ void function OnBlackMarketPostDamaged( entity device, var damageInfo )
 #if SERVER
 void function OnBlackMarketKilled( entity device, var damageInfo )
 {
-	StartParticleEffectInWorld_ReturnEntity( GetParticleSystemIndex( BLACK_MARKET_DESTRUCTION_FX ), device.GetOrigin(), device.GetAngles() )
+	StartParticleEffectInWorldForRealms( GetParticleSystemIndex( BLACK_MARKET_DESTRUCTION_FX ), device.GetOrigin(), device.GetAngles(), device )
 }
 #endif
 
@@ -899,7 +901,12 @@ void function OnPlayerLootPickup( entity player, entity lootEnt, string ref, int
 	entity resolvedBlackMarket = blackMarket
 
 	if ( !IsBlackMarketDevice( resolvedBlackMarket ) )
+	{
 		resolvedBlackMarket = GetBlackMarketInUseByPlayer( player )
+		// The open-market record is only trusted while the player is still at that market.
+		if ( IsBlackMarketDevice( resolvedBlackMarket ) && Distance( player.GetOrigin(), resolvedBlackMarket.GetOrigin() ) > BLACK_MARKET_OPEN_MAX_DIST )
+			return
+	}
 
 	if ( !IsBlackMarketDevice( resolvedBlackMarket ) )
 		return
@@ -946,7 +953,15 @@ void function OnPlayerLootPickup( entity player, entity lootEnt, string ref, int
 #if SERVER || CLIENT
 void function AddToBlackMarketPlayerUseData( EHI blackMarketEHI, EHI userEHI, int useCount, int lootRefIdx, int lootRefCount, int maxUseCount )
 {
-	Assert( SURVIVAL_Loot_IsLootIndexValid( lootRefIdx ) )
+	if ( useCount < 1 || !SURVIVAL_Loot_IsLootIndexValid( lootRefIdx ) )
+		return
+
+#if CLIENT
+	// Server-sent handles: only record uses of a live market by a live user, so nothing is pinned.
+	if ( !IsValid( GetEntityFromEncodedEHandle( blackMarketEHI ) ) || !IsValid( GetEntityFromEncodedEHandle( userEHI ) ) )
+		return
+#endif
+
 	LootData lootFlav = SURVIVAL_Loot_GetLootDataByIndex( lootRefIdx )
 
 	if ( !(blackMarketEHI in file.byBlackMarket_byPlayer_useData) )
@@ -1097,8 +1112,20 @@ void function WarpBeamFXThread( entity blackMarket, vector startPos, vector endP
 #if SERVER
 void function ClientCallback_OpenBlackMarket( entity player, entity grabber )
 {
-	if ( !IsBlackMarketDevice( grabber ) || !IsValid( player ) || !player.IsPlayer() )
+	if ( !IsBlackMarketDevice( grabber ) || !IsValid( player ) || !player.IsPlayer() || !player.DoesShareRealms( grabber ) )
 		return
+
+	if ( !IsAlive( player ) || Distance( player.GetOrigin(), grabber.GetOrigin() ) > BLACK_MARKET_OPEN_MAX_DIST )
+		return
+
+	if ( player in file.playersToBlackMarketMap )
+	{
+		entity previous = file.playersToBlackMarketMap[ player ]
+		if ( previous == grabber )
+			return
+		if ( IsBlackMarketDevice( previous ) )
+			previous.DecrementPlayersGrabbingLoot()
+	}
 
 	grabber.IncrementPlayersGrabbingLoot()
 
@@ -1113,11 +1140,12 @@ void function ClientCallback_CloseBlackMarket( entity player, entity grabber )
 	if ( !IsBlackMarketDevice( grabber ) || !IsValid( player ) || !player.IsPlayer() )
 		return
 
+	// Only the market this player opened: the handle is client-supplied.
+	if ( !( player in file.playersToBlackMarketMap ) || file.playersToBlackMarketMap[ player ] != grabber )
+		return
+
 	grabber.DecrementPlayersGrabbingLoot()
-
-
-	if ( player in file.playersToBlackMarketMap )
-		delete file.playersToBlackMarketMap[ player ]
+	delete file.playersToBlackMarketMap[ player ]
 }
 #endif
 

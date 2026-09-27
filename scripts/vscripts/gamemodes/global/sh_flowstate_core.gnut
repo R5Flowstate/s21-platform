@@ -218,6 +218,8 @@ void function FS_Core_EnsureBleedoutSignals()
 	RegisterSignal( "BleedOut_ReviveForceStop" )
 	RegisterSignal( "OnContinousUseStopped" )
 	RegisterSignal( "ReviveInterrupted" )
+	// survival freefall registers this; the Wraith portal signals it in every mode
+	RegisterSignal( "EndPlayerSkyDive" )
 }
 
 void function FS_Core_EnsureLootThrowSignals()

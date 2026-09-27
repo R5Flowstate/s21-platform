@@ -51,6 +51,10 @@ void function AddPlayerScore( entity player, string scoreEventName, entity assoc
 	if ( !player.hasConnected || player.GetTeam() == TEAM_SPECTATOR )
 		return
 
+	// Zone Wars owns its score feed.
+	if ( FS_IsScenarios() )
+		return
+
 	ScoreEvent event = GetScoreEvent( scoreEventName )
 
 	if ( !ScoreEvent_IsEnabled( event ) )

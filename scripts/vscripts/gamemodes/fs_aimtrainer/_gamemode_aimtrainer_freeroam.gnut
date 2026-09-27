@@ -37,6 +37,8 @@ global function DEV_AimTrainer_PreviewResults
 global function DEV_AimTrainer_PreviewFRCRecap
 global function DEV_AimTrainer_SetChallengeDuration
 global function DEV_AimTrainer_SetStrafeSpeed
+global function DEV_AimTrainer_SetStrafing
+global function DEV_AimTrainer_SetStraferCrouch
 global function DEV_AimTrainer_SetStraferInfiniteHealth
 global function DEV_AimTrainer_SetStraferFire
 global function DEV_AimTrainer_SetStraferAim
@@ -51,6 +53,8 @@ global function AimTrainer_SV_FinishChallenge
 global function AimTrainer_GetChallengeDurationSec
 global function AimTrainer_SyncDevMenuState
 global function AimTrainer_DevMenuCmd
+global function AimTrainer_ParseSwitch
+global function AimTrainer_DespawnTarget
 
 // Conduit tac VFX reused as freeroam challenge-end despawn juice.
 const asset AIMTRAINER_FX_CONDUIT_BEAM = $"P_con_tac_energyRope"
@@ -89,6 +93,7 @@ void function AimTrainer_ServerInit()
 	FreeroamWeaponsMenu_ServerInit()
 	MovementRecorder_ServerInit()
 	AimTrainer_LegendBots_Init()
+	AimTrainer_Targets_Init()
 
 	// Multiplayer-safe DevMenu: callback player is the issuer (never gp[0]).
 	AddClientCommandCallback( "dev_aimtrainer", AimTrainer_DevMenuCmd )
@@ -126,6 +131,9 @@ void function AimTrainer_DevMenuCmd( entity player, array<string> args )
 		AimTrainer_SyncDevMenuState( player )
 		return
 	}
+	AimTrainer_Prefs_MarkDirty( player )
+	if ( AimTrainer_TargetsCmd( player, action, args ) )
+		return
 	if ( action == "reload_hit" )
 	{
 		if ( AimTrainer_ParseSwitch( args, player.p.aimTrainerAutoReloadOnHit ) != player.p.aimTrainerAutoReloadOnHit )
@@ -185,50 +193,6 @@ void function AimTrainer_DevMenuCmd( entity player, array<string> args )
 		DEV_AimTrainer_SetChallengeDuration( player, int( args[1] ) )
 		return
 	}
-	if ( action == "strafe_speed" )
-	{
-		if ( args.len() < 2 )
-		{
-			printt( format( "[AimTrainer] dev_aimtrainer strafe_speed: missing tenth from %s", player.GetPlayerName() ) )
-			return
-		}
-		int tenth = int( args[1] )
-		if ( tenth < 5 )
-			tenth = 5
-		if ( tenth > 20 )
-			tenth = 20
-		DEV_AimTrainer_SetStrafeSpeed( player, float( tenth ) / 10.0 )
-		return
-	}
-	if ( action == "bot_health" )
-	{
-		if ( args.len() < 2 )
-		{
-			printt( format( "[AimTrainer] dev_aimtrainer bot_health: missing 0/1 from %s", player.GetPlayerName() ) )
-			return
-		}
-		DEV_AimTrainer_SetStraferInfiniteHealth( player, int( args[1] ) != 0 )
-		return
-	}
-	if ( action == "bot_fire" )
-	{
-		DEV_AimTrainer_SetStraferFire( player, AimTrainer_ParseSwitch( args, player.p.aimTrainerStraferFire ) )
-		return
-	}
-	if ( action == "bot_aim" )
-	{
-		if ( args.len() < 2 )
-			return
-		DEV_AimTrainer_SetStraferAim( player, int( args[1] ) )
-		return
-	}
-	if ( action == "strafe_time" )
-	{
-		if ( args.len() < 3 )
-			return
-		DEV_AimTrainer_SetStrafeTime( player, int( args[1] ), int( args[2] ) )
-		return
-	}
 	if ( action == "spawn_fixed" )
 	{
 		DEV_AimTrainer_SetFixedSpawn( player, AimTrainer_ParseSwitch( args, player.p.aimTrainerFixedSpawn ) )
@@ -237,16 +201,6 @@ void function AimTrainer_DevMenuCmd( entity player, array<string> args )
 	if ( action == "spawn_set" )
 	{
 		DEV_AimTrainer_SetSpawnPointHere( player )
-		return
-	}
-	if ( action == "armor" )
-	{
-		if ( args.len() < 2 )
-		{
-			printt( format( "[AimTrainer] dev_aimtrainer armor: missing tier from %s", player.GetPlayerName() ) )
-			return
-		}
-		DEV_AimTrainer_SetDummyShield( player, int( args[1] ) )
 		return
 	}
 	if ( action == "strafer_body" )
@@ -291,26 +245,6 @@ void function AimTrainer_DevMenuCmd( entity player, array<string> args )
 	if ( action == "flowstate_hard" )
 	{
 		DEV_SpawnFlowstateHardDummyAtCrosshair( player )
-		return
-	}
-	if ( action == "flowstate_auto" )
-	{
-		DEV_AimFreeroam_Autospawn( player, false )
-		return
-	}
-	if ( action == "flowstate_hard_auto" )
-	{
-		DEV_AimFreeroam_AutospawnHard( player, false )
-		return
-	}
-	if ( action == "strafer_challenge" )
-	{
-		DEV_AimFreeroam_Autospawn( player, true )
-		return
-	}
-	if ( action == "strafer_hard_challenge" )
-	{
-		DEV_AimFreeroam_AutospawnHard( player, true )
 		return
 	}
 	if ( action == "ts" || action == "target_switch" )
@@ -393,6 +327,7 @@ void function AimTrainer_OnClientDisconnected( entity player )
 		return
 
 	MovementRecorder_OnPlayerDisconnected( player )
+	AimTrainer_ClearStraferSlots( player )
 	LegendBot_OnOwnerDisconnected( player )
 	bool hadSession = player.p.aimTrainerModeActive || player.p.aimTrainerChallengeActive || player.p.aimTrainerFreeroamMode != AIMTRAINER_FREEROAM_NONE
 
@@ -637,6 +572,20 @@ void function AimTrainer_DespawnDummyWithFX( entity player, entity npc )
 	}()
 }
 
+// One target out, NPC or legend bot, with the same pulse as a full clear.
+void function AimTrainer_DespawnTarget( entity player, entity target )
+{
+	if ( !IsValid( target ) )
+		return
+	if ( target.IsNPC() )
+	{
+		AimTrainer_UnregisterDummy( target )
+		AimTrainer_DespawnDummyWithFX( player, target )
+		return
+	}
+	LegendBot_DespawnWithFX( player, target )
+}
+
 void function AimTrainer_DestroyPlayerDummies( entity player )
 {
 	if ( !IsValid( player ) )
@@ -673,6 +622,7 @@ void function AimTrainer_StopPlayerSession( entity player )
 	bool hadChallenge = player.p.aimTrainerChallengeActive
 	player.p.aimTrainerChallengeActive = false
 	player.p.aimTrainerDynStatsWanted = false
+	AimTrainer_ClearStraferSlots( player )
 	// FX despawn BEFORE freeroam stop so entities still exist for the pulse.
 	AimTrainer_DestroyPlayerDummies( player )
 	MovementRecorder_StopAllForPlayer( player )
@@ -897,6 +847,10 @@ void function AimTrainer_EnterMode( entity player )
 // strafer infinite health=32. Strafe speed rides as tenths (5-20) in its own int;
 // dummy armor rides as the shield selection (0=default, 1-4 tier, 10=random).
 // Appended: strafer body (0=dummy, 1=legend) + strafer legend index (-1=same).
+// Bits past 32: highlight=64, strafer fire=128, fixed spawn=256, strafing=512,
+// crouch mode (AIMTRAINER_CROUCH_*) * 1024.
+// The strafer brain rides as bit 1024 of the strafe time arg; the preset arg
+// carries the Challenges mode pick as preset + mode * 16.
 void function AimTrainer_SyncDevMenuState( entity player )
 {
 	if ( !IsValid( player ) || !player.IsPlayer() )
@@ -921,6 +875,9 @@ void function AimTrainer_SyncDevMenuState( entity player )
 		flags = flags | 128
 	if ( player.p.aimTrainerFixedSpawn )
 		flags = flags | 256
+	if ( player.p.aimTrainerStrafing )
+		flags = flags | 512
+	flags = flags | ( maxint( AIMTRAINER_CROUCH_AUTO, minint( AIMTRAINER_CROUCH_ON, player.p.aimTrainerStraferCrouch ) ) * 1024 )
 
 	int straferBody = 1
 	int straferLegendIdx = -1
@@ -939,7 +896,7 @@ void function AimTrainer_SyncDevMenuState( entity player )
 	{
 	}
 
-	Remote_CallFunction_NonReplay( player, "AimTrainer_CL_SyncDevMenuState", flags, AimTrainer_GetChallengeDurationSec( player ), AimTrainer_GetStrafeSpeedTenth( player ), AimTrainer_GetDummyShieldSetting( player ), straferBody, straferLegendIdx, maxint( 0, minint( 100, player.p.aimTrainerStraferAim ) ), AimTrainer_PackStrafeTime( player ) )
+	Remote_CallFunction_NonReplay( player, "AimTrainer_CL_SyncDevMenuState", flags, AimTrainer_GetChallengeDurationSec( player ), AimTrainer_GetStrafeSpeedTenth( player ), AimTrainer_GetDummyShieldSetting( player ), straferBody, straferLegendIdx, maxint( 0, minint( 100, player.p.aimTrainerStraferAim ) ), AimTrainer_PackStrafeTime( player ) | ( player.p.aimTrainerStraferHard ? 1024 : 0 ), player.p.aimTrainerPreset + player.p.aimTrainerChallengeMode * 16, AimTrainer_GetStraferSlotCount( player ) )
 }
 
 int function AimTrainer_GetStrafeSpeedTenth( entity player )
@@ -960,20 +917,22 @@ void function DEV_AimTrainer_SyncDevMenuState( entity player )
 	AimTrainer_SyncDevMenuState( player )
 }
 
-// Dummy armor selection: inside FR the realm FRDUMMIESHIELDLVL setting owns it
-// (same source as FR dummies, RANDOM rolled per spawn down there); outside FR
-// the player's Lab pref owns it. Returns the SELECTION (0=default, 1-4 tier,
-// 10=random) -- spawns roll it through AimTrainer_ResolveDummyShieldLevel.
+// Dummy armor selection: the player's Lab pick wins once made; before that,
+// inside FR the realm FRDUMMIESHIELDLVL setting is the default. Returns the
+// SELECTION (0=default, 1-4 tier, 10=random) -- spawns roll it through
+// AimTrainer_ResolveDummyShieldLevel.
 int function AimTrainer_GetDummyShieldSetting( entity player )
 {
-	if ( IsValid( player ) && player.IsPlayer() && GameModeVariant_IsActive( eGameModeVariants.SURVIVAL_FIRING_RANGE ) )
+	if ( !IsValid( player ) || !player.IsPlayer() )
+		return 0
+	if ( player.p.aimTrainerDummyShield != 0 )
+		return player.p.aimTrainerDummyShield
+	if ( GameModeVariant_IsActive( eGameModeVariants.SURVIVAL_FIRING_RANGE ) )
 	{
 		int realm = GetCombatRangeRealm( player )
 		if ( realm >= 0 )
 			return FRSetting_ShieldLevel_Get( realm )
 	}
-	if ( IsValid( player ) && player.IsPlayer() )
-		return player.p.aimTrainerDummyShield
 	return 0
 }
 
@@ -989,7 +948,7 @@ int function AimTrainer_ResolveDummyShieldLevel( entity player )
 
 // Lab armor list: stores the pref and re-tiers live dummies through
 // SetNPCShieldLevel (skin + pool + grade in one place, so they stay consistent).
-void function DEV_AimTrainer_SetDummyShield( entity player, int setting )
+void function DEV_AimTrainer_SetDummyShield( entity player, int setting, bool sync = true )
 {
 	if ( !IsValid( player ) || !player.IsPlayer() )
 		return
@@ -1027,7 +986,8 @@ void function DEV_AimTrainer_SetDummyShield( entity player, int setting )
 	}
 
 	printt( format( "[AimTrainer] Dummy armor = %d (tier %d) for %s", setting, level, player.GetPlayerName() ) )
-	AimTrainer_SyncDevMenuState( player )
+	if ( sync )
+		AimTrainer_SyncDevMenuState( player )
 }
 
 // Full exit: stop session/dummies, drop mode kit, restore minimap + hide dyn stats on client.
@@ -1041,6 +1001,7 @@ void function AimTrainer_QuitMode( entity player )
 	// Stop challenge + freeroam threads + owned dummies (ChallengeEnd only if challenge was live).
 	bool hadChallenge = player.p.aimTrainerChallengeActive
 	player.p.aimTrainerChallengeActive = false
+	AimTrainer_ClearStraferSlots( player )
 	// FX despawn BEFORE freeroam stop so entities still exist for the pulse.
 	AimTrainer_DestroyPlayerDummies( player )
 	MovementRecorder_StopAllForPlayer( player )
@@ -1124,6 +1085,7 @@ void function AimTrainer_StartChallengeWatcher( entity player )
 		// Timeout: do not Signal CHALLENGE_STOP (would cancel this thread mid-cleanup).
 		player.p.aimTrainerChallengeActive = false
 		player.p.aimTrainerDynStatsWanted = false
+		AimTrainer_ClearStraferSlots( player )
 		// FX despawn BEFORE freeroam stop so entities still exist for the pulse.
 		AimTrainer_DestroyPlayerDummies( player )
 		LegendBot_DespawnAllWithFX( player )
@@ -1377,9 +1339,42 @@ void function DEV_AimTrainer_SetChallengeDuration( entity player, int durationSe
 	AimTrainer_SyncDevMenuState( player )
 }
 
+// Lab Strafing switch: off freezes every target the owner has in place, live
+// ones included; strafe brains poll the owner each beat.
+void function DEV_AimTrainer_SetStrafing( entity player, bool on, bool sync = true )
+{
+	if ( !IsValid( player ) || !player.IsPlayer() )
+		return
+	player.p.aimTrainerStrafing = on
+	LegendBot_SetStrafingAll( player )
+	printt( format( "[AimTrainer] Strafing = %s for %s", string( on ), player.GetPlayerName() ) )
+	if ( sync )
+		AimTrainer_SyncDevMenuState( player )
+}
+
+// Live strafers pick it up on their next leg.
+void function DEV_AimTrainer_SetStraferCrouch( entity player, int mode, bool sync = true )
+{
+	if ( !IsValid( player ) || !player.IsPlayer() )
+		return
+	if ( mode < AIMTRAINER_CROUCH_AUTO || mode > AIMTRAINER_CROUCH_ON )
+	{
+		printt( format( "[AimTrainer] SetStraferCrouch reject %d for %s", mode, player.GetPlayerName() ) )
+		AimTrainer_SyncDevMenuState( player )
+		return
+	}
+	player.p.aimTrainerStraferCrouch = mode
+	foreach ( entity npc in AimTrainer_GetPlayerDummies( player ) )
+		FlowstateDummy_SetCrouch( npc, mode )
+	LegendBot_SetCrouchAll( player )
+	printt( format( "[AimTrainer] Strafer crouch = %d for %s", mode, player.GetPlayerName() ) )
+	if ( sync )
+		AimTrainer_SyncDevMenuState( player )
+}
+
 // Lab strafe-speed slider: clamps to the shared range, stores the pref, and
 // pushes it to live strafers (their threads re-read bot.ai every iteration).
-void function DEV_AimTrainer_SetStrafeSpeed( entity player, float mult )
+void function DEV_AimTrainer_SetStrafeSpeed( entity player, float mult, bool sync = true )
 {
 	if ( !IsValid( player ) || !player.IsPlayer() )
 		return
@@ -1411,27 +1406,29 @@ void function DEV_AimTrainer_SetStrafeSpeed( entity player, float mult )
 	}
 
 	printt( format( "[AimTrainer] Strafe speed = %.1fx for %s", mult, player.GetPlayerName() ) )
-	AimTrainer_SyncDevMenuState( player )
+	if ( sync )
+		AimTrainer_SyncDevMenuState( player )
 }
 
-void function DEV_AimTrainer_SetStraferAim( entity player, int aim )
+void function DEV_AimTrainer_SetStraferAim( entity player, int aim, bool sync = true )
 {
 	if ( !IsValid( player ) || !player.IsPlayer() )
 		return
 	player.p.aimTrainerStraferAim = maxint( 0, minint( 100, aim ) )
 	LegendBot_SetAimAll( player, player.p.aimTrainerStraferAim )
 	printt( format( "[AimTrainer] Strafer aim = %d for %s", player.p.aimTrainerStraferAim, player.GetPlayerName() ) )
-	AimTrainer_SyncDevMenuState( player )
+	if ( sync )
+		AimTrainer_SyncDevMenuState( player )
 }
 
 // Strafe time = how long a strafer holds one direction, as indices into the
-// firing range dummy duration steps (0.10 s .. 0.90 s).
-void function DEV_AimTrainer_SetStrafeTime( entity player, int minIdx, int maxIdx )
+// firing range dummy duration steps (0.10 s .. 3.00 s).
+void function DEV_AimTrainer_SetStrafeTime( entity player, int minIdx, int maxIdx, bool sync = true )
 {
 	if ( !IsValid( player ) || !player.IsPlayer() )
 		return
-	minIdx = maxint( 0, minint( 9, minIdx ) )
-	maxIdx = maxint( 0, minint( 9, maxIdx ) )
+	minIdx = maxint( 0, minint( AIMTRAINER_STRAFE_TIME_STEPS - 1, minIdx ) )
+	maxIdx = maxint( 0, minint( AIMTRAINER_STRAFE_TIME_STEPS - 1, maxIdx ) )
 	if ( minIdx > maxIdx )
 	{
 		int t = minIdx
@@ -1440,14 +1437,18 @@ void function DEV_AimTrainer_SetStrafeTime( entity player, int minIdx, int maxId
 	}
 	player.p.aimTrainerStrafeTimeMin = minIdx
 	player.p.aimTrainerStrafeTimeMax = maxIdx
+	foreach ( entity npc in AimTrainer_GetPlayerDummies( player ) )
+		FlowstateDummy_SetStrafeWait( npc, FRDummie_StrafeDurationIndexToSeconds( minIdx ), FRDummie_StrafeDurationIndexToSeconds( maxIdx ) )
 	LegendBot_SetStrafeTimingAll( player )
 	printt( format( "[AimTrainer] Strafe time = %.2f..%.2f s for %s", FRDummie_StrafeDurationIndexToSeconds( minIdx ), FRDummie_StrafeDurationIndexToSeconds( maxIdx ), player.GetPlayerName() ) )
-	AimTrainer_SyncDevMenuState( player )
+	if ( sync )
+		AimTrainer_SyncDevMenuState( player )
 }
 
 int function AimTrainer_PackStrafeTime( entity player )
 {
-	return maxint( 0, minint( 9, player.p.aimTrainerStrafeTimeMin ) ) * 10 + maxint( 0, minint( 9, player.p.aimTrainerStrafeTimeMax ) )
+	int last = AIMTRAINER_STRAFE_TIME_STEPS - 1
+	return maxint( 0, minint( last, player.p.aimTrainerStrafeTimeMin ) ) * AIMTRAINER_STRAFE_TIME_STEPS + maxint( 0, minint( last, player.p.aimTrainerStrafeTimeMax ) )
 }
 
 // Fixed spawn: every strafer the owner spawns from now on lands on the
@@ -1458,7 +1459,7 @@ void function DEV_AimTrainer_SetFixedSpawn( entity player, bool on )
 		return
 	if ( on && player.p.aimTrainerFixedSpawnPos == <0, 0, 0> )
 		DEV_AimTrainer_SetSpawnPointHere( player )
-	player.p.aimTrainerFixedSpawn = on
+	player.p.aimTrainerFixedSpawn = on && player.p.aimTrainerFixedSpawnPos != <0, 0, 0>
 	printt( format( "[AimTrainer] Fixed spawn = %s for %s", string( on ), player.GetPlayerName() ) )
 	AimTrainer_SyncDevMenuState( player )
 }
@@ -1467,16 +1468,24 @@ void function DEV_AimTrainer_SetSpawnPointHere( entity player )
 {
 	if ( !IsValid( player ) || !player.IsPlayer() )
 		return
-	vector spot = LegendBot_CrosshairSpot( player )
-	player.p.aimTrainerFixedSpawnPos = spot
+	// Proven here, with the owner watching, so later spawns can skip the sight test.
+	AimTrainerSpawnSpot spot = AimTrainer_FindSpawnSpot( player, LegendBot_CrosshairSpot( player ), true )
+	if ( !spot.ok )
+	{
+		LocalEventMsg( player, "#LAB_TARGETS_SETSPAWN_BLOCKED" )
+		printt( format( "[AimTrainer] Spawn point refused (no room) for %s", player.GetPlayerName() ) )
+		AimTrainer_SyncDevMenuState( player )
+		return
+	}
+	player.p.aimTrainerFixedSpawnPos = spot.origin
 	player.p.aimTrainerFixedSpawn = true
 	LocalEventMsg( player, "#LAB_TARGETS_SETSPAWN_DONE" )
-	printt( format( "[AimTrainer] Spawn point set at %s for %s", string( spot ), player.GetPlayerName() ) )
+	printt( format( "[AimTrainer] Spawn point set at %s for %s", string( spot.origin ), player.GetPlayerName() ) )
 	AimTrainer_SyncDevMenuState( player )
 }
 
 // Legend strafers fire back at their owner; live ones flip at once.
-void function DEV_AimTrainer_SetStraferFire( entity player, bool on )
+void function DEV_AimTrainer_SetStraferFire( entity player, bool on, bool sync = true )
 {
 	if ( !IsValid( player ) || !player.IsPlayer() )
 		return
@@ -1485,12 +1494,13 @@ void function DEV_AimTrainer_SetStraferFire( entity player, bool on )
 	if ( on && !DevAutoRespawn_IsEnabled() )
 		DevAutoRespawn_SetEnabled( true )
 	printt( format( "[AimTrainer] Strafer fire = %s for %s", string( on ), player.GetPlayerName() ) )
-	AimTrainer_SyncDevMenuState( player )
+	if ( sync )
+		AimTrainer_SyncDevMenuState( player )
 }
 
 // Lab infinite-health slider: future strafers spawn immortal; live ones flip
 // immediately (damage handlers gate on the per-bot flag, regen exits on clear).
-void function DEV_AimTrainer_SetStraferInfiniteHealth( entity player, bool on )
+void function DEV_AimTrainer_SetStraferInfiniteHealth( entity player, bool on, bool sync = true )
 {
 	if ( !IsValid( player ) || !player.IsPlayer() )
 		return
@@ -1517,6 +1527,8 @@ void function DEV_AimTrainer_SetStraferInfiniteHealth( entity player, bool on )
 	}
 
 	printt( format( "[AimTrainer] Strafer infinite health = %s for %s", string( on ), player.GetPlayerName() ) )
+	if ( !sync )
+		return
 	LocalEventMsg( player, on ? "#FS_STRAFER_GOD_ON" : "#FS_STRAFER_GOD_OFF" )
 	AimTrainer_SyncDevMenuState( player )
 }

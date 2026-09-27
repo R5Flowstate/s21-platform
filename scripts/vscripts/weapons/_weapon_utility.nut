@@ -1992,6 +1992,9 @@ bool function EntityCanHaveStickyEnts( entity stickyEnt, entity ent )
 	if ( entClassname == "prop_lootroller" && stickyEntWeaponClassName != "" )
 		return true
 
+	if ( stickyEntWeaponClassName == "mp_weapon_charge_gauntlet" && ( entClassname == "npc_prowler" || entClassname == "npc_spider_ranged" ) )
+		return false
+
 	// Stop items from sticking to deathboxes placed on a trident in relation to R5DEV-554908 which allowed many abilities to be glitched onto tridents.
 	if ( entClassname == "prop_death_box" && IsEntParentedToObjectOfScriptname( ent, "hover_vehicle" ) )
 		return false
@@ -2009,6 +2012,9 @@ bool function EntityCanHaveStickyEnts( entity stickyEnt, entity ent )
 
 	if( IsForgedShadowsShield( ent ) )
 		return ShadowShield_IsAllowedStickyEnt( ent, stickyEnt, stickyEntWeaponClassName )
+
+	if( IsHaloShield( ent ) )
+		return Halo_IsAllowedStickyEnt( ent, stickyEnt, stickyThrowableName )
 
 	//allows sticking exceptions to the Newcastle Mobile Shield
 	if ( entScriptName == MOBILE_SHIELD_SCRIPTNAME )
@@ -2237,7 +2243,7 @@ void function TrapExplodeOnDamage( entity trapEnt, int trapEntHealth = 50, float
 
 	if ( destroyOnEnemyDamage )
 	{
-		StartParticleEffectInWorld( GetParticleSystemIndex( $"P_fuse_tac_exp_air" ), trapEnt.GetOrigin(), ZERO_VECTOR )
+		StartParticleEffectInWorldForRealms( GetParticleSystemIndex( $"P_fuse_tac_exp_air" ), trapEnt.GetOrigin(), ZERO_VECTOR, trapEnt )
 		trapEnt.Destroy()
 	}
 	else
@@ -3410,8 +3416,8 @@ void function EmpRebootFxPrototype( entity npc, asset humanFx, asset titanFx )
 
 
 		EmitSoundAtPosition( npc.GetTeam(), origin, SOUND_EMP_REBOOT_SPARKS, npc )
-		PlayFX( FX_EMP_REBOOT_SPARKS, origin )
-		PlayFX( FX_EMP_REBOOT_SPARKS, origin )
+		StartParticleEffectInWorldForRealms( GetParticleSystemIndex( FX_EMP_REBOOT_SPARKS ), origin, <0, 0, 0>, npc )
+		StartParticleEffectInWorldForRealms( GetParticleSystemIndex( FX_EMP_REBOOT_SPARKS ), origin, <0, 0, 0>, npc )
 
 		OnThreadEnd(
 			function() : ( fxHandle, npc, soundEMPdamage )
@@ -3850,6 +3856,11 @@ void function DevAbilities_RefillPlayer( entity player, bool resetCharge = false
 
 	#if SERVER
 		player.SetSuitGrapplePower( 100 )
+
+		// Jetpack and glide share this meter. The client predicts it in flight, so only top it up on the ground.
+		float glideDuration = player.GetPlayerSettingFloat( "glideDuration" )
+		if ( glideDuration > 0 && player.IsOnGround() )
+			player.SetGlideMeter( glideDuration )
 	#endif
 }
 
@@ -4208,7 +4219,8 @@ void function FireSegment_DamageThink( entity effect, entity owner, entity infli
 	OnThreadEnd(
 		function() : ( effect, trig )
 		{
-			EffectStop( effect )
+			if ( IsValid( effect ) )
+				EffectStop( effect )
 
 			if ( IsValid( trig ) )
 				trig.Destroy()

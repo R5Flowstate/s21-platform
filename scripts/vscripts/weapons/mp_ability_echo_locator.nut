@@ -502,7 +502,7 @@ void function OnEchoLocatorKilled( entity echoLocator, var damageInfo )
 	//in case we were already near the end and someone shoots it in that window, we don't want these sounds to stack.
 	StopSoundOnEntity( echoLocator, ECHO_LOCATOR_SPHERE_ENDING )
 	EmitSoundOnEntity( echoLocator, ECHO_LOCATOR_SPHERE_ENDING )
-	StartParticleEffectInWorld( GetParticleSystemIndex( ECHO_LOCATOR_DESTRUCTION_FX ), echoLocator.GetOrigin(), echoLocator.GetAngles() )
+	StartParticleEffectInWorldForRealms( GetParticleSystemIndex( ECHO_LOCATOR_DESTRUCTION_FX ), echoLocator.GetOrigin(), echoLocator.GetAngles(), echoLocator )
 
 	//start the cooldown now, instead of waiting for the entire fire_duration
 	RestartEchoLocatorCooldown( echoLocator )
@@ -538,6 +538,15 @@ void function DeployEchoLocator_Thread( entity echoLocator, entity echoLocatorMi
 	}
 	int ownerTeam = owner.GetTeam()
 	file.playerEchoLocatorEnemiesVisited[owner] <- []
+
+	// The deploy anim can be cut short by destroying the dome; the entry must not outlive it.
+	OnThreadEnd(
+		function() : ( owner )
+		{
+			if ( owner in file.playerEchoLocatorEnemiesVisited )
+				delete file.playerEchoLocatorEnemiesVisited[owner]
+		}
+	)
 
 	echoLocator.Anim_PlayOnly( "prop_pariah_heart_deploy" )
 	WaittillAnimDone( echoLocator )
@@ -823,6 +832,10 @@ void function EchoLocatorTriggerTouching_Thread( entity trigger, entity ent )
 					ent.SetPlayerNetBool( ECHO_LOCATOR_PLAYER_HAS_MOVEMENT_INPUT_NETVAR, false )
 				}
 			}
+
+			// Only once the entity is gone: another dome's thread may still be reading this entry.
+			if ( !IsValid( ent ) && ent in file.echoLocatorsPlayerInside )
+				delete file.echoLocatorsPlayerInside[ent]
 		}
 	)
 

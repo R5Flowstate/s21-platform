@@ -1,0 +1,306 @@
+global function PassiveNewcastle_Init
+
+#if SERVER
+global function PassiveNewcastle_StartShieldRepel
+#endif
+
+#if CLIENT
+global function ServertoClient_PassiveNewCastle_PlayBoop1pFx
+#endif
+
+const string REGEN_END_SIGNAL 		= "PassiveNewcastle_RegenEnd"
+
+const asset TACTICAL_BOOP_PREP_FX 	= $"P_NC_shield_repulse_CP"
+const asset TACTICAL_BOOP_FIRE_FX 	= $"P_NC_shield_repulse_push_CP"
+const asset KNOCK_BOOP_PREP_FX		= $"P_NC_down_shield_repulse_CP"
+const asset KNOCK_BOOP_FIRE_FX 		= $"P_NC_down_shield_repulse_push_CP"
+const asset BOOP_3P_FX				= $"P_NC_shield_repulse_hitfx"
+
+const string BOOP_3P_AUDIO 			= "Newcastle_Upgrade_Tactical_ShieldRepel_3p"
+const string BOOP_1P_AUDIO 			= "Newcastle_Upgrade_Tactical_ShieldRepel_1p"
+const string REGEN_TRIGGER_AUDIO	= "Newcastle_Upgrade_Passive_ReviveReloadRegen_1p"
+
+const float BOOP_PUSH_SPEED			= 550.0
+const float BOOP_PUSH_LIFT			= 250.0
+
+struct
+{
+	float shieldRegenRate 	= 5.0
+	float healthRegenRate 	= 5.0
+	float tacBoopRange		= 2.8 * METERS_TO_INCHES
+	float knockBoopRange 	= 1.6 * METERS_TO_INCHES
+} tuning
+
+struct
+{
+	int colorCorrection = -1
+} file
+
+void function PassiveNewcastle_Init()
+{
+	tuning.shieldRegenRate	= GetCurrentPlaylistVarFloat( "newcastle_pas_shieldRegenRate", tuning.shieldRegenRate )
+	tuning.healthRegenRate	= GetCurrentPlaylistVarFloat( "newcastle_pas_healthRegenRate", tuning.healthRegenRate )
+	tuning.tacBoopRange		= GetCurrentPlaylistVarFloat( "newcastle_pas_tacBoopRange", tuning.tacBoopRange )
+	tuning.knockBoopRange	= GetCurrentPlaylistVarFloat( "newcastle_pas_knockBoopRange", tuning.knockBoopRange )
+
+	PrecacheParticleSystem( TACTICAL_BOOP_PREP_FX )
+	PrecacheParticleSystem( TACTICAL_BOOP_FIRE_FX )
+	PrecacheParticleSystem( KNOCK_BOOP_PREP_FX )
+	PrecacheParticleSystem( KNOCK_BOOP_FIRE_FX )
+	PrecacheParticleSystem( BOOP_3P_FX )
+
+	RegisterSignal( REGEN_END_SIGNAL )
+
+	Remote_RegisterClientFunction( "ServertoClient_PassiveNewCastle_PlayBoop1pFx" )
+
+	#if SERVER
+		Bleedout_AddCallback_OnPlayerGotFirstAid( PassiveNewcastle_OnAllyRevived )
+	#endif
+
+	#if CLIENT
+		file.colorCorrection = ColorCorrection_Register( "materials/correction/soft_landing_passive.raw_hdr" )
+	#endif
+}
+
+#if SERVER
+void function PassiveNewcastle_StartShieldRepel( entity shieldEnt, entity owner, bool isReviveShield )
+{
+	if ( !IsValid( shieldEnt ) || !IsValid( owner ) )
+		return
+
+	if ( !PlayerHasPassive( owner, ePassives.PAS_AXIOM ) || !PlayerHasPassive( owner, ePassives.PAS_PAS_UPGRADE_THREE ) )
+		return
+
+	thread PassiveNewcastle_ShieldRepel_Thread( shieldEnt, owner, isReviveShield )
+}
+
+void function PassiveNewcastle_ShieldRepel_Thread( entity shieldEnt, entity owner, bool isReviveShield )
+{
+	shieldEnt.EndSignal( "OnDestroy" )
+	owner.EndSignal( "OnDestroy" )
+
+	float range = isReviveShield ? tuning.knockBoopRange : tuning.tacBoopRange
+	float rangeSqr = range * range
+	asset prepFx = isReviveShield ? KNOCK_BOOP_PREP_FX : TACTICAL_BOOP_PREP_FX
+	asset fireFx = isReviveShield ? KNOCK_BOOP_FIRE_FX : TACTICAL_BOOP_FIRE_FX
+
+	entity prepFxEnt = StartParticleEffectOnEntity_ReturnEntity( shieldEnt, GetParticleSystemIndex( prepFx ), FX_PATTACH_ABSORIGIN_FOLLOW, ATTACHMENTID_INVALID )
+	if ( IsValid( prepFxEnt ) )
+	{
+		prepFxEnt.RemoveFromAllRealms()
+		prepFxEnt.AddToOtherEntitysRealms( shieldEnt )
+	}
+
+	OnThreadEnd(
+		function() : ( prepFxEnt )
+		{
+			if ( IsValid( prepFxEnt ) )
+				EffectStop( prepFxEnt )
+		}
+	)
+
+	while ( true )
+	{
+		wait 0.1
+
+		vector shieldPos = shieldEnt.GetWorldSpaceCenter()
+		foreach ( entity enemy in GetPlayerArrayOfEnemies( owner.GetTeam() ) )
+		{
+			if ( !IsAlive( enemy ) || !enemy.DoesShareRealms( shieldEnt ) )
+				continue
+
+			if ( enemy.IsPhaseShifted() || Bleedout_IsBleedingOut( enemy ) )
+				continue
+
+			if ( DistanceSqr( enemy.GetWorldSpaceCenter(), shieldPos ) > rangeSqr )
+				continue
+
+			PassiveNewcastle_Repel( shieldEnt, owner, enemy, fireFx )
+			return
+		}
+	}
+}
+
+void function PassiveNewcastle_Repel( entity shieldEnt, entity owner, entity enemy, asset fireFx )
+{
+	vector shieldPos = shieldEnt.GetWorldSpaceCenter()
+	vector pushDir = FlattenVec( enemy.GetOrigin() - shieldPos )
+	if ( LengthSqr( pushDir ) < 1.0 )
+		pushDir = FlattenVec( shieldEnt.GetForwardVector() )
+	pushDir = Normalize( pushDir )
+
+	enemy.SetVelocity( pushDir * BOOP_PUSH_SPEED + <0, 0, BOOP_PUSH_LIFT> )
+	enemy.ViewPunch( shieldPos, 20, -20, 5 )
+
+	StartParticleEffectInWorldForRealms( GetParticleSystemIndex( fireFx ), shieldPos, shieldEnt.GetAngles(), shieldEnt )
+
+	entity hitFx = StartParticleEffectOnEntity_ReturnEntity( enemy, GetParticleSystemIndex( BOOP_3P_FX ), FX_PATTACH_POINT_FOLLOW, enemy.LookupAttachment( "CHESTFOCUS" ) )
+	if ( IsValid( hitFx ) )
+	{
+		hitFx.SetOwner( enemy )
+		hitFx.kv.VisibilityFlags = ENTITY_VISIBLE_TO_FRIENDLY | ENTITY_VISIBLE_TO_ENEMY
+		thread PassiveNewcastle_StopFxAfterDelay( hitFx, 1.0 )
+	}
+
+	EmitSoundOnEntityExceptToPlayer( enemy, enemy, BOOP_3P_AUDIO )
+	EmitSoundOnEntityOnlyToPlayer( enemy, enemy, BOOP_1P_AUDIO )
+	Remote_CallFunction_NonReplay( enemy, "ServertoClient_PassiveNewCastle_PlayBoop1pFx" )
+}
+
+void function PassiveNewcastle_StopFxAfterDelay( entity fxEnt, float delay )
+{
+	fxEnt.EndSignal( "OnDestroy" )
+	wait delay
+	EffectStop( fxEnt )
+}
+
+void function PassiveNewcastle_OnAllyRevived( entity revived, entity reviver )
+{
+	if ( !IsValid( reviver ) || !reviver.IsPlayer() || !IsAlive( reviver ) || reviver == revived )
+		return
+
+	if ( !PlayerHasPassive( reviver, ePassives.PAS_AXIOM ) || !PlayerHasPassive( reviver, ePassives.PAS_PAS_UPGRADE_TWO ) )
+		return
+
+	PassiveNewcastle_ReloadAllWeapons( reviver )
+	thread PassiveNewcastle_FullRegen_Thread( reviver )
+	EmitSoundOnEntityOnlyToPlayer( reviver, reviver, REGEN_TRIGGER_AUDIO )
+}
+
+void function PassiveNewcastle_ReloadAllWeapons( entity player )
+{
+	foreach ( int slot in [ WEAPON_INVENTORY_SLOT_PRIMARY_0, WEAPON_INVENTORY_SLOT_PRIMARY_1 ] )
+	{
+		entity weapon = player.GetNormalWeapon( slot )
+		if ( !IsValid( weapon ) || !weapon.UsesClipsForAmmo() )
+			continue
+
+		int clipCount = weapon.GetWeaponPrimaryClipCount()
+		int clipCountMax = weapon.GetWeaponPrimaryClipCountMax()
+		if ( clipCount >= clipCountMax )
+			continue
+
+		if ( GetInfiniteAmmo( weapon ) )
+		{
+			weapon.SetWeaponPrimaryClipCount( clipCountMax )
+			continue
+		}
+
+		LootData weaponData = SURVIVAL_GetLootDataFromWeapon( weapon )
+		bool fromStockpile = weaponData.baseMods.contains( WEAPON_LOCKEDSET_MOD_CRATE )
+		int ammoPoolType = weapon.GetWeaponAmmoPoolType()
+		int available = fromStockpile ? weapon.GetWeaponPrimaryAmmoCount( AMMOSOURCE_STOCKPILE ) : player.AmmoPool_GetCount( ammoPoolType )
+		int loaded = minint( available, clipCountMax - clipCount )
+		if ( loaded <= 0 )
+			continue
+
+		weapon.SetWeaponPrimaryClipCount( clipCount + loaded )
+		if ( fromStockpile )
+			weapon.SetWeaponPrimaryAmmoCount( AMMOSOURCE_STOCKPILE, available - loaded )
+		else
+			player.AmmoPool_SetCount( ammoPoolType, available - loaded )
+
+		Remote_CallFunction_Replay( player, "ServerCallback_AutoReloadComplete", weapon )
+	}
+}
+
+void function PassiveNewcastle_FullRegen_Thread( entity player )
+{
+	Signal( player, REGEN_END_SIGNAL )
+	EndSignal( player, REGEN_END_SIGNAL )
+	EndSignal( player, "OnDeath" )
+	EndSignal( player, "OnDestroy" )
+	EndSignal( player, "BleedOut_OnStartDying" )
+	EndSignal( player, "CleanUpPlayerAbilities" )
+
+	RecoveryHealingFXRequest fxRequest = Player3pHealFXAddRequest( player, eHealingRequestType.ShieldRegen )
+	OnThreadEnd(
+		function() : ( player, fxRequest )
+		{
+			if ( IsValid( player ) )
+				Player3pHealFXRemoveRequest( player, fxRequest )
+		}
+	)
+
+	float startTime = Time()
+	float lastTime = startTime
+	float pendingHealth = 0.0
+	float pendingShield = 0.0
+	while ( true )
+	{
+		WaitFrame()
+
+		if ( player.GetLastTimeDamaged() > startTime )
+			return
+
+		float now = Time()
+		float dt = now - lastTime
+		lastTime = now
+
+		int health = player.GetHealth()
+		int healthMax = player.GetMaxHealth()
+		int shield = player.GetShieldHealth()
+		int shieldMax = player.GetShieldHealthMax()
+		if ( health >= healthMax && shield >= shieldMax )
+			return
+
+		if ( health < healthMax )
+		{
+			pendingHealth += tuning.healthRegenRate * dt
+			int add = minint( int( pendingHealth ), healthMax - health )
+			if ( add > 0 )
+			{
+				pendingHealth -= add.tofloat()
+				player.SetHealth( health + add )
+			}
+		}
+		else if ( shield < shieldMax )
+		{
+			pendingShield += tuning.shieldRegenRate * dt
+			int add = minint( int( pendingShield ), shieldMax - shield )
+			if ( add > 0 )
+			{
+				pendingShield -= add.tofloat()
+				player.SetShieldHealth( shield + add )
+			}
+		}
+	}
+}
+#endif // SERVER
+
+#if CLIENT
+void function ServertoClient_PassiveNewCastle_PlayBoop1pFx()
+{
+	entity player = GetLocalViewPlayer()
+	if ( !IsValid( player ) )
+		return
+
+	thread PassiveNewcastle_Boop1pFxActiveThread( player )
+}
+
+void function PassiveNewcastle_Boop1pFxActiveThread( entity player )
+{
+	EndSignal( player, "OnDeath" )
+	EndSignal( player, "OnDestroy" )
+
+	if ( file.colorCorrection != -1 )
+	{
+		ColorCorrection_SetExclusive( file.colorCorrection, true )
+		ColorCorrection_SetWeight( file.colorCorrection, 1.0 )
+	}
+	ClientScreenShake( 10, 100, 0.5, ZERO_VECTOR )
+
+	OnThreadEnd(
+		function() : ()
+		{
+			if ( file.colorCorrection != -1 )
+			{
+				ColorCorrection_SetWeight( file.colorCorrection, 0.0 )
+				ColorCorrection_SetExclusive( file.colorCorrection, false )
+			}
+		}
+	)
+
+	wait 0.2
+}
+#endif // CLIENT

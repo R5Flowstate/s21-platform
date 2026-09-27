@@ -89,7 +89,7 @@ const vector DRONE_MAXS = <9, 9, 10>
 const bool DEBUG_CODE_SCRIPT_MOVER_TRAVERSAL = false
 const bool DEBUG_WALL_CHECK = false
 const bool DEBUG_THROW_CHECK = false
-#endif //DEV
+#endif //DEVELOPER
 
 
 struct
@@ -124,9 +124,7 @@ struct
 
 void function MpAbilityShieldThrow_Init()
 {
-	#if SERVER || CLIENT
 	PrecacheModel( SHIELD_MODEL )
-	#endif // SERVER || CLIENT
 	PrecacheModel( MOBILE_SHIELD_MODEL )
 	PrecacheModel( MOBILE_SHIELD_TOP_MODEL )
 	PrecacheParticleSystem( MOBILE_SHIELD_FX )
@@ -342,7 +340,7 @@ entity function ThrowShield( entity weapon, WeaponPrimaryAttackParams attackPara
 		//DebugDrawArrow( player.EyePosition, attackPos, 8, COLOR_RED, true, 5.0 )
 		printt("ThrowShield: looking fraction: " + tr.fraction )
 	}
-	#endif //DEV
+	#endif //DEVELOPER
 
 	if ( tr.fraction < 1.0 )
 	{
@@ -351,7 +349,7 @@ entity function ThrowShield( entity weapon, WeaponPrimaryAttackParams attackPara
 		{
 			//DebugDrawMark( attackPos, 5, COLOR_GREEN, true, 5.0 )
 		}
-		#endif //DEV
+		#endif //DEVELOPER
 
 		attackPos = tr.endPos
 	}
@@ -539,7 +537,7 @@ void function DeployShieldOnGround_Thread( entity projectile )
 		{
 			 //DebugDrawArrow( projectile.GetOrigin, projectile.GetOrigin + AnglesToForward( projectile.GetAngles ) * 16, 8, COLOR_GREEN, true, 5.0 )
 		}
-		#endif //DEV
+		#endif //DEVELOPER
 	}
 
 	thread DeployMobileShield( projectile )
@@ -589,7 +587,7 @@ void function DeployMobileShield( entity projectile )
 
 	//projectiles fire with a different trace mask that our shield will use to traverse (player movement for the shield traversal, projectile for the thrown shield.)
 	//So we want to just do a quick check and see if we hit a wall right in front of us, if so, pick an origin outside of that wall area.
-	//There was an example on composite where the projectile could end up in this little divot/nook that a player couldn't get into but a projectile could. Then when we tried to move it got stuck.
+	//There was an example on composite where the projectile could end up in this little divot/nook that a player couldn't get into but a projectile could.  Then when we tried to move it got stuck.
 	if ( EnableFindBetterShieldStartingPos() )
 	{
 		bool foundBetterOrigin = false
@@ -702,13 +700,12 @@ void function DeployMobileShield( entity projectile )
 	}
 
 	//Create the Mobile Shield Object
-	// Physics mover required: SetMaxSpeed / SetMoveToPositionGround reject non-physics script_movers.
 	entity mobileShield = CreateEntity( "script_mover" )
 	mobileShield.kv.solid = SOLID_NONE
 	mobileShield.kv.collisionGroup = TRACE_COLLISION_GROUP_BLOCK_WEAPONS //NONE allows players to run into the shield and bounce it around. EF_PLAYER_MOVE_IGNORE_ATTACHMENT
 	mobileShield.kv.fadedist = -1
 	mobileShield.SetVelocity( velocity )
-	mobileShield.kv.SpawnAsPhysicsMover = 1
+	mobileShield.kv.SpawnAsPhysicsMover = 0
 	mobileShield.SetValueForModelKey( SHIELD_MODEL )
 	mobileShield.SetOrigin( origin )
 	mobileShield.SetAngles( angles )
@@ -749,7 +746,7 @@ void function DeployMobileShield( entity projectile )
 	thread TrapDestroyOnRoundEnd( owner, mobileShield )
 
 	//Register Shield so that it is detected by sonar.
-	//mobileShield.Highlight_Enable
+	//mobileShield.Highlight_Enable()
 	mobileShield.e.noOwnerFriendlyFire = true
 	mobileShield.e.noFriendlyFireProtection = false
 	mobileShield.e.canBeDamagedFromGas = false
@@ -780,8 +777,8 @@ void function DeployMobileShield( entity projectile )
 
 	bool shouldAnimsSetOrigin = true
 	//The animation PLAY type seems to govern how the mobileShield behaves when attached to a vehicle
-	//IF we Anim_Play - The animation sets the origin, and the mobile shield gets locked at its attachpoint, offsets do not apply
-	//IF we Anim_PlayOnly - The mobile shield doesn't take on the angles when parenting properly, and ends up attaching at odd positions/angles
+	//IF we Anim_Play()        - The animation sets the origin, and the mobile shield gets locked at its attachpoint, offsets do not apply
+	//IF we Anim_PlayOnly()    - The mobile shield doesn't take on the angles when parenting properly, and ends up attaching at odd positions/angles
 
 	                     
 		if ( owner in file.attachToVehicle )
@@ -795,7 +792,7 @@ void function DeployMobileShield( entity projectile )
 	//Add a PING region around Void Ring
 	float pingRadius = 20.0
 	vector pingOrigin = mobileShield.GetOrigin() + <0,0,-15>
-	entity traceBlocker = CreateTraceBlockerVolume( pingOrigin, pingRadius, false, CONTENTS_BLOCK_PING, owner.GetTeam(), VOID_RING_PROP_SCRIPTNAME )
+	entity traceBlocker = CreateTraceBlockerVolume( pingOrigin, pingRadius, false, CONTENTS_BLOCK_PING, owner.GetTeam(), VOID_RING_PROP_SCRIPTNAME, owner )
 	traceBlocker.RemoveFromAllRealms()
 	traceBlocker.AddToOtherEntitysRealms( mobileShield )
 	traceBlocker.SetParent( mobileShield )
@@ -891,10 +888,10 @@ void function MobileShield_Anim_Thread( entity mobileShield, bool shouldAnimsSet
 	Assert ( IsNewThread(), "Must be threaded off" )
 	EndSignal( mobileShield, "OnDestroy" )
 
-	//newcastle_drone_toss //looping idle when thrown
-	//newcastle_drone_deploy //anim that transforms drone when at the ideal spot in environment
-	//newcastle_drone_idle //looping idle of winged drone hovering
-	//newcastle_drone_end //anim that collapses drone as it fades off
+	//newcastle_drone_toss      //looping idle when thrown
+	//newcastle_drone_deploy  	//anim that transforms drone when at the ideal spot in environment
+	//newcastle_drone_idle   	//looping idle of winged drone hovering
+	//newcastle_drone_end		//anim that collapses drone as it fades off
 
 	if( shouldAnimsSetOrigin )
 		mobileShield.Anim_Play( "newcastle_drone_deploy" )
@@ -983,7 +980,7 @@ void function MobileShield_CreateAmbientDroneFX_Thread( entity mobileShield )
 	fxArray.append(projectorFriendlyFX)
 
 	//Enemy Projector Beams
-	//entity projectorEnemyFX = StartParticleEffectOnEntity_ReturnEntity( mobileShield, fxProjectorId, FX_PATTACH_POINT_FOLLOW, fxID )
+	//entity projectorEnemyFX = StartParticleEffectOnEntity_ReturnEntity( mobileShield, fxProjectorId , FX_PATTACH_POINT_FOLLOW, fxID )
 	entity projectorEnemyFX = StartParticleEffectOnEntityWithPos_ReturnEntity( mobileShield, fxProjectorId, FX_PATTACH_ABSORIGIN_FOLLOW, fxID, <0,0,0>, <-90,0,0> )
 	projectorEnemyFX.SetOwner( owner )
 	SetTeam( projectorEnemyFX, team )
@@ -1012,8 +1009,6 @@ void function MobileShield_CreateAmbientDroneFX_Thread( entity mobileShield )
 #endif //SERVER
 
 #if SERVER
-// S21 non-physics traversal natives are missing here; physics mover + script polyfills cover them.
-
 void function MobileShield_Hover_Thread( entity mobileShield, vector velocity )
 {
 	EndSignal( mobileShield, "OnDestroy" )
@@ -1025,24 +1020,6 @@ void function MobileShield_Hover_Thread( entity mobileShield, vector velocity )
 	vector lastPlayerFwd				= Normalize( owner.GetForwardVector() )
 	vector finalDest                 	= ZERO_VECTOR
 	float yawAccelerationScale       	= 180.0 //full turn takes 1 second
-
-	// S21 EnableNonPhysicsTraversal tunables (kept 1:1; polyfilled in this thread)
-	float maxInitialSpeed            = 300.0
-	float initialVelocityDecayTime   = 2.5
-	float deaccelDest                = 150.0
-	float deaccelSpeed               = 25.0
-	float maxSlideDistance           = 400.0
-	float slideTargetGoalDistance    = 30.0
-	float slideTestDepth             = 100.0
-	float maxStepOverHeight          = 40.0
-	float stepOverCheckRange         = 100.0
-	float stepOverTargetGoalDistance = 15.0
-	float lookaheadDistance          = 75.0
-	float cruiseSpeed                = MobileShield_GetMoveSpeed( owner )
-	float enableTime                 = Time()
-	float initialSpeed               = min( Length( velocity ), maxInitialSpeed )
-	vector lastOrigin                = mobileShield.GetOrigin()
-	int stallFrames                  = 0
 
 	EmitSoundOnEntity( mobileShield, MOBILE_SHIELD_PROPULSION_SFX_3P )
 
@@ -1056,13 +1033,9 @@ void function MobileShield_Hover_Thread( entity mobileShield, vector velocity )
 	}
 
 	if( !isVehicleAttached )
-	{
 		MobileShield_EnableNonPhysicsTraversal( mobileShield, yawAccelerationScale, velocity )
-		enableTime = Time()
-		initialSpeed = min( Length( velocity ), maxInitialSpeed )
-		cruiseSpeed = MobileShield_GetMoveSpeed( owner )
-	}
 
+	bool arrivedAtDest = false
 	vector lastDestSet = ZERO_VECTOR
 
 	while( true )
@@ -1077,14 +1050,10 @@ void function MobileShield_Hover_Thread( entity mobileShield, vector velocity )
 		{
 			velocity = mobileShield.GetVelocity()
 			MobileShield_EnableNonPhysicsTraversal( mobileShield, yawAccelerationScale, velocity )
-			enableTime = Time()
-			initialSpeed = min( Length( velocity ), maxInitialSpeed )
-			cruiseSpeed = MobileShield_GetMoveSpeed( owner )
 			wasVehicleAttached = false
-			lastDestSet = ZERO_VECTOR
-			stallFrames = 0
 		}
 
+		//printt("Velocty: " + Length( mobileShield.GetVelocity() ) )
 		if( !isVehicleAttached )
 		{
 			if( owner in file.shieldTargetPos )
@@ -1097,6 +1066,7 @@ void function MobileShield_Hover_Thread( entity mobileShield, vector velocity )
 
 				float dotPlayer 				= DotProduct( dirToPlayer, mobileShield.GetForwardVector() )
 				float dotPlayerDir 				= DotProduct( dirToFinalDest, dirPlayerToFinalDest )
+				float dotDest					= DotProduct( dirToFinalDest, mobileShield.GetForwardVector() )
 
 				if( dotPlayer < 0.2 ) //--Player is on the BACK side of the SHIELD --//
 				{
@@ -1126,77 +1096,29 @@ void function MobileShield_Hover_Thread( entity mobileShield, vector velocity )
 				else
 					isStrafing = false	//--PLAYER is on the FRONT side of the SHIELD--//
 
-				delete file.shieldTargetPos[owner]
-
-				// Always re-issue on command (covers re-click after a cliff/block stop at the same dest).
-				vector moveToPos = MobileShield_ResolveMoveToPos( mobileShield, finalDest )
-				entity groundEnt = MobileShield_ResolveGroundEnt( mobileShield, moveToPos )
-				mobileShield.SetGroundEntity( groundEnt )
-				mobileShield.SetMoveToPositionGround( moveToPos, groundEnt )
-				lastDestSet = finalDest
-				stallFrames = 0
-			}
-
-			if ( IsValid( owner ) )
-			{
-				bool ownerStopped = ( owner in file.shieldStopState ) && file.shieldStopState[owner]
-
-				// Initial-speed decay + deaccel-near-dest (S21 SetInitialSpeed / EnableDeaccelerationApproachingDest)
-				float speedNow = cruiseSpeed
-				float sinceEnable = Time() - enableTime
-				if ( sinceEnable < initialVelocityDecayTime && initialSpeed > cruiseSpeed )
-					speedNow = GraphCapped( sinceEnable, 0.0, initialVelocityDecayTime, initialSpeed, cruiseSpeed )
-
-				vector destWorld = mobileShield.GetMoveToPositionWorld()
-				float distToDest = Distance( mobileShield.GetOrigin(), destWorld )
-				if ( distToDest < deaccelDest )
-					speedNow = GraphCapped( distToDest, 0.0, deaccelDest, deaccelSpeed, speedNow )
-
-				if ( ownerStopped )
-					speedNow = 0.0
-
-				mobileShield.SetMaxSpeed( speedNow )
-
-				// Ledge check (S21 EnableLedgeChecking)
-				if ( !ownerStopped && speedNow > 1.0 && distToDest > 8.0 )
+				if( !isStrafing && IsValid(mobileShield))
 				{
-					bool ignoreCliffs = ( owner in file.shieldIgnoreCliffs ) && file.shieldIgnoreCliffs[owner]
-					if ( !ignoreCliffs && MobileShield_IsCliffAhead( mobileShield, SHIELD_THROW_TEST_STEP, SHEILD_THROW_DROP_HEIGHT_MAX ) )
-					{
-						MobileShield_ScriptTraversalStop( mobileShield, false )
-						ownerStopped = true
-						speedNow = 0.0
-						mobileShield.SetMaxSpeed( 0.0 )
-					}
+					//todo: NEEDS FIX FROM TRAVIS
+					//yawAccelerationScale = GraphCapped( dotDest, -1, 1, maxYawAccelScale, minYawAccelScale )
+					//mobileShield.SetYawAccelerationScale( yawAccelerationScale )
+
 				}
 
-				// Step-over / slide when stalled (S21 EnableStepOver / EnableSliding)
-				if ( !ownerStopped && lastDestSet != ZERO_VECTOR && distToDest > stepOverTargetGoalDistance )
-				{
-					float moved = Distance2D( mobileShield.GetOrigin(), lastOrigin )
-					if ( moved < 2.0 )
-						stallFrames++
-					else
-						stallFrames = 0
+				delete file.shieldTargetPos[owner]
+			}
 
-					if ( stallFrames >= 4 )
-					{
-						vector stepOrSlide = MobileShield_TryStepOrSlide( mobileShield, lastDestSet, maxStepOverHeight, stepOverCheckRange, maxSlideDistance, slideTestDepth, slideTargetGoalDistance, lookaheadDistance )
-						if ( stepOrSlide != ZERO_VECTOR )
-						{
-							entity groundEnt = MobileShield_ResolveGroundEnt( mobileShield, stepOrSlide )
-							mobileShield.SetGroundEntity( groundEnt )
-							mobileShield.SetMoveToPositionGround( stepOrSlide, groundEnt )
-							stallFrames = 0
-						}
-						else if ( stallFrames >= 10 )
-						{
-							// Forward path fully blocked
-							MobileShield_ScriptTraversalStop( mobileShield, true )
-							ownerStopped = true
-							mobileShield.SetMaxSpeed( 0.0 )
-						}
-					}
+			if ( IsValid(owner) )
+			{
+				if ( lastDestSet != finalDest )
+				{
+					TraceResults groundTraceResult = TraceHull( finalDest, finalDest - <0, 0, 2000>, DRONE_MINS, DRONE_MAXS, mobileShield, TRACE_MASK_NPCWORLDSTATIC, TRACE_COLLISION_GROUP_NONE )
+					entity groundEnt               = groundTraceResult.hitEnt && GetConVarBool( "script_mover_traversal_mover_support" ) ? groundTraceResult.hitEnt.GetRootMoveParent() : null
+
+					if ( !GetConVarBool( "script_mover_traversal_mover_support" ) )
+						mobileShield.SetGroundEntity( groundEnt )
+
+					mobileShield.SetMoveToPositionGroundNonPhysics( finalDest, groundEnt )
+					lastDestSet = finalDest
 				}
 
 				if ( isStrafing )
@@ -1206,9 +1128,9 @@ void function MobileShield_Hover_Thread( entity mobileShield, vector velocity )
 						#if DEVELOPER
 							if ( DEBUG_CODE_SCRIPT_MOVER_TRAVERSAL )
 								printt(FUNC_NAME() + " SETTING STRAFING YAW")
-						#endif //DEV
+						#endif //DEVELOPER
 
-						mobileShield.SetDesiredYaw( VectorToAngles( Normalize( FlattenVec( lastPlayerFwd ) ) ).y )
+						mobileShield.SetDesiredYawDir( Normalize( FlattenVec( lastPlayerFwd ) ) )
 						isYawOverrideSet = true
 					}
 				}
@@ -1219,7 +1141,7 @@ void function MobileShield_Hover_Thread( entity mobileShield, vector velocity )
 						#if DEVELOPER
 							if ( DEBUG_CODE_SCRIPT_MOVER_TRAVERSAL )
 								printt(FUNC_NAME() + " SETTING NORMAL YAW")
-						#endif //DEV
+						#endif //DEVELOPER
 
 						mobileShield.ClearDesiredYaw()
 						isYawOverrideSet = false
@@ -1228,7 +1150,6 @@ void function MobileShield_Hover_Thread( entity mobileShield, vector velocity )
 			}
 		}
 
-		lastOrigin = mobileShield.GetOrigin()
 
 		#if DEVELOPER
 		if ( DEBUG_CODE_SCRIPT_MOVER_TRAVERSAL )
@@ -1236,7 +1157,7 @@ void function MobileShield_Hover_Thread( entity mobileShield, vector velocity )
 			DebugDrawLineRGB( mobileShield.GetOrigin(), mobileShield.GetMoveToPositionWorld(), int(COLOR_YELLOW.x), int(COLOR_YELLOW.y), int(COLOR_YELLOW.z), true, 0.1 )
 			DrawStar( mobileShield.GetMoveToPositionWorld(), 2, 0.5, true )
 		}
-		#endif //DEV
+		#endif //DEVELOPER
 
 		WaitFrame()
 	}
@@ -1256,132 +1177,50 @@ float function MobileShield_GetMoveSpeed( entity owner )
 
 void function MobileShield_EnableNonPhysicsTraversal( entity mobileShield, float yawAccelerationScale, vector velocity )
 {
-	const float CLEAR_HOVER_DIST = 48.0
+	float moveSpeed = MobileShield_GetMoveSpeed( mobileShield.GetOwner() )
 
-	float maxSpeed = MobileShield_GetMoveSpeed( mobileShield.GetOwner() )
-	float maxInitialSpeed = 300.0
-	float initialSpeed = min( Length( velocity ), maxInitialSpeed )
+	float checkDist                  = 5.0 		//Range at which we break out of the Update (too close to destination) (Original - 60)
+	float lookaheadDistance          = 75.0
+	float sideVelocity               = moveSpeed
+	float maxWidthCorrectionVelocity = 50.0
+	float maxSpeed                   = moveSpeed
+	float traversalTraceOffset       = 18.0
+	float maxInitialSpeed            = 300.0 //How fast can it go on spawn - 300 is max player sprint speed, good starting value?
+	float initialVelocityDecayTime   = 2.5 //How long we lerp from maxInitialVelocity to maxSpeed
+	float deaccelDest 				 = 150
+	float deaccelSpeed 		 	 	 = 25
 
-	mobileShield.SetMaxSpeed( max( initialSpeed, maxSpeed ) )
-	mobileShield.SetYawRate( yawAccelerationScale > 0.0 ? yawAccelerationScale : 180.0 )
-	// 2-arg form (height, clear radius); S21 4-arg mask/group not available
-	mobileShield.SetMinimalHeightGround( SHIELD_HOVER_HEIGHT, CLEAR_HOVER_DIST )
+	const bool collideWithPlayers = false
+	const bool collideWithNPCs = false
+	//Rotation Params
+	const float maxYawAccelScale = 180
+	const float minYawAccelScale = 60
+	//Slide Params
+	const float maxSlideDistance = 400.0
+	const int slideEdgeDetectAttempts = 8
+	const float slideTargetGoalDistance = 30.0
+	const float slideMaxDot = 0.999
+	const float slideTestDepth = 100.0
+	//Step Over Params
+	const float maxStepOverHeight = 40.0
+	const float stepOverCheckRange = 100
+	const float stepOverTargetGoalDistance = 15.0
+	const float traversalForceDecayunsigned = 90.0
+	//Gravity
+	const float gravityScale = 0.125 //this controls how fast the shield will fall to the ground, but also step up over obstacles.
 
-	TraceResults groundTraceResult = TraceHull( mobileShield.GetOrigin(), mobileShield.GetOrigin() - <0, 0, SHIELD_GROUND_CHECK_DIST>, DRONE_MINS, DRONE_MAXS, mobileShield, TRACE_MASK_NPCWORLDSTATIC, TRACE_COLLISION_GROUP_NONE )
-	entity groundEnt               = groundTraceResult.hitEnt ? groundTraceResult.hitEnt.GetRootMoveParent() : null
-	vector hoverPos                = groundTraceResult.fraction < 1.0 ? groundTraceResult.endPos + <0, 0, SHIELD_HOVER_HEIGHT> : mobileShield.GetOrigin()
+	mobileShield.EnableNonPhysicsTraversal( checkDist, lookaheadDistance, sideVelocity, maxWidthCorrectionVelocity, traversalTraceOffset, traversalForceDecayunsigned,TRACE_MASK_NPCSOLID, TRACE_COLLISION_GROUP_NPC_MOVEMENT, collideWithPlayers, collideWithNPCs )
+	mobileShield.SetMinimalHeightGround( SHIELD_HOVER_HEIGHT, SHIELD_GROUND_CHECK_DIST, TRACE_MASK_NPCSOLID, TRACE_COLLISION_GROUP_NPC_MOVEMENT )
+	mobileShield.SetMaxSpeed( maxSpeed )
+	mobileShield.SetInitialSpeed( min( Length( velocity ), maxInitialSpeed ), initialVelocityDecayTime )
+	mobileShield.EnableDeaccelerationApproachingDest( deaccelDest, deaccelSpeed )
 
-	// Seed an immediate hover settle; command destinations overwrite via SetMoveToPositionGround
-	mobileShield.SetGroundEntity( groundEnt )
-	mobileShield.SetMoveToPositionGround( hoverPos, groundEnt )
-	mobileShield.SetDesiredYaw( mobileShield.GetAngles().y )
-}
+	mobileShield.SetYawAccelerationScale( yawAccelerationScale )
+	mobileShield.EnableLedgeChecking( MOBILE_SHIELD_IGNORE_CLIFF_RESET_DELAY, SHIELD_THROW_TEST_STEP, SHEILD_THROW_DROP_HEIGHT_MAX )
+	mobileShield.EnableSliding( maxSlideDistance, slideEdgeDetectAttempts, slideTargetGoalDistance, slideMaxDot, slideTestDepth )//( float maxSlideDistance, int edgeDetectAttempts, float slideTargetGoalDistance, float maxDot, float slideTestDepth )
+	mobileShield.EnableStepOver( maxStepOverHeight, stepOverCheckRange, stepOverTargetGoalDistance )
+	mobileShield.EnableGravityAboveMinHeight( gravityScale )
 
-vector function MobileShield_ResolveMoveToPos( entity mobileShield, vector desiredPos )
-{
-	TraceResults groundTraceResult = TraceHull( desiredPos, desiredPos - <0, 0, 2000>, DRONE_MINS, DRONE_MAXS, mobileShield, TRACE_MASK_NPCWORLDSTATIC, TRACE_COLLISION_GROUP_NONE )
-	if ( groundTraceResult.fraction < 1.0 )
-		return groundTraceResult.endPos + <0, 0, SHIELD_HOVER_HEIGHT>
-	return desiredPos
-}
-
-entity function MobileShield_ResolveGroundEnt( entity mobileShield, vector atPos )
-{
-	TraceResults groundTraceResult = TraceHull( atPos, atPos - <0, 0, 2000>, DRONE_MINS, DRONE_MAXS, mobileShield, TRACE_MASK_NPCWORLDSTATIC, TRACE_COLLISION_GROUP_NONE )
-	if ( groundTraceResult.hitEnt )
-		return groundTraceResult.hitEnt.GetRootMoveParent()
-	return null
-}
-
-bool function MobileShield_IsCliffAhead( entity mobileShield, float stepDist, float maxDrop )
-{
-	vector vel = mobileShield.GetVelocity()
-	vector dir = FlattenVec( vel )
-	if ( Length( dir ) < 1.0 )
-	{
-		vector toDest = FlattenVec( mobileShield.GetMoveToPositionWorld() - mobileShield.GetOrigin() )
-		if ( Length( toDest ) < 1.0 )
-			return false
-		dir = Normalize( toDest )
-	}
-	else
-	{
-		dir = Normalize( dir )
-	}
-
-	vector probe = mobileShield.GetOrigin() + dir * stepDist
-	// Clearance at probe height first (wall vs open air)
-	TraceResults forwardTrace = TraceHull( mobileShield.GetOrigin(), probe, DRONE_MINS, DRONE_MAXS, mobileShield, TRACE_MASK_NPCWORLDSTATIC, TRACE_COLLISION_GROUP_NONE )
-	if ( forwardTrace.fraction < 0.9 )
-		return false // blocked by wall/geometry, not a cliff
-
-	TraceResults downTrace = TraceHull( probe, probe - <0, 0, maxDrop>, DRONE_MINS, DRONE_MAXS, mobileShield, TRACE_MASK_NPCWORLDSTATIC, TRACE_COLLISION_GROUP_NONE )
-	return downTrace.fraction >= 1.0
-}
-
-vector function MobileShield_TryStepOrSlide( entity mobileShield, vector finalDest, float maxStepOverHeight, float stepOverCheckRange, float maxSlideDistance, float slideTestDepth, float slideTargetGoalDistance, float lookaheadDistance )
-{
-	vector origin = mobileShield.GetOrigin()
-	vector flatToDest = FlattenVec( finalDest - origin )
-	float flatDist = Length( flatToDest )
-	if ( flatDist < 1.0 )
-		return ZERO_VECTOR
-
-	vector dir = Normalize( flatToDest )
-
-	// Step-over: short wall under maxStepOverHeight with open ground beyond
-	vector stepProbe = origin + dir * min( stepOverCheckRange, flatDist )
-	TraceResults wallTrace = TraceHull( origin, stepProbe, DRONE_MINS, DRONE_MAXS, mobileShield, TRACE_MASK_NPCWORLDSTATIC, TRACE_COLLISION_GROUP_NONE )
-	if ( wallTrace.fraction < 0.95 )
-	{
-		vector upStart = wallTrace.endPos + <0, 0, maxStepOverHeight>
-		TraceResults overTrace = TraceHull( upStart, upStart + dir * 24.0, DRONE_MINS, DRONE_MAXS, mobileShield, TRACE_MASK_NPCWORLDSTATIC, TRACE_COLLISION_GROUP_NONE )
-		if ( overTrace.fraction > 0.5 )
-		{
-			vector landed = MobileShield_ResolveMoveToPos( mobileShield, overTrace.endPos )
-			if ( Distance2D( landed, origin ) > 8.0 )
-				return landed
-		}
-	}
-
-	// Sliding: bias destination sideways when forward is blocked
-	if ( flatDist > slideTargetGoalDistance && flatDist < maxSlideDistance )
-	{
-		vector right = Normalize( CrossProduct( dir, <0, 0, 1> ) )
-		for ( int side = 0; side < 2; side++ )
-		{
-			float sign = ( side == 0 ) ? 1.0 : -1.0
-			vector sideDest = origin + right * ( sign * slideTestDepth ) + dir * lookaheadDistance
-			TraceResults sideTrace = TraceHull( origin, sideDest, DRONE_MINS, DRONE_MAXS, mobileShield, TRACE_MASK_NPCWORLDSTATIC, TRACE_COLLISION_GROUP_NONE )
-			if ( sideTrace.fraction > 0.6 )
-			{
-				vector resolved = MobileShield_ResolveMoveToPos( mobileShield, sideTrace.endPos )
-				if ( Distance2D( resolved, finalDest ) < flatDist )
-					return resolved
-			}
-		}
-	}
-
-	return ZERO_VECTOR
-}
-
-void function MobileShield_ScriptTraversalStop( entity mobileShield, bool isBlocked )
-{
-	// Hold position and mirror CodeCallback_ScriptMoverTraversalStopped side effects
-	entity groundEnt = MobileShield_ResolveGroundEnt( mobileShield, mobileShield.GetOrigin() )
-	mobileShield.SetGroundEntity( groundEnt )
-	mobileShield.SetMoveToPositionGround( mobileShield.GetOrigin(), groundEnt )
-	mobileShield.SetMaxSpeed( 0.0 )
-
-	entity owner = mobileShield.GetOwner()
-	if ( IsValid( owner ) )
-	{
-		file.shieldStopState[owner] <- true
-		Remote_CallFunction_Replay( owner, "ServerToClient_UpdateShieldStopState", owner, true )
-	}
-
-	if ( isBlocked )
-		EmitSoundOnEntity( mobileShield, MOBILE_SHIELD_STOP_SFX_3P )
 }
 #endif //SERVER
 
@@ -1439,7 +1278,7 @@ entity function CreateMobileShieldWall( entity mobileShield, entity owner, vecto
 	shieldEnt.SetBlocksLOS( false ) // allows NPCs to see through shield
 	shieldEnt.SetTakeDamageType( DAMAGE_YES )
 	shieldEnt.kv.contents = ( CONTENTS_WINDOW | CONTENTS_BLOCK_PING | CONTENTS_NOGRAPPLE )
-	//shieldEnt.SetScriptPropFlags( SPF_OBJECT_PLACEMENT_SPECIAL_IGNORE )
+	shieldEnt.SetScriptPropFlags( SPF_OBJECT_PLACEMENT_SPECIAL_IGNORE )
 
 	shieldEnt.SetParent( mobileShield, "", true )
 
@@ -1492,6 +1331,8 @@ entity function CreateMobileShieldWall( entity mobileShield, entity owner, vecto
 	AddEntityCallback_OnDamaged( shieldEnt, MobileShieldWall_OnDamaged )
 	AddEntityCallback_OnPostDamaged( shieldEnt, MobileShieldWall_OnPostDamaged )
 
+	PassiveNewcastle_StartShieldRepel( shieldEnt, owner, false )
+
 	return shieldEnt
 }
 #endif
@@ -1543,7 +1384,7 @@ void function MobileShieldWall_OnDamaged( entity shieldEnt, var damageInfo )
 	//if ( IsBitFlagSet( DamageInfo_GetCustomDamageType( damageInfo ), DF_ELECTRICAL ) )
 	//{
 	//	if ( damageSourceIdentifier == eDamageSourceId.mp_weapon_grenade_emp )
-	// damageScale *= 1.5
+	//		damageScale *= 1.5
 	//}
 
 	if ( damageSourceIdentifier == eDamageSourceId.mp_ability_crypto_drone_emp_trap )
@@ -1685,7 +1526,7 @@ void function ShieldThrow_CleanUp( entity mobileShield )
 			if ( !EntIsHoverVehicle( mobileShield.GetParent() ) )
                              
 		mobileShield.ClearParent()
-		mobileShield.Dissolve( ENTITY_DISSOLVE_CORE, ZERO_VECTOR, 500 )
+		mobileShield.Dissolve( ENTITY_DISSOLVE_CORE )
 	}
 
 }
@@ -1737,9 +1578,6 @@ void function AttemptChangeDirection( entity player ) //AttemptChangeTargets
 		return
 
 	if ( AreAbilitiesSilenced( player ) )
-		return
-
-	if ( Bleedout_IsBleedingOut( player ) )
 		return
 
 	if ( player.IsPhaseShifted() )
@@ -2151,7 +1989,13 @@ bool function MobileShield_IsAllowedStickyEnt( entity mobileShield, entity stick
 	if ( stickyEntWeaponClassName == "mp_weapon_arc_bolt" )
 		allowStick = true
 
+	if ( stickyEntWeaponClassName == "mp_ability_debuff_zone" )
+		allowStick = true
+
 	if ( stickyEntWeaponClassName == GRENADE_EMP_WEAPON_NAME )
+		allowStick = true
+
+	if ( stickyEntWeaponClassName == "mp_weapon_creeping_bombardment_weapon" )
 		allowStick = true
 
 	if( allowStick )
@@ -2199,4 +2043,3 @@ void function MobileShield_TrackStickyEnt_Thread( entity mobileShield, entity st
 	}
 
 }
-

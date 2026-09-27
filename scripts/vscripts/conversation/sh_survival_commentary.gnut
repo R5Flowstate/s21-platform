@@ -1194,6 +1194,9 @@ bool function ShouldPlayBattleChatter( string conversationType, entity listening
 	if ( conversationType == "" )
 		return false
 
+	if ( !IsValid( listeningPlayer ) || !IsValid( speakingPlayer ) )
+		return false
+
 	if ( !IsAlive( listeningPlayer ) )
 	{
 		if ( !GetConVarBool( "sound_spectator_dialogue") )

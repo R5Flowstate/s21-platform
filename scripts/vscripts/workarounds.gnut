@@ -493,8 +493,8 @@ bool function HasZiplinePingInRange( entity player, entity hitEnt, vector hitPos
 bool function IsPlayerDecoy( entity ent ) { return false }
 bool function IsRopeZipline( entity ent ) { return false }
 bool function IsZiprail( entity ent ) { return false }
-bool function Player_IsSkywardFollowing( entity player ) { return false }
-bool function Player_IsSkywardLaunching( entity player ) { return false }
+bool function Player_IsSkywardFollowing( entity player ) { return IsValid( player ) && player.IsPlayer() && player.Player_IsSkywardFollowing() }
+bool function Player_IsSkywardLaunching( entity player ) { return IsValid( player ) && player.IsPlayer() && player.Player_IsSkywardLaunching() }
 
 // IsTeamInAlliance — engine native (bridge: alliance_compat). No script body.
 // Remote_CallFunction_NonReplay — native

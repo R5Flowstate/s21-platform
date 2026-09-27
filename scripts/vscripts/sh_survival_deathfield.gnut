@@ -420,7 +420,7 @@ void function Sh_ArenaDeathField_Init()
 			Assert( distanceToSound.len() > 0 )
 		}
 
-		if ( GetCurrentPlaylistVarBool( "deathfield_opacity_override", true ) )
+		if ( file.ringOpacityOverrideEnabled && GetCurrentPlaylistVarBool( "deathfield_opacity_override", true ) )
 		{
 			if ( GetCurrentPlaylistVarFloat( "deathfield_ringOpacityOverrideValue", 1.0 ) != 1.0 )
 			{
@@ -904,6 +904,10 @@ void function DeathFieldShrinkThink_Thread( table<int, DeathFieldData> data, tab
 		WaitFrame()
 		foreach ( realm, deathField in deathFields )
 		{
+			// Round resets destroy the ring mover while this shrink is still running.
+			if ( !IsValid( deathField ) )
+				continue
+
 			data[ realm ].center = deathField.GetOrigin()
 			data[ realm ].currentRadius = GraphCapped( Time(), data[ realm ].startTime, data[ realm ].endTime, data[ realm ].startRadius, data[ realm ].endRadius )
 		}
@@ -3163,8 +3167,14 @@ vector function SURVIVAL_FindClosestTitanDropPoint( vector center )
 }
 #endif // #if NAVMESH_ALL_SUPPORTED
 
+// Realms without a BR ring (per-fight rings, lobby-only modes) read as an unset ring.
 DeathFieldData function SURVIVAL_GetDeathFieldData( int realm )
 {
+	if ( !( realm in file.deathFieldData ) )
+	{
+		DeathFieldData unset
+		return unset
+	}
 	return file.deathFieldData[ realm ]
 }
 
@@ -3329,6 +3339,12 @@ entity function SURVIVAL_CreateSurveyZoneEntity( vector circleOrigin, float circ
 	return surveyZone
 }
 
+// The stage list is emptied at a round reset and refilled later on a thread.
+bool function DeathField_HasStages( int realm )
+{
+	return realm in file.deathFieldStages && file.deathFieldStages[ realm ].len() > 0
+}
+
 entity function OBSERVER_GetOrCreateSurveyRing( entity observer )
 {
 	if ( file.observerSurveyMinimapEnt == null || file.observerSurveyMinimapEnt.GetOwner() == null )
@@ -3382,6 +3398,9 @@ void function OBSERVER_ToggleSurveyRingEnabled( entity observer )
 void function OBSERVER_RefreshSurveryRing( entity observer )
 {
 	if ( observer.GetTeam() != TEAM_SPECTATOR )
+		return
+
+	if ( !DeathField_HasStages( Survival_GetPlayerRealm( observer ) ) )
 		return
 
 	entity minimapEnt = OBSERVER_GetOrCreateSurveyRing( observer )
@@ -3447,6 +3466,8 @@ void function SURVIVAL_ShowSurveyRegionOnSquadMaps( entity player )
 	}
 
 	int realm                      = Survival_GetPlayerRealm( player )
+	if ( !DeathField_HasStages( realm ) )
+		return
 	deathField = file.deathFieldStages[ realm ][ int( min( currentDeathFieldStageValue + 1, file.deathFieldStages[ realm ].len() - 1 ) ) ]
 	vector circleOrigin = deathField.endPos
 	float circleRadius  = deathField.endRadius < 175.0 ? 175.0 : deathField.endRadius
@@ -3911,27 +3932,31 @@ void function Cl_DeathFieldThink( entity deathField )
 		float radius        = DeathField_GetRadiusForNow( dIndex )
 		float radiusScale   = Cl_Deathfield_GetRadiusScale()
 
-		DeathFieldStageData deathFieldData = file.deathFieldStageData[stage]
-		deathFieldData.shrinkDuration = duration
-
-		if ( Time() >= startTime && lastStartTime < startTime )
+		// Modes that run their own rings keep the BR stage at -1.
+		if ( stage >= 0 && stage < file.deathFieldStageData.len() )
 		{
-			//printt( "CLIENT: FIRING START CIRCLE SHRINK CALLBACKS!!!" )
-			//Fire client callbacks for Death Field Shrink Start
-			foreach ( void functionref( DeathFieldStageData ) callback in file.ClientCallbacks_OnDeathFieldStartShrink )
-				callback( deathFieldData )
+			DeathFieldStageData deathFieldData = file.deathFieldStageData[stage]
+			deathFieldData.shrinkDuration = duration
 
-			lastStartTime = startTime
-		}
+			if ( Time() >= startTime && lastStartTime < startTime )
+			{
+				//printt( "CLIENT: FIRING START CIRCLE SHRINK CALLBACKS!!!" )
+				//Fire client callbacks for Death Field Shrink Start
+				foreach ( void functionref( DeathFieldStageData ) callback in file.ClientCallbacks_OnDeathFieldStartShrink )
+					callback( deathFieldData )
 
-		if ( Time() >= (startTime + duration) && (startTime + duration) != lastEndTime )
-		{
-			//printt( "CLIENT: FIRING STOP CIRCLE SHRINK CALLBACKS!!!" )
-			//Fire client callbacks for Death Field Shrink Stop
-			foreach ( void functionref( DeathFieldStageData ) callback in file.ClientCallbacks_OnDeathFieldStopShrink )
-				callback( deathFieldData )
+				lastStartTime = startTime
+			}
 
-			lastEndTime = (startTime + duration)
+			if ( Time() >= (startTime + duration) && (startTime + duration) != lastEndTime )
+			{
+				//printt( "CLIENT: FIRING STOP CIRCLE SHRINK CALLBACKS!!!" )
+				//Fire client callbacks for Death Field Shrink Stop
+				foreach ( void functionref( DeathFieldStageData ) callback in file.ClientCallbacks_OnDeathFieldStopShrink )
+					callback( deathFieldData )
+
+				lastEndTime = (startTime + duration)
+			}
 		}
 
 		int idealFx = Cl_Deathfield_GetFXIDForRadius( radius )
@@ -4255,7 +4280,7 @@ bool function HasDeathFieldImmunity( entity player )
 #if SERVER
 vector function SURVIVAL_GetDeathFieldCenter( int realm )
 {
-	return file.deathFieldData[ realm ].center
+	return SURVIVAL_GetDeathFieldData( realm ).center
 }
 #endif // SERVER
 
@@ -4289,7 +4314,8 @@ float function Cl_SURVIVAL_GetDeathFieldCurrentRadius()
 
 		int i = SURVIVAL_GetCurrentDeathFieldStage()
 
-		if ( i == -1 )
+		// Server netvar with no range.
+		if ( i < 0 || i >= file.deathFieldStageData.len() )
 			return startRadius
 
 		float startTime = GetGlobalNetTime( "nextCircleStartTime" ) + MARGIN_WAIT_TIME
@@ -4323,7 +4349,7 @@ bool function Cl_SURVIVAL_PosInSafeZone( vector position )
 {
 	int i = SURVIVAL_GetCurrentDeathFieldStage()
 
-	if ( i == -1 )
+	if ( i < 0 || i >= file.deathFieldStageData.len() )
 		return true
 
 	DeathFieldStageData data = file.deathFieldStageData[i]
@@ -4339,12 +4365,12 @@ bool function Cl_SURVIVAL_PosInSafeZone( vector position )
 #if SERVER
 float function SURVIVAL_GetDeathFieldCurrentRadius( int realm = 0 )
 {
-		return file.deathFieldData[ realm ].currentRadius
+	return SURVIVAL_GetDeathFieldData( realm ).currentRadius
 }
 
 float function SURVIVAL_GetDeathFieldProgressPercentage( int realm )
 {
-	DeathFieldData data = file.deathFieldData[ realm ]
+	DeathFieldData data = SURVIVAL_GetDeathFieldData( realm )
 	float totalDelta = data.startRadius - data.endRadius
 	float curDelta = data.startRadius - data.currentRadius
 	if ( totalDelta == 0.0 )
@@ -5004,7 +5030,13 @@ entity function Cl_SURVIVAL_GetDeathField()
 
 DeathFieldStageData function Cl_GetDeathFieldStage( int index )
 {
-	return file.deathFieldStageData[ index ]
+	// The stage index is a server netvar with no range.
+	if ( file.deathFieldStageData.len() == 0 )
+	{
+		DeathFieldStageData empty
+		return empty
+	}
+	return file.deathFieldStageData[ ClampInt( index, 0, file.deathFieldStageData.len() - 1 ) ]
 }
 #endif // CLIENT
 

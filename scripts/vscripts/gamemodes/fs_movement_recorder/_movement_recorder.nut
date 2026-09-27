@@ -295,6 +295,11 @@ void function MRec_ClientCommandImpl( entity player, array<string> args )
 		MRec_CmdProgram( player, st, args )
 		return
 	}
+	if ( action == "loaddemo" )
+	{
+		MRec_CmdLoadDemo( player, st, args )
+		return
+	}
 	if ( action == "sync" )
 	{
 		return
@@ -592,6 +597,101 @@ void function MRec_FinishRecording( entity player )
 	if ( inputCount > 9000 )
 		inputCount = 9000
 	MRec_HudPush( player, "MRec_CL_RecSaved", st.recordings.len() - 1, int( rec.duration * 10.0 + 0.5 ), inputCount )
+}
+
+float function MRec_ParseSeconds( string s )
+{
+	if ( s.len() < 1 || s.len() > 12 )
+		return -1.0
+	for ( int i = 0; i < s.len(); i++ )
+	{
+		string c = s.slice( i, i + 1 )
+		if ( ( c < "0" || c > "9" ) && c != "." )
+			return -1.0
+	}
+	float v = -1.0
+	try
+	{
+		v = s.tofloat()
+	}
+	catch ( eParse )
+	{
+		v = -1.0
+	}
+	return v
+}
+
+// mrec loaddemo <name> [pov] [startSeconds] [endSeconds]: a pov's input from a
+// server demo (or a drill cut from one) becomes a recording slot.
+void function MRec_CmdLoadDemo( entity player, MRecPlayerState st, array<string> args )
+{
+	if ( args.len() < 2 )
+	{
+		Message( player, "#MREC_MSG_LOADDEMO_USAGE" )
+		return
+	}
+	if ( st.recordings.len() >= MREC_MAX_RECORDINGS_PER_PLAYER )
+	{
+		Message( player, "#MREC_MSG_SLOTS_FULL", "#MREC_MSG_CLEAR_TO_FREE" )
+		return
+	}
+
+	string name = args[1]
+	int pov = args.len() >= 3 ? MRec_ParseNonNegativeInt( args[2] ) : 0
+	float startSec = args.len() >= 4 ? MRec_ParseSeconds( args[3] ) : 0.0
+	float endSec = args.len() >= 5 ? MRec_ParseSeconds( args[4] ) : 0.0
+	if ( pov < 0 || startSec < 0.0 || endSec < 0.0 )
+	{
+		Message( player, "#MREC_MSG_LOADDEMO_USAGE" )
+		return
+	}
+
+	int id = -1
+	try
+	{
+		id = CmdRec_LoadDemo( name, pov, startSec, endSec )
+	}
+	catch ( eLoad )
+	{
+		printt( format( "[MRec] CmdRec_LoadDemo failed for %s: %s", player.GetPlayerName(), string( eLoad ) ) )
+		id = -1
+	}
+	if ( id < 0 )
+	{
+		Message( player, "#MREC_MSG_LOADDEMO_FAILED", MRec_SanitizeName( name ) )
+		return
+	}
+
+	MRecRecording rec
+	rec.cmdRecId = id
+	rec.anim = null
+	MRec_TakeSnapshot( player, rec.snapshot )
+	rec.duration = CmdRec_GetDuration( id )
+	rec.startOrigin = CmdRec_GetStartOrigin( id )
+	rec.startAngles = CmdRec_GetStartAngles( id )
+	rec.characterRef = MovementRecorder_GetPlayerCharacterRef( player )
+	rec.ownerName = player.GetPlayerName()
+	rec.madeTime = Time()
+	try
+	{
+		rec.model = player.GetModelName()
+	}
+	catch ( eModel )
+	{
+		rec.model = $""
+	}
+	rec.name = MRec_SanitizeName( name )
+	rec.loadout = MRec_BuildLoadoutLine( rec )
+	st.recordings.append( rec )
+
+	int idx = st.recordings.len() - 1
+	Message( player, "#MREC_MSG_SAVED|" + string( st.recordings.len() ), format( "%.1fs", rec.duration ) )
+	MRec_SendState( player )
+	MRec_SendSlotName( player, idx, rec.name )
+	int inputCount = CmdRec_GetCount( id )
+	if ( inputCount > 9000 )
+		inputCount = 9000
+	MRec_HudPush( player, "MRec_CL_RecSaved", idx, int( rec.duration * 10.0 + 0.5 ), inputCount )
 }
 
 void function MRec_CmdStop( entity player, MRecPlayerState st )
@@ -2149,6 +2249,19 @@ void function MRec_ApplyLegend( entity bot, string charRef, asset model, bool ap
 	}
 	if ( !IsValid( bot ) )
 		return
+	// Passives like Gibraltar's gun shield put a bullet-absorbing prop on the
+	// bot, so practice targets keep only Bangalore's move speed.
+	if ( LegendBot_IsBot( bot ) )
+	{
+		int stripped = 0
+		for ( int passive = 0; passive < ePassives._count; passive++ )
+		{
+			if ( passive == ePassives.PAS_ADRENALINE || !bot.HasPassive( passive ) )
+				continue
+			TakePassive( bot, passive )
+			stripped++
+		}
+	}
 	if ( !applyModel )
 		return
 	if ( model == $"" )

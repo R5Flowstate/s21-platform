@@ -12,6 +12,11 @@ global const float MAPEDIT_ANGLE_LIMIT       = 1000000.0
 global const int   MAPEDIT_PLACE_RATE_MAX    = 10
 global const float MAPEDIT_PLACE_RATE_WINDOW = 1.0
 global const int   MAPEDIT_UNDO_DEPTH        = 64
+// Holding the editor tool is build mode. Slot 3 is the utility slot on both engines;
+// the sling slot 4 is the anti-titan slot on the S3 server.
+global const string MAPEDIT_TOOL_WEAPON      = "mp_weapon_mapedit_tool"
+// WEAPON_INVENTORY_SLOT_PRIMARY_3; the UI VM has no weapon slot constants.
+global const int   MAPEDIT_TOOL_SLOT         = 3
 
 // Models precached for the editor, on top of everything the map already
 // precaches. Kept small on purpose: model indices past 8192 leave the client's
@@ -20,8 +25,20 @@ global const int   MAPEDIT_UNDO_DEPTH        = 64
 // signon. Raising this needs the resulting index range measured first.
 global const int   MAPEDIT_PRECACHE_MAX      = 256
 
-// Per extra map pack precache bound; keeps one pack from eating the table.
-global const int   MAPEDIT_PACK_PRECACHE_MAX = 4096
+// Everything else is precached one model at a time, when it is first picked
+// (client) or first placed (server). Late precache is the proven path; this caps
+// how far one level can push the model table that way.
+global const int   MAPEDIT_LAZY_PRECACHE_MAX = 1536
+global const int   MAPEDIT_LAZY_PRECACHE_PER_PLAYER = 256
+global const int   MAPEDIT_MODEL_REQUESTS_PER_SEC = 12
+global const float MAPEDIT_MODEL_REQUEST_RETRY = 2.0
+
+global enum ePackRefusal
+{
+	FAILED,
+	ADMIN_ONLY,
+	REJECTED,
+}
 
 // Extended palette / zipline
 global const float MAPEDIT_ZIPLINE_MAX_DIST  = 8192.0
@@ -31,6 +48,10 @@ global const float MAPEDIT_JUMP_PAD_BELOW    = 16.0
 global const float MAPEDIT_JUMP_PAD_VELOCITY = 1150.0
 global const float MAPEDIT_JUMP_PAD_VERT     = 2.0
 global const float MAPEDIT_DOOR_DOUBLE_GAP   = 64.0
+// Palette recipe models: the server spawns them, the client previews them.
+global const asset MAPEDIT_JUMP_PAD_MODEL = $"mdl/props/octane_jump_pad/octane_jump_pad.rmdl"
+global const asset MAPEDIT_DOOR_MODEL = $"mdl/door/door_104x64x8_elevatorstyle01_right_animated.rmdl"
+global const asset MAPEDIT_LOOT_BIN_MODEL = $"mdl/props/loot_bin/loot_bin_01_loba.rmdl"
 
 // Client tool
 global const float MAPEDIT_TRACE_DIST        = 4000.0
@@ -44,12 +65,30 @@ global const float MAPEDIT_GHOST_SMOOTH_TIME = 0.05
 // wall to the skybox does not drag the model across the level.
 global const float MAPEDIT_GHOST_CUT_DIST    = 600.0
 
-// Bind panel elements, added to resource/ui/hudscripted_mp.res.
-global const string MAPEDIT_HUD_FRAME        = "MapEditFrame"
-global const string MAPEDIT_HUD_TITLE        = "MapEditTitle"
-global const string MAPEDIT_HUD_STATUS       = "MapEditStatus"
-global const string MAPEDIT_HUD_HINT_PREFIX  = "MapEditHint"
-global const int    MAPEDIT_HUD_HINT_COUNT   = 12
+// Saved layouts: one auto slot per map plus numbered slots.
+global const int   MAPEDIT_SAVE_SLOTS        = 5
+global const float MAPEDIT_AUTOSAVE_DELAY    = 3.0
+global const float MAPEDIT_SAVE_CMD_COOLDOWN = 2.0
+global const int   MAPEDIT_RESTORE_PER_FRAME = 16
+
+global enum eMapEditKind
+{
+	PROP,
+	SPECIAL,
+	ZIPLINE,
+}
+
+#if SERVER
+// One user action; every entity it spawned shares the placement's group.
+global struct MapEditPlacement
+{
+	int    kind
+	int    id
+	vector origin
+	vector angles
+	vector endOrigin
+}
+#endif
 
 bool function MapEditor_IsEnabled()
 {

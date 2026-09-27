@@ -11,7 +11,10 @@ global function LegendBot_GetStoredCharRef
 global function LegendBot_GetLegendIdx
 global function LegendBot_SetBody
 global function LegendBot_SetLegend
-global function LegendBot_AutospawnLoop
+global function LegendBot_DespawnWithFX
+global function LegendBot_RestorePrefs
+global function LegendBot_SortedVisibleRefs
+global function LegendBot_SetHardAll
 global function AimTrainer_LegendBots_Init
 global function LegendBot_IsBot
 global function LegendBot_SetGodAll
@@ -25,6 +28,8 @@ global function LegendBot_SetFireAll
 global function LegendBot_SetAimAll
 global function LegendBot_CrosshairSpot
 global function LegendBot_SetStrafeTimingAll
+global function LegendBot_SetStrafingAll
+global function LegendBot_SetCrouchAll
 
 const string LEGENDBOT_NAME_PREFIX = "R5F-"
 const int LEGENDBOT_KILL_HEAL = 50
@@ -71,6 +76,7 @@ struct
 	table<int, float> lastDamaged = {}
 	table<entity, float> lane = {}
 	table<entity, float> laneFit = {}
+	table<entity, bool> hard = {}
 	int botSerial = 0
 } file
 
@@ -78,7 +84,7 @@ void function AimTrainer_LegendBots_Init()
 {
 	RegisterSignal( "LegendBot_FireLoop" )
 	AddCallback_OnPlayerKilled( LegendBot_OnPlayerKilled )
-	AddPostDamageCallback( "player", LegendBot_OnPlayerPostDamaged )
+	AddDamageCallback( "player", LegendBot_OnPlayerDamaged )
 	printt( "[LegendBot] Init" )
 }
 
@@ -164,24 +170,17 @@ void function LegendBot_KickAfter( entity bot, float delay )
 		LegendBot_Kick( bot )
 }
 
-// Strafer infinite health for fake players: keep them at 1 HP under fire and
-// refill once they have been left alone, mirroring the NPC strafer regen.
-void function LegendBot_OnPlayerPostDamaged( entity victim, var damageInfo )
+// Strafer infinite health for fake players: same lethal-hit absorb as the NPC
+// strafers, then refill once they have been left alone.
+void function LegendBot_OnPlayerDamaged( entity victim, var damageInfo )
 {
-	if ( !LegendBot_IsBot( victim ) )
+	if ( !LegendBot_IsBot( victim ) || !IsAlive( victim ) )
 		return
 	int key = LegendBot_KeyOf( victim )
 	if ( key < 0 || !( key in file.god ) || !file.god[key] )
 		return
 	file.lastDamaged[key] <- Time()
-	try
-	{
-		if ( victim.GetHealth() < 1 )
-			victim.SetHealth( 1 )
-	}
-	catch ( eHp )
-	{
-	}
+	AimTrainerStrafer_AbsorbLethal( victim, damageInfo )
 }
 
 void function LegendBot_GodRegenThread( entity bot )
@@ -303,6 +302,18 @@ LegendStraferPrefs function LegendBot_GetPrefs( entity player )
 	return file.prefs[key]
 }
 
+// Saved prefs at connect: no bots exist yet, so nothing to redress or sync.
+void function LegendBot_RestorePrefs( entity player, bool legend, string charRef )
+{
+	if ( !IsValid( player ) || !player.IsPlayer() )
+		return
+	if ( charRef != "" && !LegendBot_SortedVisibleRefs().contains( charRef ) )
+		charRef = ""
+	LegendStraferPrefs p = LegendBot_GetPrefs( player )
+	p.body = legend ? "legend" : "dummy"
+	p.charRef = charRef
+}
+
 bool function LegendBot_GetBodyIsLegend( entity player )
 {
 	if ( !IsValid( player ) || !player.IsPlayer() )
@@ -398,11 +409,9 @@ void function LegendBot_SetBody( entity player, string v )
 	p.body = want
 	printt( format( "[LegendBot] Strafer body = %s for %s", want, player.GetPlayerName() ) )
 
-	// A running autospawn session keeps the body it started with; restart it.
-	if ( changed && player.p.aimTrainerFreeroamMode == AIMTRAINER_FREEROAM_AUTOSPAWN )
-		DEV_AimFreeroam_Autospawn( player, player.p.aimTrainerChallengeActive )
-	else if ( changed && player.p.aimTrainerFreeroamMode == AIMTRAINER_FREEROAM_AUTOSPAWN_HARD )
-		DEV_AimFreeroam_AutospawnHard( player, player.p.aimTrainerChallengeActive )
+	// Live strafers keep the body they spawned with; swap them.
+	if ( changed )
+		AimTrainer_RespawnStraferSlots( player )
 	try
 	{
 		AimTrainer_SyncDevMenuState( player )
@@ -422,6 +431,7 @@ void function LegendBot_SetLegend( entity player, string v )
 	{
 		p.charRef = ""
 		printt( format( "[LegendBot] Strafer legend = same for %s", player.GetPlayerName() ) )
+		LegendBot_RedressAll( player )
 		try
 		{
 			AimTrainer_SyncDevMenuState( player )
@@ -453,12 +463,47 @@ void function LegendBot_SetLegend( entity player, string v )
 	}
 	p.charRef = match
 	printt( format( "[LegendBot] Strafer legend = %s for %s", match, player.GetPlayerName() ) )
+	LegendBot_RedressAll( player )
 	try
 	{
 		AimTrainer_SyncDevMenuState( player )
 	}
 	catch ( eSync )
 	{
+	}
+}
+
+// Live strafers take the new legend at once. Character setup resets the kit,
+// so armor, highlight and move speed go back on after it.
+void function LegendBot_RedressAll( entity owner )
+{
+	int key = LegendBot_KeyOf( owner )
+	if ( key < 0 || !( key in file.bots ) )
+		return
+	LegendBot_Prune( key )
+	string ref = LegendBot_GetStoredCharRef( owner )
+	if ( ref == "" )
+	{
+		try
+		{
+			ref = MovementRecorder_GetPlayerCharacterRef( owner )
+		}
+		catch ( eRef )
+		{
+			return
+		}
+	}
+	int shield = AimTrainer_ResolveDummyShieldLevel( owner )
+	foreach ( entity bot in file.bots[key] )
+	{
+		if ( !IsValid( bot ) || !IsAlive( bot ) )
+			continue
+		MRec_ApplyLegend( bot, ref, $"", false )
+		if ( !IsValid( bot ) )
+			continue
+		LegendBot_ApplyArmor( bot, shield )
+		AimTrainer_ApplyTargetHighlight( owner, bot )
+		LegendBot_ApplySpeedBoost( bot, AimTrainer_TargetsStatic( owner ) ? 1.0 : owner.p.aimTrainerStrafeSpeedMult )
 	}
 }
 
@@ -568,6 +613,11 @@ void function LegendBot_Prune( int key )
 		if ( !IsValid( bot ) )
 			delete file.laneFit[bot]
 	}
+	foreach ( entity bot, bool isHard in clone file.hard )
+	{
+		if ( !IsValid( bot ) )
+			delete file.hard[bot]
+	}
 }
 
 int function LegendBot_Count( entity owner )
@@ -651,17 +701,60 @@ void function LegendBot_DespawnAllWithFX( entity owner )
 	}
 }
 
+void function LegendBot_DespawnWithFX( entity owner, entity bot )
+{
+	if ( !IsValid( bot ) )
+		return
+	int key = LegendBot_KeyOf( owner )
+	if ( key >= 0 && key in file.bots )
+		file.bots[key].removebyvalue( bot )
+	try
+	{
+		bot.BotCmd_Stop()
+	}
+	catch ( eStop )
+	{
+	}
+	if ( IsValid( owner ) && IsAlive( bot ) )
+	{
+		try
+		{
+			AimTrainer_SpawnConduitBeamToTarget( owner, bot )
+		}
+		catch ( eBeam )
+		{
+		}
+	}
+	thread LegendBot_KickAfter( bot, LEGENDBOT_DESPAWN_FX_HOLD )
+}
+
+// Brain changes restart each live bot's movement program with the owner's pick.
+void function LegendBot_SetHardAll( entity owner )
+{
+	int key = LegendBot_KeyOf( owner )
+	if ( key < 0 || !( key in file.bots ) )
+		return
+	LegendBot_Prune( key )
+	foreach ( entity bot in file.bots[key] )
+	{
+		if ( IsValid( bot ) && IsAlive( bot ) )
+			LegendBot_StartStrafe( owner, bot, owner.p.aimTrainerStraferHard )
+	}
+}
+
+// Plain armor sizes its shield from the item tier. Armor cores size it from the
+// wearer's upgrade level instead, so every tier would come out the same.
 string function LegendBot_ArmorRefForShieldLevel( int level )
 {
 	array<string> cands = []
 	if ( level == 1 )
-		cands = [ "armor_core_pickup_lv1", "armor_pickup_lv1" ]
+		cands = [ "armor_pickup_lv1" ]
 	else if ( level == 2 )
-		cands = [ "armor_core_pickup_lv2", "armor_pickup_lv2" ]
+		cands = [ "armor_pickup_lv2" ]
 	else if ( level == 3 )
-		cands = [ "armor_core_pickup_lv3", "armor_pickup_lv3" ]
+		cands = [ "armor_pickup_lv3" ]
 	else if ( level >= 4 )
-		cands = [ "armor_pickup_lv4_all_fast", "armor_pickup_lv5_evolving", "armor_core_pickup_lv3", "armor_pickup_lv3" ]
+		cands = [ "armor_pickup_lv5_evolving", "armor_pickup_lv3" ]
 	else
 		return ""
 	foreach ( string ref in cands )
@@ -687,28 +780,27 @@ void function LegendBot_ApplyArmor( entity bot, int shieldLevel )
 		return
 	string ref = LegendBot_ArmorRefForShieldLevel( shieldLevel )
 	if ( ref == "" )
+	{
+		printt( format( "[LegendBot] no valid armor ref for level %d", shieldLevel ) )
 		return
+	}
 	try
 	{
+		Inventory_SetPlayerEquipment( bot, "", "armor" )
+		bot.SetShieldHealth( 0 )
 		Inventory_SetPlayerEquipment( bot, ref, "armor" )
+		bot.SetShieldHealth( bot.GetShieldHealthMax() )
 	}
 	catch ( eEq )
 	{
+		printt( format( "[LegendBot] armor %s failed: %s", ref, string( eEq ) ) )
 		return
 	}
-	if ( !IsValid( bot ) )
-		return
-	try
-	{
-		LootData ld = SURVIVAL_Loot_GetLootDataByRef( ref )
-		bot.SetShieldHealth( SURVIVAL_GetArmorShieldCapacity( ld.tier ) )
-	}
-	catch ( eSh )
-	{
-	}
+	printt( format( "[LegendBot] %s armor %s shield %d/%d", bot.GetPlayerName(), ref, bot.GetShieldHealth(), bot.GetShieldHealthMax() ) )
 }
 
-entity function LegendBot_Spawn( entity owner, string charRef, vector origin, vector yawAngles, int shieldLevel )
+// needSight=false only for a spot the owner already proved visible when saving it.
+entity function LegendBot_Spawn( entity owner, string charRef, vector origin, vector yawAngles, int shieldLevel, bool needSight = true )
 {
 	if ( !IsValid( owner ) || !owner.IsPlayer() )
 		return null
@@ -734,7 +826,12 @@ entity function LegendBot_Spawn( entity owner, string charRef, vector origin, ve
 		return null
 	}
 
-	LegendBotSpot fit = LegendBot_FitSpawnSpot( owner, origin )
+	LegendBotSpot fit = LegendBot_FitSpawnSpot( owner, origin, needSight )
+	if ( !fit.ok )
+	{
+		printt( format( "[LegendBot] no room for a strafer near %s, spawn skipped", string( origin ) ) )
+		return null
+	}
 	origin = fit.origin
 	yawAngles = <0, VectorToAngles( owner.GetOrigin() - origin ).y, 0>
 
@@ -846,12 +943,18 @@ entity function LegendBot_Spawn( entity owner, string charRef, vector origin, ve
 			return
 		MRec_UnfreezeBot( bot )
 		LegendBot_Place( bot, origin, yawAngles )
+		if ( !LegendBot_StandsClear( bot ) )
+		{
+			printt( format( "[LegendBot] %s ended up in solid at %s, removed", bot.GetPlayerName(), string( bot.GetOrigin() ) ) )
+			LegendBot_Kick( bot )
+			return
+		}
 		// Respawn and the legend change above both reset the enemy highlight.
 		AimTrainer_ApplyTargetHighlight( owner, bot )
 		if ( IsValid( owner ) && owner.p.aimTrainerStraferInfiniteHealth )
 			LegendBot_SetGod( bot, true )
 		WaitFrame()
-		LegendBot_StartStrafe( owner, bot, false )
+		LegendBot_StartStrafe( owner, bot, owner.p.aimTrainerStraferHard )
 	}()
 	return bot
 }
@@ -908,14 +1011,25 @@ void function LegendBot_StartStrafe( entity owner, entity bot, bool hard )
 	}
 	if ( !IsValid( bot ) )
 		return
+	file.hard[bot] <- hard
+	bool strafing = !AimTrainer_TargetsStatic( owner )
 	try
 	{
-		bot.BotCmd_Strafe( LegendBot_StrafeHalfWidth( bot ), hard, mult )
-		LegendBot_ApplyStrafeTiming( bot, owner )
+		if ( strafing )
+		{
+			bot.BotCmd_Strafe( LegendBot_StrafeHalfWidth( bot ), hard, mult )
+			LegendBot_ApplyStrafeTiming( bot, owner )
+			bot.BotCmd_SetStrafeCrouch( owner.p.aimTrainerStraferCrouch )
+		}
+		else
+		{
+			bot.BotCmd_SetMove( 0.0, 0.0, 0 )
+		}
 	}
 	catch ( eStrafe )
 	{
 	}
+	LegendBot_ApplySpeedBoost( bot, strafing ? mult : 1.0 )
 	bool fire = false
 	try
 	{
@@ -1083,7 +1197,7 @@ void function LegendBot_FireLoop( entity bot )
 			lastWeapon = weapon
 			LegendBot_ApplyFireProfile( bot, owner )
 		}
-		if ( weapon.GetWeaponPrimaryClipCount() <= 0 )
+		if ( weapon.UsesClipsForAmmo() && weapon.GetWeaponPrimaryClipCount() <= 0 )
 		{
 			bot.BotCmd_SetTrigger( false )
 			bot.BotCmd_PressButtons( IN_RELOAD )
@@ -1148,6 +1262,33 @@ void function LegendBot_SetStrafeTimingAll( entity owner )
 	}
 }
 
+void function LegendBot_SetCrouchAll( entity owner )
+{
+	int key = LegendBot_KeyOf( owner )
+	if ( key < 0 || !( key in file.bots ) )
+		return
+	LegendBot_Prune( key )
+	foreach ( entity bot in file.bots[key] )
+	{
+		if ( IsValid( bot ) )
+			bot.BotCmd_SetStrafeCrouch( owner.p.aimTrainerStraferCrouch )
+	}
+}
+
+// Re-runs each live bot's movement program so the Strafing switch lands at once.
+void function LegendBot_SetStrafingAll( entity owner )
+{
+	int key = LegendBot_KeyOf( owner )
+	if ( key < 0 || !( key in file.bots ) )
+		return
+	LegendBot_Prune( key )
+	foreach ( entity bot in file.bots[key] )
+	{
+		if ( IsValid( bot ) && IsAlive( bot ) )
+			LegendBot_StartStrafe( owner, bot, ( bot in file.hard ) ? file.hard[bot] : false )
+	}
+}
+
 void function LegendBot_SetStrafeSpeedAll( entity owner, float mult )
 {
 	int key = LegendBot_KeyOf( owner )
@@ -1165,7 +1306,20 @@ void function LegendBot_SetStrafeSpeedAll( entity owner, float mult )
 		catch ( eSpeed )
 		{
 		}
+		LegendBot_ApplySpeedBoost( bot, AimTrainer_TargetsStatic( owner ) ? 1.0 : mult )
 	}
+}
+
+// A bot already strafes at full stick, so speeds above 1x need a real move-speed boost.
+void function LegendBot_ApplySpeedBoost( entity bot, float mult )
+{
+	if ( !IsValid( bot ) || !IsAlive( bot ) )
+		return
+	StatusEffect_StopAllOfType( bot, eStatusEffect.speed_boost )
+	if ( mult <= 1.0 )
+		return
+	StatusEffect_AddEndless( bot, eStatusEffect.speed_boost, min( mult - 1.0, 1.0 ) )
+	printt( format( "[LegendBot] %s speed_boost %.2f", bot.GetPlayerName(), mult - 1.0 ) )
 }
 
 float function LegendBot_StrafeHalfWidth( entity bot )
@@ -1175,33 +1329,15 @@ float function LegendBot_StrafeHalfWidth( entity bot )
 	return LEGENDBOT_LANE_PROBE
 }
 
-vector function LegendBot_GroundAt( vector pos )
+// The engine can still shove a fresh fake player after placement; a bot left
+// overlapping the world is removed rather than left stuck in it.
+bool function LegendBot_StandsClear( entity bot )
 {
-	try
-	{
-		TraceResults floor = TraceLine( pos + <0, 0, 32>, pos + <0, 0, -512>, null, TRACE_MASK_SOLID_BRUSHONLY, TRACE_COLLISION_GROUP_NONE )
-		if ( floor.fraction < 1.0 )
-			return floor.endPos
-	}
-	catch ( eFloor )
-	{
-	}
-	return pos
-}
-
-bool function LegendBot_HullClear( vector ground )
-{
-	vector mins = <-16, -16, 0>
-	vector maxs = <16, 16, 72>
-	try
-	{
-		TraceResults hull = TraceHull( ground + <0, 0, 4>, ground + <0, 0, 8>, mins, maxs, null, TRACE_MASK_PLAYERSOLID, TRACE_COLLISION_GROUP_NONE )
-		return !hull.startSolid && hull.fraction >= 1.0
-	}
-	catch ( eHull )
-	{
-	}
-	return true
+	if ( !IsValid( bot ) )
+		return false
+	vector org = bot.GetOrigin()
+	TraceResults hull = TraceHull( org + <0, 0, 2>, org + <0, 0, 3>, bot.GetPlayerMins(), bot.GetPlayerMaxs(), [ bot ], AIMTRAINER_WORLD_MASK, TRACE_COLLISION_GROUP_NONE )
+	return !hull.startSolid
 }
 
 // Free run along dir from ground, player hull lifted by the step height so
@@ -1212,7 +1348,7 @@ float function LegendBot_LaneRoom( vector ground, vector dir, float probe )
 	vector maxs = <16, 16, 72>
 	try
 	{
-		TraceResults sweep = TraceHull( ground, ground + dir * probe, mins, maxs, null, TRACE_MASK_PLAYERSOLID, TRACE_COLLISION_GROUP_NONE )
+		TraceResults sweep = TraceHull( ground, ground + dir * probe, mins, maxs, null, AIMTRAINER_WORLD_MASK, TRACE_COLLISION_GROUP_NONE )
 		if ( sweep.startSolid )
 			return 0.0
 		return sweep.fraction * probe
@@ -1226,10 +1362,11 @@ float function LegendBot_LaneRoom( vector ground, vector dir, float probe )
 // Nudge the wanted spot until the bot stands in open space with a strafe
 // lane on both sides of the line to its owner; each retry backs the spot
 // off toward the owner. The lane that was found sizes the strafe program.
-LegendBotSpot function LegendBot_FitSpawnSpot( entity owner, vector want )
+// ok=false means no proven-clear spot exists near `want`.
+LegendBotSpot function LegendBot_FitSpawnSpot( entity owner, vector want, bool needSight = true )
 {
 	LegendBotSpot best
-	best.origin = LegendBot_GroundAt( want )
+	best.origin = want
 	best.halfLane = LEGENDBOT_LANE_MIN * 0.5
 	best.ok = false
 
@@ -1241,17 +1378,18 @@ LegendBotSpot function LegendBot_FitSpawnSpot( entity owner, vector want )
 		toOwner = AnglesToForward( <0, owner.EyeAngles().y, 0> ) * -1.0
 	else
 		toOwner = toOwner / dist
+	vector right = CrossProduct( toOwner, <0, 0, 1> )
 
 	for ( int attempt = 0; attempt < LEGENDBOT_SPOT_TRIES; attempt++ )
 	{
 		float back = attempt * LEGENDBOT_SPOT_BACKOFF
-		if ( dist - back < LEGENDBOT_SPOT_MIN_DIST )
+		if ( attempt > 0 && dist - back < LEGENDBOT_SPOT_MIN_DIST )
 			break
-		vector ground = LegendBot_GroundAt( want + toOwner * back )
-		if ( !LegendBot_HullClear( ground ) )
+		AimTrainerSpawnSpot spot = AimTrainer_CheckSpawnSpot( owner, want + toOwner * back, needSight )
+		if ( !spot.ok )
 			continue
+		vector ground = spot.origin
 
-		vector right = CrossProduct( toOwner, <0, 0, 1> )
 		float roomR = LegendBot_LaneRoom( ground, right, LEGENDBOT_LANE_PROBE )
 		float roomL = LegendBot_LaneRoom( ground, right * -1.0, LEGENDBOT_LANE_PROBE )
 
@@ -1259,10 +1397,10 @@ LegendBotSpot function LegendBot_FitSpawnSpot( entity owner, vector want )
 		float shift = ( roomR - roomL ) * 0.5
 		if ( fabs( shift ) > 1.0 )
 		{
-			vector centred = LegendBot_GroundAt( ground + right * shift )
-			if ( LegendBot_HullClear( centred ) )
+			AimTrainerSpawnSpot centred = AimTrainer_CheckSpawnSpot( owner, ground + right * shift, needSight )
+			if ( centred.ok )
 			{
-				ground = centred
+				ground = centred.origin
 				roomR = LegendBot_LaneRoom( ground, right, LEGENDBOT_LANE_PROBE )
 				roomL = LegendBot_LaneRoom( ground, right * -1.0, LEGENDBOT_LANE_PROBE )
 			}
@@ -1279,157 +1417,22 @@ LegendBotSpot function LegendBot_FitSpawnSpot( entity owner, vector want )
 			break
 	}
 
-	if ( !best.ok )
-		printt( "[LegendBot] no clear spawn spot along the view line, using the wanted point" )
+	if ( best.ok )
+		return best
+
+	AimTrainerSpawnSpot near = AimTrainer_FindSpawnSpot( owner, want, needSight )
+	if ( near.ok )
+	{
+		best.origin = near.origin
+		best.halfLane = max( min( LegendBot_LaneRoom( near.origin, right, LEGENDBOT_LANE_PROBE ), LegendBot_LaneRoom( near.origin, right * -1.0, LEGENDBOT_LANE_PROBE ) ), LEGENDBOT_LANE_MIN * 0.5 )
+		best.ok = true
+	}
 	return best
 }
 
 // Where the player is looking, no farther than LEGENDBOT_AUTOSPAWN_DIST,
-// dropped to the floor.
+// dropped to the floor. Spawns still validate the spot.
 vector function LegendBot_CrosshairSpot( entity player )
 {
-	vector eye = player.EyePosition()
-	vector fwd = AnglesToForward( player.EyeAngles() )
-	vector want = eye + fwd * LEGENDBOT_AUTOSPAWN_DIST
-	try
-	{
-		TraceResults view = TraceLine( eye, want, [ player ], TRACE_MASK_SHOT, TRACE_COLLISION_GROUP_NONE )
-		if ( view.fraction < 1.0 )
-			want = view.endPos - fwd * 24.0
-	}
-	catch ( eView )
-	{
-	}
-	try
-	{
-		TraceResults floor = TraceLine( want + <0, 0, 16>, want + <0, 0, -512>, [ player ], TRACE_MASK_SOLID_BRUSHONLY, TRACE_COLLISION_GROUP_NONE )
-		if ( floor.fraction < 1.0 )
-			return floor.endPos
-	}
-	catch ( eFloor )
-	{
-	}
-	return want
-}
-
-void function LegendBot_AutospawnLoop( entity player, bool hard )
-{
-	if ( !IsValid( player ) )
-		return
-	player.EndSignal( "OnDestroy" )
-	player.EndSignal( "OnDeath" )
-	player.EndSignal( "AimFreeroam_Stop" )
-
-	OnThreadEnd(
-		function() : ()
-		{
-			printt( "[LegendBot] Autospawn ended" )
-		}
-	)
-
-	AimTrainer_WaitForIntro( player )
-
-	while ( IsValid( player ) )
-	{
-		bool budgetFull = true
-		try
-		{
-			budgetFull = AimTrainer_GetBudgetRemaining() <= 0
-		}
-		catch ( eBudget )
-		{
-			budgetFull = true
-		}
-		if ( budgetFull )
-		{
-			wait 0.5
-			continue
-		}
-		int total = LegendBot_Count( player )
-		try
-		{
-			total += MRec_PlayerBotCount( player )
-		}
-		catch ( eCount )
-		{
-		}
-		if ( total >= MREC_MAX_PLAYBACK_DUMMIES_PER_PLAYER )
-		{
-			wait 0.5
-			continue
-		}
-		vector org = <0, 0, 0>
-		try
-		{
-			org = player.GetOrigin()
-		}
-		catch ( eOrg )
-		{
-			wait 0.5
-			continue
-		}
-		vector ground = LegendBot_CrosshairSpot( player )
-		try
-		{
-			if ( player.p.aimTrainerFixedSpawn )
-				ground = player.p.aimTrainerFixedSpawnPos
-		}
-		catch ( eFixed )
-		{
-		}
-		float yaw = 0.0
-		try
-		{
-			yaw = VectorToAngles( org - ground ).y
-		}
-		catch ( eYaw )
-		{
-		}
-		string cref = ""
-		try
-		{
-			cref = LegendBot_GetStoredCharRef( player )
-		}
-		catch ( eRef )
-		{
-		}
-		int shield = 1
-		try
-		{
-			shield = AimTrainer_ResolveDummyShieldLevel( player )
-		}
-		catch ( eShield )
-		{
-		}
-		entity bot = null
-		try
-		{
-			bot = LegendBot_Spawn( player, cref, ground, <0, yaw, 0>, shield )
-		}
-		catch ( eSpawn )
-		{
-			bot = null
-		}
-		if ( !IsValid( bot ) )
-		{
-			wait 0.5
-			continue
-		}
-		bool ready = false
-		try
-		{
-			ready = MRec_WaitForBotReady( bot )
-		}
-		catch ( eReady )
-		{
-		}
-		if ( ready )
-		{
-			wait 0.5
-			LegendBot_StartStrafe( player, bot, hard )
-		}
-		printt( format( "[LegendBot] Autospawn strafer live hard=%s", string( hard ) ) )
-		WaitSignal( bot, "OnDeath", "OnDestroy" )
-		wait 0.2
-	}
+	return AimTrainer_ViewSpot( player, LEGENDBOT_AUTOSPAWN_DIST, false )
 }

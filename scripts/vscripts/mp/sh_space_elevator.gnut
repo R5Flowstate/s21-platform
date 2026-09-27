@@ -242,7 +242,7 @@ void function SpaceElevator_PropDeploy( entity owner, vector origin, vector angl
 	//Vortex cylinder for detecting grenades
 	entity vortexCylinder = CreateElevatorVortex( elevatorProp, owner, SPACEELEVATOR_TUNING_RADIUS, float( elevatorHeight ) )
 
-	entity traceBlocker = CreateTraceBlockerVolume( elevatorProp.GetOrigin(), 24.0, true, CONTENTS_BLOCK_PING, elevatorProp.GetTeam(), SPACE_ELEVATOR_SCRIPTNAME )
+	entity traceBlocker = CreateTraceBlockerVolume( elevatorProp.GetOrigin(), 24.0, true, CONTENTS_BLOCK_PING, elevatorProp.GetTeam(), SPACE_ELEVATOR_SCRIPTNAME, elevatorProp )
 	vector boxMin = <-SPACEELEVATOR_TUNING_RADIUS/2, -SPACEELEVATOR_TUNING_RADIUS/2, 0>
 	vector boxMax =  <SPACEELEVATOR_TUNING_RADIUS/2, SPACEELEVATOR_TUNING_RADIUS/2, elevatorHeight/2>
 	traceBlocker.SetBox( boxMin,boxMax )
@@ -565,6 +565,7 @@ void function SPACEELEVATOR_CreateTrigger( entity projectile, int aboveHeight )
 
 
 	EndSignal( trigger, "OnDestroy" )
+	EndSignal( projectile, "OnDestroy" )
 
 	if ( SPACEELEVATOR_DEBUG )
 	{
@@ -963,7 +964,7 @@ void function SPACEELEVATOR_EjectPlayer( entity player, entity trigger )
 		TrackingVision_CreatePOI( eTrackingVisionNetworkedPOITypes.PLAYER_TRAVERSAL_ELEVATOR_EXIT, player, player.GetOrigin(), player.GetTeam(), player )
 
 		EmitSoundAtPositionOnlyToPlayer( TEAM_ANY, player.GetOrigin(), player, SPACEELEVATOR_SOUND_PLAYER_EXIT_1P )
-		if ( player.GetTeam() ==  trigger.GetTeam() )
+		if ( !IsValid( trigger ) || player.GetTeam() == trigger.GetTeam() )
 		{
 			EmitSoundAtPositionExceptToPlayer( TEAM_ANY, player.GetOrigin(), player, SPACEELEVATOR_SOUND_PLAYER_EXIT_3P )
 		}

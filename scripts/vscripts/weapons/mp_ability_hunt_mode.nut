@@ -203,10 +203,13 @@ void function HuntMode_OnPlayerStartBleedout( entity player, entity attacker, va
 	if ( isValidMode )
 	{
 		entity tacticalWeapon = player.GetOffhandWeapon( OFFHAND_TACTICAL )
-		int currentAmmo       = tacticalWeapon.GetWeaponPrimaryClipCount()
-		int maxAmmo           = tacticalWeapon.GetWeaponPrimaryClipCountMax()
-		if ( currentAmmo != maxAmmo )
-			tacticalWeapon.SetWeaponPrimaryClipCount( maxAmmo )
+		if ( IsValid( tacticalWeapon ) )
+		{
+			int currentAmmo       = tacticalWeapon.GetWeaponPrimaryClipCount()
+			int maxAmmo           = tacticalWeapon.GetWeaponPrimaryClipCountMax()
+			if ( currentAmmo != maxAmmo )
+				tacticalWeapon.SetWeaponPrimaryClipCount( maxAmmo )
+		}
 	}
       
 	}
@@ -344,7 +347,8 @@ void function HuntMode_ScanTargets( entity player )
 	OnThreadEnd(
 		function() : ( trigger )
 		{
-			trigger.Destroy()
+			if ( IsValid( trigger ) )
+				trigger.Destroy()
 		}
 	)
 
@@ -469,14 +473,16 @@ void function HuntMode_HandleStatusEffects( entity player, array<int> ids )
 	e[ "addedMod" ] <- false
 
 	entity tacticalAbility = player.GetOffhandWeapon( OFFHAND_LEFT )
-	int tacClipCount = tacticalAbility.GetWeaponPrimaryClipCount()
-	int tacStockpile = tacticalAbility.GetWeaponPrimaryAmmoCount( AMMOSOURCE_STOCKPILE )
+	int tacClipCount = IsValid( tacticalAbility ) ? tacticalAbility.GetWeaponPrimaryClipCount() : 0
+	int tacStockpile = IsValid( tacticalAbility ) ? tacticalAbility.GetWeaponPrimaryAmmoCount( AMMOSOURCE_STOCKPILE ) : 0
 
                         
                               
        
 
-	array<string> currentTacMods = tacticalAbility.GetMods()
+	array<string> currentTacMods
+	if ( IsValid( tacticalAbility ) )
+		currentTacMods = tacticalAbility.GetMods()
                                                 
                                                                             
   
@@ -513,7 +519,7 @@ void function HuntMode_HandleStatusEffects( entity player, array<int> ids )
   
                                                     
 
-	if ( IsValid( player ) )
+	if ( IsValid( player ) && IsValid( tacticalAbility ) )
 	{
 		if ( PlayerHasPassive( player, ePassives.PAS_TAC_COOLDOWN_REDUCTION ) ) // upgrade_bloodhound_ult_tac_cooldown_reduction
 		{
@@ -530,9 +536,9 @@ void function HuntMode_HandleStatusEffects( entity player, array<int> ids )
 	OnThreadEnd(
 		function() : ( player, ids, e, tacticalAbility, tacClipCount, tacStockpile )
 		{
-			array<string> currentTacMods = tacticalAbility.GetMods()
 			if ( IsValid( tacticalAbility ) && e[ "addedMod" ] )
 			{
+				array<string> currentTacMods = tacticalAbility.GetMods()
                                                    
                                                   
      

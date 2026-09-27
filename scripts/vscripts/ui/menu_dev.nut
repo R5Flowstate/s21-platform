@@ -93,7 +93,7 @@ struct
 	bool aimTrainerHighlight = true
 	bool aimTrainerStraferFire = false
 	int aimTrainerStraferAim = 50
-	int aimTrainerStrafeTime = 26
+	int aimTrainerStrafeTime = 38
 	bool aimTrainerFixedSpawn = false
 	int  aimTrainerDurationSec = 60
 	bool aimTrainerStraferGod = false
@@ -200,7 +200,7 @@ void function CafeMod_UI_ItemsState( int profileIndex, int physicsOn )
 // Server -> client -> UI: reconcile DevMenu aim-trainer toggle labels.
 // Must live outside #if DEVELOPER: global is always declared; DEVELOPER=0
 // (no -dev) would strip the body and fail UI compile.
-void function AimTrainer_UI_SyncDevMenuState( bool hit, bool shot, bool kill, bool dynStats, bool reconBars, int durationSec, bool straferGod, int strafeSpeedTenth, int dummyShield, int straferBody, int straferLegendIdx, bool highlight = true, bool straferFire = false, int straferAim = 50, int strafeTime = 26, bool fixedSpawn = false )
+void function AimTrainer_UI_SyncDevMenuState( bool hit, bool shot, bool kill, bool dynStats, bool reconBars, int durationSec, bool straferGod, int strafeSpeedTenth, int dummyShield, int straferBody, int straferLegendIdx, bool highlight = true, bool straferFire = false, int straferAim = 50, int strafeTime = 38, bool fixedSpawn = false, bool strafing = true, bool straferHard = false, int preset = 0, int straferSlots = 0, int straferCrouch = 0 )
 {
 	bool changed = ( file.aimTrainerReloadHit != hit
 		|| file.aimTrainerHighlight != highlight
@@ -242,7 +242,7 @@ void function AimTrainer_UI_SyncDevMenuState( bool hit, bool shot, bool kill, bo
 	printt( format( "[AimTrainer] UI SyncDevMenu hit=%s shot=%s kill=%s dyn=%s bars=%s dur=%d god=%s speed=%d shield=%d body=%d legIdx=%d",
 		string( hit ), string( shot ), string( kill ), string( dynStats ), string( reconBars ), durationSec, string( straferGod ), strafeSpeedTenth, dummyShield, straferBody, straferLegendIdx ) )
 
-	LabTargets_SetState( hit, shot, kill, dynStats, reconBars, durationSec, straferGod, strafeSpeedTenth, dummyShield, straferBody, straferLegendIdx, highlight, straferFire, straferAim, strafeTime, fixedSpawn )
+	LabTargets_SetState( hit, shot, kill, dynStats, reconBars, durationSec, straferGod, strafeSpeedTenth, dummyShield, straferBody, straferLegendIdx, highlight, straferFire, straferAim, strafeTime, fixedSpawn, strafing, straferHard, preset, straferSlots, straferCrouch )
 
 	// Function-ref compare is unreliable -- refresh any open DevMenu page.
 	if ( changed && GetActiveMenu() == GetMenu( "DevMenu" ) )
@@ -1048,8 +1048,8 @@ void function SetupFlowstateAimTrainerDevMenu()
 {
 	// All actions: ClientCommand "dev_aimtrainer <action>" -- server uses the issuer.
 	SetupDevCommand( "Sand Bag Dummy", "dev_aimtrainer sandbag" )
-	SetupDevCommand( "Strafer Dummy", "dev_aimtrainer flowstate_auto" )
-	SetupDevCommand( "Strafer Dummy Fast", "dev_aimtrainer flowstate_hard_auto" )
+	SetupDevCommand( "Add Strafer", "dev_aimtrainer strafer_add" )
+	SetupDevCommand( "Remove Last Strafer", "dev_aimtrainer strafer_remove" )
 	SetupDevCommand( "Aim Freeroam: Target Switch", "dev_aimtrainer ts" )
 	SetupDevCommand( "Aim Freeroam: Popcorn", "dev_aimtrainer popcorn" )
 

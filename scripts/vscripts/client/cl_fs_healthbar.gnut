@@ -271,7 +271,7 @@ void function FS_HealthBar_Think( entity player, entity vgui )
 			hide = true
 		else if ( GetGameState() != eGameState.Playing )
 			hide = true
-		else if ( Flowstate_IsGame1v1Type() )
+		else if ( Flowstate_IsGame1v1Type() && !FS_IsScenarios() )
 		{
 			entity localPlayer = GetLocalClientPlayer()
 			entity enemy = null

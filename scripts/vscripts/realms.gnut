@@ -396,12 +396,12 @@ array<int> function GetRealmsForUltimateAbility( entity player )
 	Assert( IsValid( player ) )
 	Assert( player.IsPlayer() )
 
-	// Playing: keep the player's realms, but the S21 nearby-loot native
-	// rejects a 0 mask, so DEFAULT must be present.
+	// Playing: keep the player's realms. The S21 nearby-loot native rejects a 0 mask,
+	// so only an empty list falls back to DEFAULT.
 	if ( GetGameState() >= eGameState.Playing )
 	{
 		array<int> playerRealms = player.GetRealms()
-		if ( !playerRealms.contains( eRealms.DEFAULT ) )
+		if ( playerRealms.len() == 0 )
 			playerRealms.append( eRealms.DEFAULT )
 		return playerRealms
 	}

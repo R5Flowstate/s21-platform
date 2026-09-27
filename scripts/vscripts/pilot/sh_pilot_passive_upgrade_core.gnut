@@ -48,6 +48,7 @@ global function UpgradeCore_GrantXp_FlyerKilled
 global function UpgradeCore_GetXPAmountToEvoPlayerToLevel
 
 global function Server_UpgradeCore_HandleSelection
+global function UpgradeCore_ReapplySelectedUpgrades
 
 global function UpgradeCore_OnPlayerConnected_UpdateHarvester
 
@@ -781,19 +782,18 @@ void function UpgradeCore_OnPlayerClassChanged( entity ent )
 
 
 	#if SERVER
-	if( ent in file.playerToCharacterClass )
+	// Keyed off the setfile: this callback fires inside SetPlayerSettings, before most
+	// callers write the character loadout slot.
+	ItemFlavor newCharacter = UpgradeCore_GetCharacterForPlayer( ent )
+	if( ent in file.playerToCharacterClass && file.playerToCharacterClass[ent] != newCharacter )
 	{
-		ItemFlavor characterItemFlavor = LoadoutSlot_GetItemFlavor( ToEHI( ent ), Loadout_Character() )
-		printt( format( "[UPGRADE-SV] %s class changed: last=%s slot=%s settings=%s selected=0x%X",
+		printt( format( "[UPGRADE-SV] %s class changed: %s -> %s selected=0x%X level=%d",
 			ent.GetPlayerName(), ItemFlavor_GetHumanReadableRef( file.playerToCharacterClass[ent] ),
-			ItemFlavor_GetHumanReadableRef( characterItemFlavor ), string( ent.GetPlayerSettings() ),
-			ent.GetPlayerNetInt( UPGRADE_CORE_SELECTED_UPGRADES ) ) )
-		if( file.playerToCharacterClass[ent] != characterItemFlavor )
-		{
-			ent.SetPlayerNetInt( UPGRADE_CORE_SELECTED_UPGRADES, 0 )
-			file.playerToCharacterClass[ent] = characterItemFlavor
-		}
+			ItemFlavor_GetHumanReadableRef( newCharacter ), ent.GetPlayerNetInt( UPGRADE_CORE_SELECTED_UPGRADES ),
+			UpgradeCore_GetPlayerLevel( ent ) ) )
+		UpgradeCore_ResetSelectionsForCharacterChange( ent, file.playerToCharacterClass[ent] )
 	}
+	file.playerToCharacterClass[ent] <- newCharacter
 
 	thread UpgradeCore_DelayedUpgradeApply_Thread( ent )
 
@@ -950,11 +950,25 @@ array<int> function UpgradeCore_GetLevelXpThresholds()
 
 #if SERVER
 
+// XP and level stay; picks made for the previous legend are taken back so every
+// earned level is offered again from the new legend's tree.
+void function UpgradeCore_ResetSelectionsForCharacterChange( entity player, ItemFlavor previousCharacter )
+{
+	int selectedUpgrades = player.GetPlayerNetInt( UPGRADE_CORE_SELECTED_UPGRADES )
+	array< UpgradeCoreChoice > previousChoices = UpgradeCore_GetUpgradesForCharacter( previousCharacter )
+	for( int i = 0; i < previousChoices.len(); i++ )
+	{
+		if( IsBitFlagSet( selectedUpgrades, 1 << i ) )
+			UpgradeCore_RemoveUpgrade( player, previousChoices[i] )
+	}
+	player.SetPlayerNetInt( UPGRADE_CORE_SELECTED_UPGRADES, 0 )
+}
+
 void function UpgradeCore_ClearUpgradesAboveLevel( entity player, int level )
 {
 	int selectedUpgrades = player.GetPlayerNetInt( UPGRADE_CORE_SELECTED_UPGRADES )
 	array< UpgradeCoreChoice > choices = UpgradeCore_GetUpgradesForPlayer( player )
-	for( int i =  level * 2; i <= UPGRADE_CORE_NUM_EXPECTED_UPGRADES; i++ )
+	for( int i =  level * 2; i < choices.len(); i++ )
 	{
 		int bit = 1 << i
 		if( IsBitFlagSet( selectedUpgrades, bit ) )
@@ -1462,6 +1476,15 @@ void function UpgradeCore_OnPlayerRespawned( entity ent )
 
 
 	thread UpgradeCore_DelayedUpgradeApply_Thread( ent )
+}
+
+// Character setup strips every passive, upgrade picks included; this puts the picks back.
+void function UpgradeCore_ReapplySelectedUpgrades( entity player )
+{
+	if( !UpgradeCore_IsEnabled() || !IsValid( player ) )
+		return
+
+	thread UpgradeCore_DelayedUpgradeApply_Thread( player )
 }
 
 void function UpgradeCore_DelayedUpgradeApply_Thread( entity ent )
@@ -2214,18 +2237,12 @@ void function Server_UpgradeCore_HandleSelection( entity player, int upgradeInde
 
 	UpgradeCoreChoice upgrade = UpgradeCore_GetUpgradeChoiceStructByIndex( player, upgradeIndex )
 
+	// Client-chosen index: a legend without a tree, or an index past it, is dropped quietly.
 	if( upgrade.passiveIndex == ePassives.INVALID )
-	{
-		Assert( false, "Tried applying an upgrade with an invalid upgrade index" )
 		return
-	}
-
 
 	if( !( player in file.playerToCharacterClass ) )
-	{
-		ItemFlavor characterItemFlavor = LoadoutSlot_GetItemFlavor( ToEHI( player ), Loadout_Character() )
-		file.playerToCharacterClass[player] <- characterItemFlavor
-	}
+		file.playerToCharacterClass[player] <- UpgradeCore_GetCharacterForPlayer( player )
 
 	int selectedUpgrades = player.GetPlayerNetInt( UPGRADE_CORE_SELECTED_UPGRADES )
 	selectedUpgrades = SetBitFlag( selectedUpgrades, ( 1 << upgradeIndex ) )
@@ -2872,16 +2889,40 @@ bool function UpgradeCore_AreUpgradesLocked()
 	return tunings.upgradesLocked
 }
 
+#if SERVER || CLIENT
+table< string, ItemFlavor > s_setFileToCharacter
+#endif
+
+// The legend whose upgrade tree applies is the one the player's setfile runs; the
+// loadout slot lags class changes on the server and is unreliable for remote players.
+ItemFlavor function UpgradeCore_GetCharacterForPlayer( entity player )
+{
+	#if SERVER || CLIENT
+		if( s_setFileToCharacter.len() == 0 )
+		{
+			foreach( ItemFlavor character in GetAllCharacters() )
+			{
+				if( ItemFlavor_GetAsset( character ) != CHARACTER_RANDOM )
+					s_setFileToCharacter[ string( CharacterClass_GetSetFile( character ) ) ] <- character
+			}
+		}
+
+		string settings = string( player.GetPlayerSettings() )
+		if( settings in s_setFileToCharacter )
+			return s_setFileToCharacter[ settings ]
+	#endif
+
+	return LoadoutSlot_GetItemFlavor( ToEHI( player ), Loadout_Character() )
+}
+
 bool function UpgradeCore_PlayerHasUpgradesDefined( entity player )
 {
-	ItemFlavor characterItemFlavor = LoadoutSlot_GetItemFlavor( ToEHI( player ), Loadout_Character() )
-	return UpgradeCore_GetDefinedUpgradesForCharacter( characterItemFlavor ).len() > 0
+	return UpgradeCore_GetDefinedUpgradesForCharacter( UpgradeCore_GetCharacterForPlayer( player ) ).len() > 0
 }
 
 array< UpgradeCoreChoice > function UpgradeCore_GetUpgradesForPlayer( entity player )
 {
-	ItemFlavor characterItemFlavor = LoadoutSlot_GetItemFlavor( ToEHI( player ), Loadout_Character() )
-	return UpgradeCore_GetUpgradesForCharacter( characterItemFlavor )
+	return UpgradeCore_GetUpgradesForCharacter( UpgradeCore_GetCharacterForPlayer( player ) )
 }
 
 array< UpgradeCoreChoice > function UpgradeCore_GetUpgradesForCharacter( ItemFlavor characterItemFlavor )
@@ -2919,7 +2960,7 @@ array< UpgradeCoreChoice > function UpgradeCore_GetDefinedUpgradesForCharacter( 
 
 array< string > function UpgradeCore_GetUpgradeNamesForPlayer( entity player )
 {
-	ItemFlavor characterItemFlavor = LoadoutSlot_GetItemFlavor( ToEHI( player ), Loadout_Character() )
+	ItemFlavor characterItemFlavor = UpgradeCore_GetCharacterForPlayer( player )
 	if( !( characterItemFlavor in file.characterToPassiveUpgrades ) )
 	{
 		return []

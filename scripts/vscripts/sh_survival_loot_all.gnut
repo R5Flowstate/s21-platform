@@ -1073,6 +1073,14 @@ int function SURVIVAL_Loot_GetAttachmentType_Enum( string attachmentType )
 
 LootData function SURVIVAL_Loot_GetLootDataByIndex( int index )
 {
+#if CLIENT
+	// Indices reach the client from server netvars and remotes; an unknown one reads as no loot.
+	if ( !SURVIVAL_Loot_IsLootIndexValid( index ) )
+	{
+		LootData empty
+		return empty
+	}
+#endif
 	return file.lootData[ file.lootIndexToString[ index ] ]
 }
 

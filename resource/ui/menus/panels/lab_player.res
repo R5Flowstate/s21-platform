@@ -47,7 +47,7 @@
         {
             ControlName				CNestedPanel
             InheritProperties       SettingsContentPanel
-			tall                    1400
+			tall                    1640
 			visible                 1
             tabPosition             1
 
@@ -334,6 +334,72 @@
                 InheritProperties		SettingBasicButton
                 className               "SettingScrollSizer"
                 pin_to_sibling			SwitchBodyModel
+                pin_corner_to_sibling	TOP_LEFT
+                pin_to_sibling_corner	BOTTOM_LEFT
+            }
+
+            WorldHeader
+            {
+                ControlName				ImagePanel
+                InheritProperties		SubheaderBackgroundWide
+                className               "SettingScrollSizer"
+                xpos					0
+                ypos					6
+                pin_to_sibling			SwitchBodyModel
+                pin_corner_to_sibling	TOP_LEFT
+                pin_to_sibling_corner	BOTTOM_LEFT
+            }
+            WorldHeaderText
+            {
+                ControlName				Label
+                InheritProperties		SubheaderText
+                pin_to_sibling			WorldHeader
+                pin_corner_to_sibling	LEFT
+                pin_to_sibling_corner	LEFT
+                use_pin_locale_direction    1
+                labelText				"#LAB_PLAYER_HDR_WORLD"
+            }
+
+            SwitchMapTriggers
+            {
+                ControlName				RuiButton
+                InheritProperties		SwitchButton
+                className               "SettingScrollSizer"
+                style					DialogListButton
+                list
+                {
+                    "#SETTING_OFF"	0
+                    "#SETTING_ON"	1
+                }
+                pin_to_sibling			WorldHeader
+                pin_corner_to_sibling	TOP_LEFT
+                pin_to_sibling_corner	BOTTOM_LEFT
+                childGroupAlways        ChoiceButtonAlways
+            }
+
+            SwitchDevAlerts
+            {
+                ControlName				RuiButton
+                InheritProperties		SwitchButton
+                className               "SettingScrollSizer"
+                style					DialogListButton
+                list
+                {
+                    "#SETTING_OFF"	0
+                    "#SETTING_ON"	1
+                }
+                pin_to_sibling			SwitchMapTriggers
+                pin_corner_to_sibling	TOP_LEFT
+                pin_to_sibling_corner	BOTTOM_LEFT
+                childGroupAlways        ChoiceButtonAlways
+            }
+
+            ButtonSkydive
+            {
+                ControlName				RuiButton
+                InheritProperties		SettingBasicButton
+                className               "SettingScrollSizer"
+                pin_to_sibling			SwitchDevAlerts
                 pin_corner_to_sibling	TOP_LEFT
                 pin_to_sibling_corner	BOTTOM_LEFT
             }

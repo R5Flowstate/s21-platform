@@ -447,6 +447,9 @@ void function SonicBlastAttack_Thread( entity weapon, entity weaponOwner )
 	float detonationTime = Time() + blastDelay
 	foreach ( entity player in GetPlayerArray_AliveConnected() )
 	{
+		if ( IsValid( weaponOwner ) && !player.DoesShareRealms( weaponOwner ) )
+			continue
+
 		Remote_CallFunction_Replay( player, "ServerToClient_SpawnedSonicBlast", weaponOwner, weaponOwnerTeam, startPos, blastVector, detonationTime )
 	}
 

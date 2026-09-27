@@ -277,6 +277,11 @@ void function RisingWalls_SetupPistons( entity floorModel, RisableWallData data 
 	foreach ( string attachment in PISTON_ATTACHMENTS )
 	{
 		int pistonAttachId = floorModel.LookupAttachment( attachment )
+		if ( pistonAttachId <= 0 )
+		{
+			Warning( "[RisingWalls] " + string( floorModel.GetModelName() ) + " has no attachment '" + attachment + "'; pistons skipped" )
+			break
+		}
 		vector origin      = floorModel.GetAttachmentOrigin( pistonAttachId )
 		vector angles      = floorModel.GetAttachmentAngles( pistonAttachId )
 

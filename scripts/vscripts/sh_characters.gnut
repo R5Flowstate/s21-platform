@@ -284,6 +284,7 @@ struct
 // leaves the entry unregistered instead of failing the level.
 const array<asset> SDK_CHARACTER_FLAVORS = [
 	$"settings/itemflav/character/overdrive.rpak",
+	$"settings/itemflav/character/sparrow.rpak",
 ]
 
 #if SERVER || CLIENT || UI

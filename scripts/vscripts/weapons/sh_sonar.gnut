@@ -32,6 +32,7 @@ global function ServerCallback_SetSonarHighlightDrawDist_AllianceProximity
 const asset FX_SONAR_TARGET = $"P_ar_target_sonar"
 const asset FX_CAMERA_TARGET = $"P_ar_target_drone"
 const asset FX_DRONE_TARGET = $"P_ar_foa_lockon"
+global const asset FX_SPARROW_ULT_TARGET = $"P_sprw_ULT_AR_target_circle"
 const asset FX_HEAL_TARGET = $"P_ar_target_ally"
 
 struct
@@ -297,6 +298,8 @@ void function SonarStart( entity ent, vector position, int sonarTeam, entity son
 				fxid = GetParticleSystemIndex( FX_DRONE_TARGET )
 			else if ( IsValid( sonarOwner ) && PlayerHasPassive( sonarOwner, ePassives.PAS_VANTAGE) )
 				fxid = GetParticleSystemIndex( FX_DRONE_TARGET )
+			else if ( IsValid( sonarOwner ) && PlayerHasPassive( sonarOwner, ePassives.PAS_SPARROW ) )
+				fxid = GetParticleSystemIndex( FX_SPARROW_ULT_TARGET )
                  
                                                                                              
                                                    
@@ -564,6 +567,11 @@ void function SonarPulse( entity player, float pulseSpeed, vector pulsePosition,
 
 void function SonarPulseCone( entity player, float pulseSpeed, vector pulsePosition, float radius, vector dir, int count, float interval, bool hasDamageAmp, bool showTrail )
 {
+	// Server-sent: every pulse can spawn a client mover that lives for radius / pulseSpeed.
+	if ( !( pulseSpeed > 0.0 ) )
+		return
+	count = ClampInt( count, 0, 8 )
+
 	for ( int i = 0; i < count; i++ )
 	{
 		vector angles = VectorToAngles( dir )
@@ -592,6 +600,10 @@ void function SonarPulseCone( entity player, float pulseSpeed, vector pulsePosit
 #if PULSETRAIL
 void function SonarPulseConeTrail( entity player, vector dir, float duration, float radius )
 {
+	if ( !IsValid( player ) )
+		return
+	duration = clamp( duration, 0.05, 5.0 )
+
 	vector origin = player.EyePosition()
 	entity mover  = CreateClientsideScriptMover( $"mdl/dev/empty_model.rmdl", origin, VectorToAngles( dir ) )
 	int fxHandle  = StartParticleEffectOnEntity( mover, GetParticleSystemIndex( $"P_sonar_ground_detect" ), FX_PATTACH_POINT_FOLLOW, mover.LookupAttachment( "REF" ) )

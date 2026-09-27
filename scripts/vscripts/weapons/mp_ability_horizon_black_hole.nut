@@ -420,7 +420,7 @@ void function BLACKHOLE_MainLifetimeThread( entity owner, vector origin, vector 
 	SetTargetName( blackholeThreatProp, BLACKHOLE_THREAT_TARGETNAME )
 
 	vector pingOrigin   = origin + newtProp.GetUpVector() * 55
-	entity traceBlocker = CreateTraceBlockerVolume( pingOrigin, 64.0, false, CONTENTS_BLOCK_PING, newtProp.GetTeam(), BLACKHOLE_PROP_SCRIPTNAME )
+	entity traceBlocker = CreateTraceBlockerVolume( pingOrigin, 64.0, false, CONTENTS_BLOCK_PING, newtProp.GetTeam(), BLACKHOLE_PROP_SCRIPTNAME, newtProp )
 
 	array<entity> newtPropFXArray
 	//entity swirlingBlackHoleFXID = StartParticleEffectOnEntityWithPos_ReturnEntity ( newtProp, GetParticleSystemIndex( BLACKHOLE_SWIRLING_BLACKHOLE_FX ), FX_PATTACH_POINT_FOLLOW, newtProp.LookupAttachment( "BLACKHOLE_FX" ), <0, 0, 0>, ZERO_VECTOR )
@@ -560,6 +560,9 @@ void function TryOpenAndBreakDoors( entity blackholeProp, entity trigger )
 
 		foreach ( entity door in nearbyDoors )
 		{
+			if ( !door.DoesShareRealms( blackholeProp ) )
+				continue
+
 			vector blackholeToDoor = Normalize( door.GetOrigin() - blackholeProp.GetOrigin() )
 			vector damageOrigin    = blackholeProp.GetOrigin() + blackholeToDoor * GetBlackholeRadius( blackholePropOwner )
 			door.TakeDamage( door.GetMaxHealth(), blackholePropOwner, blackholePropOwner, { origin = damageOrigin, force = -blackholeToDoor, damageSourceId = eDamageSourceId.invalid, scriptType = DF_EXPLOSION } )
@@ -910,7 +913,7 @@ void function BLACKHOLE_NEWT_DestroyExplosion( entity newtProp, entity attacker 
 
 	int damageFXID       = GetParticleSystemIndex( BLACKHOLETROPHY_DESTROY_FX )
 	int damageFXAttachID = newtProp.LookupAttachment( "BLACKHOLE_FX" )
-	entity fx            = StartParticleEffectInWorld( damageFXID, newtProp.GetAttachmentOrigin( damageFXAttachID ), newtProp.GetAttachmentAngles( damageFXAttachID ) )
+	StartParticleEffectInWorldForRealms( damageFXID, newtProp.GetAttachmentOrigin( damageFXAttachID ), newtProp.GetAttachmentAngles( damageFXAttachID ), newtProp )
 
 
         entity owningHorizon = newtProp.GetOwner()

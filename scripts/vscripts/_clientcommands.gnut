@@ -236,6 +236,15 @@ void function Lab_ToggleSkyboxView( entity player )
 
 void function ClientCommand_spawnbots( entity player, array<string> args )
 {
+	if ( !IsValid( player ) || !player.IsPlayer() )
+		return
+
+	if ( GetConVarInt( "sv_cheats" ) != 1 )
+	{
+		printt( format( "[SpawnBots] spawn denied (sv_cheats %d) from %s", GetConVarInt( "sv_cheats" ), player.GetPlayerName() ) )
+		return
+	}
+
 	int amount = 1
 	if ( args.len() > 0 )
 		amount = int( args[0] )
@@ -399,6 +408,14 @@ void function ClientCommand_spawn_fake_player( entity player, array<string> args
 	printt( format( "[Dev] spawn_fake_player begin name=%s team=%d enemy=%s humans=%d bots=%d max=%d",
 		botName, team, string( asEnemy ), GetNumHumanPlayers(), GetNumFakeClients(), GetCurrentPlaylistVarInt( "max_players", 60 ) ) )
 
+	vector ornull spot = AimTrainer_FindViewSpawnOrigin( player )
+	if ( spot == null )
+	{
+		printt( "[Dev] spawn_fake_player: no room to stand where the player is looking" )
+		LocalSplashMsgAll( "Spawn Fake Player: no room there", 4.0 )
+		return
+	}
+
 	int edict = CreateFakePlayer( botName, team )
 	if ( edict < 0 )
 	{
@@ -427,17 +444,13 @@ void function ClientCommand_spawn_fake_player( entity player, array<string> args
 		return
 	}
 
-	vector origin = GetPlayerCrosshairOrigin( player )
+	vector origin = expect vector( spot )
 	vector eyeAngles = player.EyeAngles()
 	vector angles = <0.0, (eyeAngles.y + 180.0), 0.0>
 	if ( !TrySetOriginInWorld( bot, origin ) )
 	{
-		origin = player.GetOrigin()
-		if ( !TrySetOriginInWorld( bot, origin ) )
-		{
-			printt( format( "[Dev] spawn_fake_player: illegal origin %s", string( origin ) ) )
-			return
-		}
+		printt( format( "[Dev] spawn_fake_player: illegal origin %s", string( origin ) ) )
+		return
 	}
 	bot.SetAngles( angles )
 	MRec_BindBotRealms( bot, player )

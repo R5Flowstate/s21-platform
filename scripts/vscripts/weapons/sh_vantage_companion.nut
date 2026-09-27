@@ -6,6 +6,7 @@ global function VantageCompanion_FindAndDisplayOrderPos
 global function VantageCompanion_OrderCompanion
 global function VantageCompanion_SetPlayerLaunchState
 global function VantageCompanion_GetPlayerLaunchState
+global function IsVantageBuffsEnabled
 
 //Launch
 //global function Launch_CalcLaunchVelocity
@@ -18,6 +19,7 @@ global function GetVantageTacticalRui
 global function CreateVantageTacticalRui_Internal
 global function DestroyVantageTacticalRui
 global function TrackVantageAnimatedTacticalRuiOffhandWeapon
+global function AttemptRecallCompanion
 #endif
 
 #if SERVER
@@ -96,6 +98,8 @@ const vector VANTAGE_COMPANION_BOUND_MAXS = <10, 10, 15>
 
 const float VANTAGE_COMPANION_RANGE_BASE = 40.0 * METERS_TO_INCHES
 const float VANTAGE_COMPANION_RANGE_MAX = 55.0 * METERS_TO_INCHES
+const float VANTAGE_COMPANION_RANGE_BASE_BUFFED = 50.0 * METERS_TO_INCHES
+const float VANTAGE_COMPANION_RANGE_MAX_BUFFED = 65.0 * METERS_TO_INCHES
 
 //const float VANTAGE_COMPANION_TARGET_RANGE_PCT = 0.4
 //const float VANTAGE_COMPANION_TARGET_RANGE_MAX = 60 * METERS_TO_INCHES
@@ -239,6 +243,8 @@ struct
 
 	float TUNING_VANTAGE_COMPANION_RANGE_BASE
 	float TUNING_VANTAGE_COMPANION_RANGE_MAX
+	float TUNING_VANTAGE_COMPANION_RANGE_BASE_BUFFED
+	float TUNING_VANTAGE_COMPANION_RANGE_MAX_BUFFED
 
 	float TUNING_VANTAGE_COMPANION_UPGRADED_RANGE
 
@@ -274,6 +280,8 @@ void function VantageCompanion_Init()
 
 	file.TUNING_VANTAGE_COMPANION_RANGE_BASE = GetCurrentPlaylistVarFloat( "vantage_tactical_base_range", VANTAGE_COMPANION_RANGE_BASE )
 	file.TUNING_VANTAGE_COMPANION_RANGE_MAX = GetCurrentPlaylistVarFloat( "vantage_tactical_max_range", VANTAGE_COMPANION_RANGE_MAX )
+	file.TUNING_VANTAGE_COMPANION_RANGE_BASE_BUFFED = GetCurrentPlaylistVarFloat( "vantage_tactical_base_range_buffed", VANTAGE_COMPANION_RANGE_BASE_BUFFED )
+	file.TUNING_VANTAGE_COMPANION_RANGE_MAX_BUFFED = GetCurrentPlaylistVarFloat( "vantage_tactical_max_range_buffed", VANTAGE_COMPANION_RANGE_MAX_BUFFED )
 
 	file.TUNING_VANTAGE_COMPANION_UPGRADED_RANGE = GetCurrentPlaylistVarFloat( "vantage_tactical_upgraded_range_bonus", 10 * METERS_TO_INCHES )
 
@@ -299,9 +307,16 @@ void function VantageCompanion_Init()
 #endif
 }
 
+bool function IsVantageBuffsEnabled()
+{
+	return GetCurrentPlaylistVarBool( "vantage_s25_1_buffs_enabled", true )
+}
+
 float function VantageCompanion_GetRangeBase( entity owner )
 {
 	float result = file.TUNING_VANTAGE_COMPANION_RANGE_BASE
+	if ( IsVantageBuffsEnabled() )
+		result = file.TUNING_VANTAGE_COMPANION_RANGE_BASE_BUFFED
 
 	if( PlayerHasPassive( owner, ePassives.PAS_TAC_UPGRADE_TWO ) )
 	{
@@ -315,6 +330,8 @@ float function VantageCompanion_GetRangeBase( entity owner )
 float function VantageCompanion_GetRangeMax( entity owner )
 {
 	float result = file.TUNING_VANTAGE_COMPANION_RANGE_MAX
+	if ( IsVantageBuffsEnabled() )
+		result = file.TUNING_VANTAGE_COMPANION_RANGE_MAX_BUFFED
 
 
 	if( PlayerHasPassive( owner, ePassives.PAS_TAC_UPGRADE_TWO ) )
@@ -1082,6 +1099,7 @@ void function VantageCompanionSpawnAndLifetime_Thread( entity player )
 	player.SetPlayerNetInt( VANTAGE_COMPANION_STATE_NETINT, eCompanionState.UNKNOWN )
 
 	echoEnt = CreateCompanionEntity( player )
+	echoEnt.EndSignal( "OnDestroy" )
 	player.p.realmLinkedEntities.append( echoEnt )
 
 	entity vortexSphere //= CreateCompanionVortexSphere( echoEnt )
@@ -1103,6 +1121,8 @@ void function VantageCompanionSpawnAndLifetime_Thread( entity player )
 
 			foreach( fx in fxArray )
 			{
+				if ( !IsValid( fx ) )
+					continue
 				EffectStop( fx )
 				fx.Destroy()
 			}
@@ -1610,7 +1630,7 @@ void function VantageCompanion_BulletReaction( entity vantagePlayer, entity echo
 		if ( IsValid( file.echoData[vantagePlayer].targetEntity) &&
 				file.echoData[vantagePlayer].targetEntity.GetTeam() == attacker.GetTeam() )
 		{
-			StartParticleEffectInWorld_ReturnEntity( GetParticleSystemIndex( FX_PROJECTILE_DESTROYED ), echoEnt.GetOrigin(), echoEnt.GetAngles() )
+			StartParticleEffectInWorldForRealms( GetParticleSystemIndex( FX_PROJECTILE_DESTROYED ), echoEnt.GetOrigin(), echoEnt.GetAngles(), echoEnt )
 
 			vector echoToOwner = vantagePlayer.GetOrigin() - echoEnt.GetOrigin()
 			vector retreatPos  = echoEnt.GetOrigin() + Normalize( echoToOwner )* VANTAGE_COMPANION_RETREAT_DIST

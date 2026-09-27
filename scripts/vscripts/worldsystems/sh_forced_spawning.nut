@@ -7,6 +7,7 @@ global function ForcedSpawn_AddSpawnPoint
 global function CodeCallback_ForcedSpawn_SetSpawnFromSettings
 global function ForcedSpawn_SpawnAllPlayers
 global function ForcedSpawn_TrySetTeamSpawnFromLocationIndex
+global function ForcedSpawn_GetSpawnPoints
 
 global struct ForcedSpawnPoint
 {
@@ -39,6 +40,11 @@ void function ForcedSpawn_Init()
 	AddCallback_GameStateEnter( eGameState.Prematch, ForcedSpawn_OnGameStatePreMatch )
 }
 
+
+array< ForcedSpawnPoint > function ForcedSpawn_GetSpawnPoints()
+{
+	return file.spawnPoints
+}
 
 void function ForcedSpawn_AddSpawnPoint( string name, vector location, vector angles = < 0, 0, 0 >, float height = -1 )
 {

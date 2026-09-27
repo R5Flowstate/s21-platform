@@ -2,22 +2,20 @@
 // Client only ever sends a recipe index -- never a classname, model path, or asset.
 
 global function MapEditor_Palette_ServerInit
+global function MapEditPalette_SpawnSpecial
+global function MapEditPalette_SpawnZipline
 
-const asset MAPEDIT_JUMP_PAD_MODEL = $"mdl/props/octane_jump_pad/octane_jump_pad.rmdl"
-const asset MAPEDIT_DOOR_MODEL = $"mdl/door/door_104x64x8_elevatorstyle01_right_animated.rmdl"
 
 // Particle allowlist -- index 0 is default for recipe 5.
 const asset MAPEDIT_FX_LAUNCHPAD = $"P_launchpad_launch"
 const asset MAPEDIT_FX_LOOTBIN_OPEN = $"P_LootBin_open"
 const asset MAPEDIT_FX_JUMPJET = $"P_team_jump_jet_ON_trails"
 
+const float MAPEDIT_ZIPLINE_MIN_DIST = 64.0
+
 struct
 {
 	table< entity, vector > ziplineAnchor
-	table< entity, entity > jumpPadTriggers
-	table< entity, entity > doorPairs
-	table< entity, bool >   lootBins
-	table< entity, array< float > > placeTimes
 	bool particlesPrecached = false
 } file
 
@@ -47,99 +45,37 @@ void function MapEditPalette_OnClientDisconnected( entity player )
 {
 	if ( player in file.ziplineAnchor )
 		delete file.ziplineAnchor[player]
-
-	if ( player in file.placeTimes )
-		delete file.placeTimes[player]
-}
-
-// Drop any palette table entry keyed by or pointing at ent.
-// Bound via AddEntityDestroyedCallback so it runs whenever Destroy runs --
-// including after MapEdit_RemoveAtIndex in the registry path.
-void function MapEditPalette_OnTrackedDestroyed( entity ent )
-{
-	if ( ent in file.jumpPadTriggers )
-		delete file.jumpPadTriggers[ent]
-
-	if ( ent in file.doorPairs )
-		delete file.doorPairs[ent]
-
-	if ( ent in file.lootBins )
-		delete file.lootBins[ent]
-
-	array< entity > jumpKeys
-	foreach ( entity k, entity v in file.jumpPadTriggers )
-	{
-		if ( v == ent )
-			jumpKeys.append( k )
-	}
-	foreach ( entity k in jumpKeys )
-		delete file.jumpPadTriggers[k]
-
-	array< entity > doorKeys
-	foreach ( entity k, entity v in file.doorPairs )
-	{
-		if ( v == ent )
-			doorKeys.append( k )
-	}
-	foreach ( entity k in doorKeys )
-		delete file.doorPairs[k]
-}
-
-void function MapEditPalette_TrackJumpPad( entity prop, entity trigger )
-{
-	file.jumpPadTriggers[prop] <- trigger
-	AddEntityDestroyedCallback( prop, MapEditPalette_OnTrackedDestroyed )
-	AddEntityDestroyedCallback( trigger, MapEditPalette_OnTrackedDestroyed )
-}
-
-void function MapEditPalette_TrackDoorPair( entity left, entity rightDoor )
-{
-	file.doorPairs[left] <- rightDoor
-	AddEntityDestroyedCallback( left, MapEditPalette_OnTrackedDestroyed )
-	AddEntityDestroyedCallback( rightDoor, MapEditPalette_OnTrackedDestroyed )
-}
-
-void function MapEditPalette_TrackLootBin( entity bin )
-{
-	file.lootBins[bin] <- true
-	AddEntityDestroyedCallback( bin, MapEditPalette_OnTrackedDestroyed )
-}
-
-// Register or destroy; catalogId 0 for non-catalog recipes.
-bool function MapEditPalette_TryRegister( entity ent, entity owner )
-{
-	if ( !IsValid( ent ) )
-		return false
-
-	if ( !MapEditor_RegisterSpawned( ent, 0, owner ) )
-	{
-		if ( IsValid( ent ) )
-			ent.Destroy()
-		return false
-	}
-	return true
 }
 
 // ---------------------------------------------------------------------------
-// Recipes -- each takes (origin, angles) and returns primary entity or null
+// Recipes -- every spawned entity goes into ents, primary first; on failure
+// whatever was spawned is destroyed and ents is left empty.
 // ---------------------------------------------------------------------------
 
-entity function MapEditPalette_Recipe_JumpPad( vector origin, vector angles )
+void function MapEditPalette_DestroyAll( array< entity > ents )
+{
+	foreach ( entity e in ents )
+	{
+		if ( IsValid( e ) )
+			e.Destroy()
+	}
+	ents.clear()
+}
+
+void function MapEditPalette_Recipe_JumpPad( vector origin, vector angles, array< entity > ents )
 {
 	entity prop = CreatePropDynamic( MAPEDIT_JUMP_PAD_MODEL, origin, angles, SOLID_VPHYSICS, -1.0 )
 	if ( !IsValid( prop ) )
-	{
-		printt( "[MAPEDIT] jump pad: CreatePropDynamic failed" )
-		return null
-	}
+		return
 	prop.SetScriptName( "mapedit_jumppad" )
+	prop.AllowMantle()
+	ents.append( prop )
 
 	entity trigger = CreateEntity( "trigger_cylinder_heavy" )
 	if ( !IsValid( trigger ) )
 	{
-		printt( "[MAPEDIT] jump pad: CreateEntity trigger_cylinder_heavy failed" )
-		prop.Destroy()
-		return null
+		MapEditPalette_DestroyAll( ents )
+		return
 	}
 
 	trigger.SetOwner( prop )
@@ -156,84 +92,131 @@ entity function MapEditPalette_Recipe_JumpPad( vector origin, vector angles )
 	DispatchSpawn( trigger )
 	trigger.SetParent( prop, "", true, 0.0 )
 	trigger.SetScriptName( "mapedit_jumppad_trigger" )
-
-	// Caller registers both; trigger looked up via file.jumpPadTriggers.
-	MapEditPalette_TrackJumpPad( prop, trigger )
-	return prop
+	ents.append( trigger )
 }
 
-entity function MapEditPalette_Recipe_DoorSingle( vector origin, vector angles )
+// CreateSurvivalDoorPlain keeps the survival_door_plain script name so door logic runs.
+void function MapEditPalette_Recipe_DoorSingle( vector origin, vector angles, array< entity > ents )
 {
-	// CreateSurvivalDoorPlain is the tree's spawn path (prop_dynamic + survival_door_plain).
-	// CreateEntity("prop_door") has no script call sites.
-	// Keeps survival_door_plain script name so door logic still runs.
 	entity door = CreateSurvivalDoorPlain( MAPEDIT_DOOR_MODEL, origin, angles )
-	if ( !IsValid( door ) )
-	{
-		printt( "[MAPEDIT] door single: CreateSurvivalDoorPlain failed" )
-		return null
-	}
-	return door
+	if ( IsValid( door ) )
+		ents.append( door )
 }
 
-entity function MapEditPalette_Recipe_DoorDouble( vector origin, vector angles )
+void function MapEditPalette_Recipe_DoorDouble( vector origin, vector angles, array< entity > ents )
 {
 	vector right = AnglesToRight( angles )
 	float half = MAPEDIT_DOOR_DOUBLE_GAP * 0.5
 
 	entity left = CreateSurvivalDoorPlain( MAPEDIT_DOOR_MODEL, origin - right * half, angles )
 	if ( !IsValid( left ) )
-	{
-		printt( "[MAPEDIT] door double: left CreateSurvivalDoorPlain failed" )
-		return null
-	}
+		return
+	ents.append( left )
 
-	vector rightAngles = AnglesCompose( angles, <0, 180, 0> )
-	entity rightDoor = CreateSurvivalDoorPlain( MAPEDIT_DOOR_MODEL, origin + right * half, rightAngles )
+	entity rightDoor = CreateSurvivalDoorPlain( MAPEDIT_DOOR_MODEL, origin + right * half, AnglesCompose( angles, <0, 180, 0> ) )
 	if ( !IsValid( rightDoor ) )
 	{
-		printt( "[MAPEDIT] door double: right CreateSurvivalDoorPlain failed" )
-		left.Destroy()
-		return null
+		MapEditPalette_DestroyAll( ents )
+		return
 	}
-
-	MapEditPalette_TrackDoorPair( left, rightDoor )
-	return left
+	ents.append( rightDoor )
 }
 
-entity function MapEditPalette_Recipe_LootBin( vector origin, vector angles )
+void function MapEditPalette_Recipe_LootBin( vector origin, vector angles, array< entity > ents )
 {
 	entity bin = CreateLootBin( origin, angles, false, false, false )
-	if ( !IsValid( bin ) )
-	{
-		printt( "[MAPEDIT] loot bin: CreateLootBin failed" )
-		return null
-	}
-	// CreateLootBin sets LOOT_BIN_SCRIPTNAME; track in file.lootBins for cleanup.
-	MapEditPalette_TrackLootBin( bin )
-	return bin
+	if ( IsValid( bin ) )
+		ents.append( bin )
 }
 
-entity function MapEditPalette_Recipe_Particle( vector origin, vector angles )
+void function MapEditPalette_Recipe_Particle( vector origin, vector angles, array< entity > ents )
 {
 	if ( !file.particlesPrecached )
-	{
-		printt( "[MAPEDIT] particle: not precached" )
-		return null
-	}
+		return
 
-	int fxIdx = GetParticleSystemIndex( MAPEDIT_FX_LAUNCHPAD )
-	entity fx = StartParticleEffectInWorld_ReturnEntity( fxIdx, origin, angles )
+	entity fx = StartParticleEffectInWorld_ReturnEntity( GetParticleSystemIndex( MAPEDIT_FX_LAUNCHPAD ), origin, angles )
 	if ( !IsValid( fx ) )
-	{
-		printt( "[MAPEDIT] particle: StartParticleEffectInWorld_ReturnEntity failed" )
-		return null
-	}
+		return
 	fx.SetScriptName( "mapedit_fx" )
-	return fx
+	ents.append( fx )
 }
 
-// Recipe 6 (light): no light entity CreateEntity path exists in this tree -- omitted.
+// Recipe 6 (light) has no light entity spawn path in this tree.
+bool function MapEditPalette_SpawnSpecial( int recipeId, vector origin, vector angles, array< entity > ents )
+{
+	switch ( recipeId )
+	{
+		case 1:
+			MapEditPalette_Recipe_JumpPad( origin, angles, ents )
+			break
+		case 2:
+			MapEditPalette_Recipe_DoorSingle( origin, angles, ents )
+			break
+		case 3:
+			MapEditPalette_Recipe_DoorDouble( origin, angles, ents )
+			break
+		case 4:
+			MapEditPalette_Recipe_LootBin( origin, angles, ents )
+			break
+		case 5:
+			MapEditPalette_Recipe_Particle( origin, angles, ents )
+			break
+		default:
+			return false
+	}
+	return ents.len() > 0
+}
+
+// The S21 client only knows ziplines as zipline + zipline_end. A move_rope with
+// Zipline=1 reaches it as a plain rope, which its zipline code then calls
+// through a zipline vtable slot the rope class does not have.
+bool function MapEditPalette_SpawnZipline( vector start, vector end, array< entity > ents )
+{
+	float dist = Distance( start, end )
+	if ( dist < MAPEDIT_ZIPLINE_MIN_DIST || dist > MAPEDIT_ZIPLINE_MAX_DIST )
+		return false
+
+	entity startPoint = CreateEntity( "zipline" )
+	if ( !IsValid( startPoint ) )
+		return false
+	startPoint.kv.Material = "cable/zipline.vmt"
+	startPoint.kv.Width = 2.0
+	startPoint.kv.scale = 1.0
+	startPoint.kv.ZiplineAutoDetachDistance = 100.0
+	startPoint.kv.ZiplineDropToBottom = 1
+	startPoint.kv.ZiplineFadeDistance = -1.0
+	startPoint.kv.ZiplineLengthScale = 1.0
+	startPoint.kv.ZiplinePreserveVelocity = 0
+	startPoint.kv.ZiplinePushOffInDirectionX = 0
+	startPoint.kv.ZiplineSpeedScale = 1.0
+	startPoint.kv.ZiplineVersion = 3
+	startPoint.kv.ZiplineVertical = 0
+	startPoint.kv.DetachEndOnSpawn = 0
+	startPoint.kv.DetachEndOnUse = 0
+	startPoint.SetAngles( VectorToAngles( Normalize( end - start ) ) )
+	startPoint.SetOrigin( start )
+	ents.append( startPoint )
+
+	entity endPoint = CreateEntity( "zipline_end" )
+	if ( !IsValid( endPoint ) )
+	{
+		MapEditPalette_DestroyAll( ents )
+		return false
+	}
+	endPoint.kv.ZiplineAutoDetachDistance = 100.0
+	endPoint.kv.ZiplinePushOffInDirectionX = 0
+	endPoint.SetAngles( VectorToAngles( Normalize( start - end ) ) )
+	endPoint.SetOrigin( end )
+	ents.append( endPoint )
+
+	startPoint.LinkToEnt( endPoint )
+	DispatchSpawn( startPoint )
+	DispatchSpawn( endPoint )
+
+	startPoint.SetScriptName( "mapedit_zipline" )
+	endPoint.SetScriptName( "mapedit_zipline" )
+	return true
+}
 
 // ---------------------------------------------------------------------------
 // mapedit_special <recipeId> <x> <y> <z> <pitch> <yaw> <roll>
@@ -247,156 +230,30 @@ void function ClientCommand_MapEdit_Special( entity player, array<string> args )
 	if ( !IsValid( player ) || !player.IsPlayer() )
 		return
 
-	if ( MapEditor_IsFrozenFor( player ) )
-	{
-		MapEdit_Reject( player, "placement frozen by admin" )
-		return
-	}
-
 	if ( args.len() != 7 )
 	{
 		MapEdit_Reject( player, "special needs 7 args: <recipeId> <x> <y> <z> <pitch> <yaw> <roll>" )
 		return
 	}
 
-	if ( !IsStringNumber( args[0] ) || !IsStringNumber( args[1] ) || !IsStringNumber( args[2] ) ||
-		 !IsStringNumber( args[3] ) || !IsStringNumber( args[4] ) || !IsStringNumber( args[5] ) ||
-		 !IsStringNumber( args[6] ) )
-	{
-		MapEdit_Reject( player, "special: args not numeric" )
+	MapEditPlacement desc
+	desc.kind = eMapEditKind.SPECIAL
+	if ( !MapEdit_ParsePlacementArgs( player, args, desc ) )
 		return
-	}
 
-	int recipeId = args[0].tointeger()
-	float x = args[1].tofloat()
-	float y = args[2].tofloat()
-	float z = args[3].tofloat()
-	float pitch = args[4].tofloat()
-	float yaw = args[5].tofloat()
-	float roll = args[6].tofloat()
-
-	if ( !MapEdit_IsFiniteCoord( x ) || !MapEdit_IsFiniteCoord( y ) || !MapEdit_IsFiniteCoord( z ) )
-	{
-		MapEdit_Reject( player, "special: origin not finite or out of world limit" )
-		return
-	}
-
-	if ( pitch != pitch || yaw != yaw || roll != roll )
-	{
-		MapEdit_Reject( player, "special: angles contain NaN" )
-		return
-	}
-	if ( fabs( pitch ) > MAPEDIT_ANGLE_LIMIT || fabs( yaw ) > MAPEDIT_ANGLE_LIMIT || fabs( roll ) > MAPEDIT_ANGLE_LIMIT )
-	{
-		MapEdit_Reject( player, "special: angles not finite" )
-		return
-	}
-
-	vector origin = <x, y, z>
-	vector eye = player.EyePosition()
-	if ( Distance( eye, origin ) > MAPEDIT_MAX_PLACE_DIST )
-	{
-		MapEdit_Reject( player, format( "special: origin too far from eye (max %.0f)", MAPEDIT_MAX_PLACE_DIST ) )
-		return
-	}
-
-	pitch = MapEdit_NormalizeAngle360( pitch )
-	yaw   = MapEdit_NormalizeAngle360( yaw )
-	roll  = MapEdit_NormalizeAngle360( roll )
-	vector angles = <pitch, yaw, roll>
-
-	float now = Time()
-	if ( !( player in file.placeTimes ) )
-		file.placeTimes[player] <- []
-
-	array< float > placeWindow = file.placeTimes[player]
-	while ( placeWindow.len() > 0 && ( now - placeWindow[0] ) > MAPEDIT_PLACE_RATE_WINDOW )
-		placeWindow.remove( 0 )
-
-	if ( placeWindow.len() >= MAPEDIT_PLACE_RATE_MAX )
-	{
-		MapEdit_Reject( player, format( "place rate limit %d / %.1fs", MAPEDIT_PLACE_RATE_MAX, MAPEDIT_PLACE_RATE_WINDOW ) )
-		return
-	}
-
-	entity primary = null
-	array< entity > extras
-
-	switch ( recipeId )
-	{
-		case 1:
-			primary = MapEditPalette_Recipe_JumpPad( origin, angles )
-			if ( IsValid( primary ) && ( primary in file.jumpPadTriggers ) )
-			{
-				entity t = file.jumpPadTriggers[primary]
-				if ( IsValid( t ) )
-					extras.append( t )
-			}
-			break
-		case 2:
-			primary = MapEditPalette_Recipe_DoorSingle( origin, angles )
-			break
-		case 3:
-			primary = MapEditPalette_Recipe_DoorDouble( origin, angles )
-			if ( IsValid( primary ) && ( primary in file.doorPairs ) )
-			{
-				entity pair = file.doorPairs[primary]
-				if ( IsValid( pair ) )
-					extras.append( pair )
-			}
-			break
-		case 4:
-			primary = MapEditPalette_Recipe_LootBin( origin, angles )
-			break
-		case 5:
-			primary = MapEditPalette_Recipe_Particle( origin, angles )
-			break
-		case 6:
-			MapEdit_Reject( player, "special: light recipe omitted (no light entity in this tree)" )
-			return
-		default:
-			MapEdit_Reject( player, "special: unknown recipeId " + string( recipeId ) )
-			return
-	}
-
-	if ( !IsValid( primary ) )
-	{
-		MapEdit_Reject( player, format( "special: recipe %d failed to spawn", recipeId ) )
-		return
-	}
-
-	if ( !MapEditPalette_TryRegister( primary, player ) )
-	{
-		foreach ( entity e in extras )
-		{
-			if ( IsValid( e ) )
-				e.Destroy()
-		}
-		return
-	}
-
-	foreach ( entity e in extras )
-	{
-		if ( !IsValid( e ) )
-			continue
-		if ( !MapEditPalette_TryRegister( e, player ) )
-		{
-			// Partial register; primary already in registry. Leave it; report.
-			MapEdit_Reject( player, "special: budget refused for secondary entity" )
-			return
-		}
-	}
-
-	placeWindow.append( Time() )
-
-	MapEdit_Report( player, format( "special recipe=%d at %.0f %.0f %.0f",
-		recipeId, origin.x, origin.y, origin.z ) )
-	return
+	MapEdit_TryPlaceFromClient( player, desc )
 }
 
 // ---------------------------------------------------------------------------
 // Zipline two-point flow
 // ---------------------------------------------------------------------------
+
+vector function MapEditPalette_EyeTrace( entity player )
+{
+	vector eye = player.EyePosition()
+	TraceResults tr = TraceLine( eye, eye + player.GetViewVector() * MAPEDIT_MAX_PLACE_DIST, player, TRACE_MASK_SOLID, TRACE_COLLISION_GROUP_NONE )
+	return tr.endPos
+}
 
 void function ClientCommand_MapEdit_ZiplineStart( entity player, array<string> args )
 {
@@ -412,15 +269,10 @@ void function ClientCommand_MapEdit_ZiplineStart( entity player, array<string> a
 		return
 	}
 
-	vector eye = player.EyePosition()
-	vector forward = player.GetViewVector()
-	TraceResults tr = TraceLine( eye, eye + forward * MAPEDIT_MAX_PLACE_DIST, player, TRACE_MASK_SOLID, TRACE_COLLISION_GROUP_NONE )
-
-	vector anchor = tr.endPos
+	vector anchor = MapEditPalette_EyeTrace( player )
 	file.ziplineAnchor[player] <- anchor
 
 	MapEdit_Report( player, format( "zipline start set %.0f %.0f %.0f", anchor.x, anchor.y, anchor.z ) )
-	return
 }
 
 void function ClientCommand_MapEdit_ZiplineEnd( entity player, array<string> args )
@@ -431,113 +283,31 @@ void function ClientCommand_MapEdit_ZiplineEnd( entity player, array<string> arg
 	if ( !IsValid( player ) || !player.IsPlayer() )
 		return
 
-	if ( MapEditor_IsFrozenFor( player ) )
-	{
-		MapEdit_Reject( player, "zipline frozen by admin" )
-		return
-	}
-
 	if ( !( player in file.ziplineAnchor ) )
 	{
-		MapEdit_Reject( player, "zipline end: no start anchor (mapedit_zipline_start first)" )
+		MapEdit_Reject( player, "zipline end: no start anchor" )
 		return
 	}
 
-	vector start = file.ziplineAnchor[player]
+	MapEditPlacement desc
+	desc.kind = eMapEditKind.ZIPLINE
+	desc.origin = file.ziplineAnchor[player]
+	desc.endOrigin = MapEditPalette_EyeTrace( player )
 
-	vector eye = player.EyePosition()
-	vector forward = player.GetViewVector()
-	TraceResults tr = TraceLine( eye, eye + forward * MAPEDIT_MAX_PLACE_DIST, player, TRACE_MASK_SOLID, TRACE_COLLISION_GROUP_NONE )
-	vector end = tr.endPos
-
-	float dist = Distance( start, end )
+	float dist = Distance( desc.origin, desc.endOrigin )
 	if ( dist > MAPEDIT_ZIPLINE_MAX_DIST )
 	{
 		MapEdit_Reject( player, format( "zipline end: too far (max %.0f)", MAPEDIT_ZIPLINE_MAX_DIST ) )
 		return
 	}
-	if ( dist < 64.0 )
+	if ( dist < MAPEDIT_ZIPLINE_MIN_DIST )
 	{
 		MapEdit_Reject( player, "zipline end: too close to start" )
 		return
 	}
 
-	// Build from move_rope + keyframe_rope (CreateZipLine pattern in _utility).
-	string midpointName = UniqueString( "mapedit_zip_mid" )
-	string endpointName = UniqueString( "mapedit_zip_end" )
-
-	entity rope_start = CreateEntity( "move_rope" )
-	if ( !IsValid( rope_start ) )
-	{
-		printt( "[MAPEDIT] zipline: CreateEntity move_rope failed" )
-		return
-	}
-	rope_start.kv.NextKey = midpointName
-	rope_start.kv.MoveSpeed = 0
-	rope_start.kv.ZiplineMoveSpeedScale = 1.0
-	rope_start.kv.Slack = 0
-	rope_start.kv.Subdiv = 0
-	rope_start.kv.Width = "2"
-	rope_start.kv.TextureScale = "1"
-	rope_start.kv.RopeMaterial = "cable/zipline.vmt"
-	rope_start.kv.PositionInterpolator = 2
-	rope_start.kv.Zipline = "1"
-	rope_start.kv.ZiplineAutoDetachDistance = "150"
-	rope_start.kv.ZiplineSagEnable = "0"
-	rope_start.kv.ZiplineSagHeight = "0"
-	rope_start.SetOrigin( start )
-	rope_start.SetScriptName( "mapedit_zipline" )
-
-	entity rope_mid = CreateEntity( "keyframe_rope" )
-	if ( !IsValid( rope_mid ) )
-	{
-		printt( "[MAPEDIT] zipline: CreateEntity keyframe_rope mid failed" )
-		rope_start.Destroy()
-		return
-	}
-	SetTargetName( rope_mid, midpointName )
-	rope_mid.kv.NextKey = endpointName
-	rope_mid.SetOrigin( ( start + end ) * 0.5 )
-	rope_mid.SetScriptName( "mapedit_zipline" )
-
-	entity rope_end = CreateEntity( "keyframe_rope" )
-	if ( !IsValid( rope_end ) )
-	{
-		printt( "[MAPEDIT] zipline: CreateEntity keyframe_rope end failed" )
-		rope_start.Destroy()
-		rope_mid.Destroy()
-		return
-	}
-	SetTargetName( rope_end, endpointName )
-	rope_end.SetOrigin( end )
-	rope_end.SetScriptName( "mapedit_zipline" )
-
-	DispatchSpawn( rope_start )
-	DispatchSpawn( rope_mid )
-	DispatchSpawn( rope_end )
-
-	// Register start + end against budget; mid is structural -- register all three.
-	if ( !MapEditPalette_TryRegister( rope_start, player ) )
-	{
-		if ( IsValid( rope_mid ) )
-			rope_mid.Destroy()
-		if ( IsValid( rope_end ) )
-			rope_end.Destroy()
-		return
-	}
-	if ( !MapEditPalette_TryRegister( rope_mid, player ) )
-	{
-		if ( IsValid( rope_end ) )
-			rope_end.Destroy()
-		return
-	}
-	if ( !MapEditPalette_TryRegister( rope_end, player ) )
-		return
-
 	delete file.ziplineAnchor[player]
-
-	MapEdit_Report( player, format( "zipline placed len=%.0f", dist ) )
-	return
+	MapEdit_TryPlaceFromClient( player, desc )
 }
 
 void function ClientCommand_MapEdit_ZiplineCancel( entity player, array<string> args )
@@ -550,7 +320,4 @@ void function ClientCommand_MapEdit_ZiplineCancel( entity player, array<string> 
 
 	if ( player in file.ziplineAnchor )
 		delete file.ziplineAnchor[player]
-
-	MapEdit_Report( player, "zipline anchor cleared" )
-	return
 }

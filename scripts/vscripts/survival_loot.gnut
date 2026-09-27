@@ -247,6 +247,7 @@ global function MaybeAddWeaponToLootBinOnOpen
       
 
 global function GetStaticWeaponLocations
+global function SURVIVAL_GetWeaponSpotLocations
 
 global function ShouldForceUseSafeSpotForDeathBox_AddPlayer
 global function ShouldForceUseSafeSpotForDeathBox_RemovePlayer
@@ -295,6 +296,8 @@ global struct ThrowLootParams
 	int      count = 1
 	entity   player = null
 	entity   deathBox = null
+	// realms for a throw no player owns; unset, the item is visible in every realm
+	entity   realmSource = null
 	vector   spawnAngles = <-1, -1, -1>
 	float[2] throwVelocityRange = [150.0, 250.0]
 }
@@ -501,6 +504,7 @@ struct {
        
 
 	array<vector> staticWeaponLocations
+	array<vector> weaponSpotLocations
 
 	array<entity> playersThatShouldForceUseSafeSpotForDeathBox
 
@@ -1120,12 +1124,27 @@ array<vector> function GetStaticWeaponLocations()
 	return file.staticWeaponLocations
 }
 
+// Every ground loot spot the map authors (a location's linked children, or the
+// location itself), kept after the entities are destroyed. Moving geo is left out.
+array<vector> function SURVIVAL_GetWeaponSpotLocations()
+{
+	return file.weaponSpotLocations
+}
+
 void function SURVIVAL_AddWeaponLocation( entity weaponLocation )
 {
 	bool onMovingGeo = SURVIVAL_ShouldBinOrSpawnPointMoveWithGeo( weaponLocation )
 
 	if ( !onMovingGeo )
+	{
 		file.staticWeaponLocations.append( weaponLocation.GetOrigin() )
+
+		array<entity> spots = weaponLocation.GetLinkEntArray()
+		if ( spots.len() == 0 )
+			file.weaponSpotLocations.append( weaponLocation.GetOrigin() )
+		foreach ( entity spot in spots )
+			file.weaponSpotLocations.append( spot.GetOrigin() )
+	}
 
 
 	if ( !ShouldProcessSpecialZones() )
@@ -3291,7 +3310,7 @@ bool function DismantleModsOnWeapon_Internal( entity pickup, int extraAmmoToSpaw
 
 			threwMod = true
 
-			SURVIVAL_ThrowLootFromPoint( pickup.GetOrigin() + <0, 0, 8>, vel, mod, 1, pickupOwner, deathBox )
+			SURVIVAL_ThrowLootFromPoint( pickup.GetOrigin() + <0, 0, 8>, vel, mod, 1, pickupOwner, deathBox, pickup )
 		}
 	}
 
@@ -3331,7 +3350,7 @@ bool function DismantleModsOnWeapon_Internal( entity pickup, int extraAmmoToSpaw
 				{
 					vector vel = RandomVec( 150 )
 					vel = Normalize( <vel.x, vel.y, 250> )
-					SURVIVAL_ThrowLootFromPoint( pickup.GetOrigin() + <0, 0, 8>, vel, ammoType, ammoToSpawn, pickupOwner, deathBox )
+					SURVIVAL_ThrowLootFromPoint( pickup.GetOrigin() + <0, 0, 8>, vel, ammoType, ammoToSpawn, pickupOwner, deathBox, pickup )
 				}
 			}
 		}
@@ -7237,11 +7256,19 @@ entity function SURVIVAL_ThrowLootFromPointEx( ThrowLootParams params )
 		FakePhysicsThrow( player, ent, vel, true )
 	}
 
+	if ( !IsValid( player ) && IsValid( params.realmSource ) && !IsValid( params.deathBox ) )
+	{
+		entity carrier = ent.GetParent()
+		if ( IsValid( carrier ) && carrier.GetScriptName() == THROWN_OBJECT_PHYSICS_ENT_SCRIPTNAME )
+			CopyRealmsFromTo( params.realmSource, carrier )
+		CopyRealmsFromTo( params.realmSource, ent )
+	}
+
 	return ent
 }
 
 
-entity function SURVIVAL_ThrowLootFromPoint( vector dropOrg, vector fwd, string ref, int count = 1, entity player = null, entity deathBox = null )
+entity function SURVIVAL_ThrowLootFromPoint( vector dropOrg, vector fwd, string ref, int count = 1, entity player = null, entity deathBox = null, entity realmSource = null )
 {
 	ThrowLootParams params
 	params.dropOrg = dropOrg
@@ -7250,6 +7277,7 @@ entity function SURVIVAL_ThrowLootFromPoint( vector dropOrg, vector fwd, string 
 	params.count = count
 	params.player = player
 	params.deathBox = deathBox
+	params.realmSource = realmSource
 
 	return SURVIVAL_ThrowLootFromPointEx( params )
 }
@@ -7286,7 +7314,7 @@ void function SURVIVAL_ThrowPlayerAmmoFromPoint( entity player, vector lootSpawn
 		{
 			vector vel = RandomVec( 150 )
 			vel = Normalize( <vel.x,vel.y,250> )
-			entity lootEnt = SURVIVAL_ThrowLootFromPoint( lootSpawnOrigin, vel, ref, countPerDrop, null, null )
+			entity lootEnt = SURVIVAL_ThrowLootFromPoint( lootSpawnOrigin, vel, ref, countPerDrop, null, null, player )
 		}
 	}
 }

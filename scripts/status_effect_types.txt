@@ -319,6 +319,13 @@ in_olympus_rift
 	slide_gate_boosting
 	overdrive_ult_scan
 	overdrive_ult_tracking
+	halo_visuals
+	hit_by_sonar_dart
+	hit_by_sparrow_ult
+	on_hit_list
+	arco_ult_scan
+	newcastle_ult_shield_regen
+	valk_tac_scan
       
 
                    

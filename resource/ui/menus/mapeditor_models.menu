@@ -2,159 +2,1996 @@ resource/ui/menus/mapeditor_models.menu
 {
 	menu
 	{
-		ControlName				Frame
-		xpos					0
-		ypos					0
-		zpos					3
-		wide					f0
-		tall					f0
-		autoResize				0
-		pinCorner				0
-		visible					1
-		enabled					1
-		PaintBackgroundType		0
+		ControlName	Frame
+		xpos	0
+		ypos	0
+		zpos	3
+		wide	f0
+		tall	f0
+		autoResize	0
+		pinCorner	0
+		visible	1
+		enabled	1
+		PaintBackgroundType	0
 		infocus_bgcolor_override	"0 0 0 0"
 		outoffocus_bgcolor_override	"0 0 0 0"
 
-		ScreenBlur
-		{
-			ControlName				Label
-			labelText				""
-		}
-
 		DarkenBackground
 		{
-			ControlName				ImagePanel
-			xpos					0
-			ypos					0
-			wide					%100
-			tall					%100
-			visible					1
-			scaleImage				1
-			image					"vgui/white"
-			drawColor				"0 0 0 200"
-			zpos					0
+			ControlName	ImagePanel
+			xpos	0
+			ypos	0
+			wide	%100
+			tall	%100
+			visible	1
+			scaleImage	1
+			image	"vgui/white"
+			drawColor	"6 8 10 190"
+			zpos	0
 		}
 
-		TitleLabel
+		Frame
 		{
-			ControlName				Label
-			labelText				"Models"
-			font					DefaultBold_41
-			fontHeight				28
-			xpos					40
-			ypos					36
-			wide					1840
-			tall					40
-			fgcolor_override		"255 255 255 255"
-			visible					1
-			zpos					10
+			ControlName	Label
+			xpos	c-960
+			ypos	0
+			wide	1920
+			tall	1080
+			labelText	""
+			visible	1
+			zpos	1
 		}
 
-		CategoryBG
+		DimBrowseTop
 		{
-			ControlName				ImagePanel
-			xpos					40
-			ypos					90
-			wide					360
-			tall					820
-			fillColor				"20 20 20 190"
-			drawColor				"20 20 20 190"
-			visible					1
-			zpos					1
+			ControlName	ImagePanel
+			xpos	0
+			ypos	0
+			wide	4000
+			tall	116
+			visible	0
+			scaleImage	1
+			image	"vgui/white"
+			drawColor	"6 8 10 190"
+			zpos	0
 		}
 
-		CategoryList
+		DimBrowseBottom
 		{
-			ControlName				GridButtonListPanel
-			xpos					40
-			ypos					90
-			wide					360
-			tall					820
-			columns					1
-			rows					16
-			buttonSpacing			2
-			scrollbarSpacing		1
-			scrollbarOnLeft			0
-			setUnusedScrollbarInvisible 0
-			visible					1
-			zpos					5
-			tabPosition				1
-			selectOnDpadNav			1
-
-			ButtonSettings
-			{
-				rui						"ui/generic_item_button.rpak"
-				clipRui					1
-				wide					352
-				tall					48
-				cursorVelocityModifier	0.7
-				rightClickEvents		0
-				doubleClickEvents		1
-				sound_focus				"UI_Menu_Focus_Small"
-				sound_accept			""
-				sound_deny				""
-			}
+			ControlName	ImagePanel
+			xpos	0
+			ypos	774
+			wide	4000
+			tall	4000
+			visible	0
+			scaleImage	1
+			image	"vgui/white"
+			drawColor	"6 8 10 190"
+			zpos	0
 		}
 
-		ModelListBG
+		DimBrowseLeft
 		{
-			ControlName				ImagePanel
-			xpos					420
-			ypos					90
-			wide					1480
-			tall					820
-			fillColor				"20 20 20 190"
-			drawColor				"20 20 20 190"
-			visible					1
-			zpos					1
+			ControlName	ImagePanel
+			xpos	-1022
+			ypos	-116
+			wide	4000
+			tall	658
+			visible	0
+			scaleImage	1
+			image	"vgui/white"
+			drawColor	"6 8 10 190"
+			zpos	0
+			pin_to_sibling	Frame
+			pin_corner_to_sibling	TOP_RIGHT
+			pin_to_sibling_corner	TOP_LEFT
 		}
 
-		ModelList
+		DimBrowseRight
 		{
-			ControlName				GridButtonListPanel
-			xpos					420
-			ypos					90
-			wide					1480
-			tall					820
-			columns					1
-			rows					16
-			buttonSpacing			2
-			scrollbarSpacing		1
-			scrollbarOnLeft			0
-			setUnusedScrollbarInvisible 0
-			visible					1
-			zpos					5
-			tabPosition				2
-			selectOnDpadNav			1
+			ControlName	ImagePanel
+			xpos	-1880
+			ypos	-116
+			wide	4000
+			tall	658
+			visible	0
+			scaleImage	1
+			image	"vgui/white"
+			drawColor	"6 8 10 190"
+			zpos	0
+			pin_to_sibling	Frame
+			pin_corner_to_sibling	TOP_LEFT
+			pin_to_sibling_corner	TOP_LEFT
+		}
 
-			ButtonSettings
-			{
-				rui						"ui/generic_item_button.rpak"
-				clipRui					1
-				wide					1472
-				tall					48
-				cursorVelocityModifier	0.7
-				rightClickEvents		0
-				doubleClickEvents		1
-				sound_focus				"UI_Menu_Focus_Small"
-				sound_accept			""
-				sound_deny				""
-			}
+		DimFullTop
+		{
+			ControlName	ImagePanel
+			xpos	0
+			ypos	0
+			wide	4000
+			tall	116
+			visible	0
+			scaleImage	1
+			image	"vgui/white"
+			drawColor	"6 8 10 190"
+			zpos	0
+		}
+
+		DimFullBottom
+		{
+			ControlName	ImagePanel
+			xpos	0
+			ypos	1040
+			wide	4000
+			tall	4000
+			visible	0
+			scaleImage	1
+			image	"vgui/white"
+			drawColor	"6 8 10 190"
+			zpos	0
+		}
+
+		DimFullLeft
+		{
+			ControlName	ImagePanel
+			xpos	-296
+			ypos	-116
+			wide	4000
+			tall	924
+			visible	0
+			scaleImage	1
+			image	"vgui/white"
+			drawColor	"6 8 10 190"
+			zpos	0
+			pin_to_sibling	Frame
+			pin_corner_to_sibling	TOP_RIGHT
+			pin_to_sibling_corner	TOP_LEFT
+		}
+
+		DimFullRight
+		{
+			ControlName	ImagePanel
+			xpos	-1880
+			ypos	-116
+			wide	4000
+			tall	924
+			visible	0
+			scaleImage	1
+			image	"vgui/white"
+			drawColor	"6 8 10 190"
+			zpos	0
+			pin_to_sibling	Frame
+			pin_corner_to_sibling	TOP_LEFT
+			pin_to_sibling_corner	TOP_LEFT
+		}
+
+		BrowserRui
+		{
+			ControlName	RuiPanel
+			xpos	0
+			ypos	0
+			wide	1920
+			tall	1080
+			zpos	10
+			visible	1
+			enabled	1
+			rui	"ui/fs_me_browser.rpak"
+			pin_to_sibling	Frame
+			pin_corner_to_sibling	TOP_LEFT
+			pin_to_sibling_corner	TOP_LEFT
+		}
+
+		CatsRui
+		{
+			ControlName	RuiPanel
+			xpos	0
+			ypos	0
+			wide	1920
+			tall	1080
+			zpos	11
+			visible	1
+			enabled	1
+			rui	"ui/fs_me_cats.rpak"
+			pin_to_sibling	Frame
+			pin_corner_to_sibling	TOP_LEFT
+			pin_to_sibling_corner	TOP_LEFT
+		}
+
+		ModelsRui
+		{
+			ControlName	RuiPanel
+			xpos	0
+			ypos	0
+			wide	1920
+			tall	1080
+			zpos	11
+			visible	1
+			enabled	1
+			rui	"ui/fs_me_models.rpak"
+			pin_to_sibling	Frame
+			pin_corner_to_sibling	TOP_LEFT
+			pin_to_sibling_corner	TOP_LEFT
+		}
+
+		InfoRui
+		{
+			ControlName	RuiPanel
+			xpos	0
+			ypos	0
+			wide	1920
+			tall	1080
+			zpos	11
+			visible	1
+			enabled	1
+			rui	"ui/fs_me_info.rpak"
+			pin_to_sibling	Frame
+			pin_corner_to_sibling	TOP_LEFT
+			pin_to_sibling_corner	TOP_LEFT
+		}
+
+		PreviewArea
+		{
+			ControlName	RuiButton
+			xpos	-1022
+			ypos	-116
+			wide	858
+			tall	658
+			zpos	40
+			visible	1
+			enabled	1
+			rui	"ui/invisible.rpak"
+			sound_focus	"UI_Menu_Focus_Small"
+			sound_accept	"UI_Menu_Accept"
+			cursorVelocityModifier	"0.7"
+			pin_to_sibling	Frame
+			pin_corner_to_sibling	TOP_LEFT
+			pin_to_sibling_corner	TOP_LEFT
+		}
+
+		PreviewAreaFs
+		{
+			ControlName	RuiButton
+			xpos	-296
+			ypos	-116
+			wide	1584
+			tall	924
+			zpos	40
+			visible	1
+			enabled	1
+			rui	"ui/invisible.rpak"
+			sound_focus	"UI_Menu_Focus_Small"
+			sound_accept	"UI_Menu_Accept"
+			cursorVelocityModifier	"0.7"
+			pin_to_sibling	Frame
+			pin_corner_to_sibling	TOP_LEFT
+			pin_to_sibling_corner	TOP_LEFT
+		}
+
+		PacksButton
+		{
+			ControlName	RuiButton
+			xpos	-58
+			ypos	-974
+			wide	200
+			tall	48
+			zpos	50
+			visible	1
+			enabled	1
+			rui	"ui/invisible.rpak"
+			sound_focus	"UI_Menu_Focus_Small"
+			sound_accept	"UI_Menu_Accept"
+			cursorVelocityModifier	"0.7"
+			pin_to_sibling	Frame
+			pin_corner_to_sibling	TOP_LEFT
+			pin_to_sibling_corner	TOP_LEFT
+		}
+
+		Tab0
+		{
+			ControlName	RuiButton
+			xpos	-310
+			ypos	-134
+			wide	111
+			tall	44
+			zpos	50
+			visible	1
+			enabled	1
+			rui	"ui/invisible.rpak"
+			sound_focus	"UI_Menu_Focus_Small"
+			sound_accept	"UI_Menu_Accept"
+			cursorVelocityModifier	"0.7"
+			pin_to_sibling	Frame
+			pin_corner_to_sibling	TOP_LEFT
+			pin_to_sibling_corner	TOP_LEFT
+		}
+
+		Tab1
+		{
+			ControlName	RuiButton
+			xpos	-427
+			ypos	-134
+			wide	111
+			tall	44
+			zpos	50
+			visible	1
+			enabled	1
+			rui	"ui/invisible.rpak"
+			sound_focus	"UI_Menu_Focus_Small"
+			sound_accept	"UI_Menu_Accept"
+			cursorVelocityModifier	"0.7"
+			pin_to_sibling	Frame
+			pin_corner_to_sibling	TOP_LEFT
+			pin_to_sibling_corner	TOP_LEFT
+		}
+
+		Cat0
+		{
+			ControlName	RuiButton
+			xpos	-310
+			ypos	-190
+			wide	228
+			tall	40
+			zpos	50
+			visible	1
+			enabled	1
+			rui	"ui/invisible.rpak"
+			sound_focus	"UI_Menu_Focus_Small"
+			sound_accept	"UI_Menu_Accept"
+			cursorVelocityModifier	"0.7"
+			pin_to_sibling	Frame
+			pin_corner_to_sibling	TOP_LEFT
+			pin_to_sibling_corner	TOP_LEFT
+		}
+
+		Cat1
+		{
+			ControlName	RuiButton
+			xpos	-310
+			ypos	-234
+			wide	228
+			tall	40
+			zpos	50
+			visible	1
+			enabled	1
+			rui	"ui/invisible.rpak"
+			sound_focus	"UI_Menu_Focus_Small"
+			sound_accept	"UI_Menu_Accept"
+			cursorVelocityModifier	"0.7"
+			pin_to_sibling	Frame
+			pin_corner_to_sibling	TOP_LEFT
+			pin_to_sibling_corner	TOP_LEFT
+		}
+
+		Cat2
+		{
+			ControlName	RuiButton
+			xpos	-310
+			ypos	-278
+			wide	228
+			tall	40
+			zpos	50
+			visible	1
+			enabled	1
+			rui	"ui/invisible.rpak"
+			sound_focus	"UI_Menu_Focus_Small"
+			sound_accept	"UI_Menu_Accept"
+			cursorVelocityModifier	"0.7"
+			pin_to_sibling	Frame
+			pin_corner_to_sibling	TOP_LEFT
+			pin_to_sibling_corner	TOP_LEFT
+		}
+
+		Cat3
+		{
+			ControlName	RuiButton
+			xpos	-310
+			ypos	-322
+			wide	228
+			tall	40
+			zpos	50
+			visible	1
+			enabled	1
+			rui	"ui/invisible.rpak"
+			sound_focus	"UI_Menu_Focus_Small"
+			sound_accept	"UI_Menu_Accept"
+			cursorVelocityModifier	"0.7"
+			pin_to_sibling	Frame
+			pin_corner_to_sibling	TOP_LEFT
+			pin_to_sibling_corner	TOP_LEFT
+		}
+
+		Cat4
+		{
+			ControlName	RuiButton
+			xpos	-310
+			ypos	-366
+			wide	228
+			tall	40
+			zpos	50
+			visible	1
+			enabled	1
+			rui	"ui/invisible.rpak"
+			sound_focus	"UI_Menu_Focus_Small"
+			sound_accept	"UI_Menu_Accept"
+			cursorVelocityModifier	"0.7"
+			pin_to_sibling	Frame
+			pin_corner_to_sibling	TOP_LEFT
+			pin_to_sibling_corner	TOP_LEFT
+		}
+
+		Cat5
+		{
+			ControlName	RuiButton
+			xpos	-310
+			ypos	-410
+			wide	228
+			tall	40
+			zpos	50
+			visible	1
+			enabled	1
+			rui	"ui/invisible.rpak"
+			sound_focus	"UI_Menu_Focus_Small"
+			sound_accept	"UI_Menu_Accept"
+			cursorVelocityModifier	"0.7"
+			pin_to_sibling	Frame
+			pin_corner_to_sibling	TOP_LEFT
+			pin_to_sibling_corner	TOP_LEFT
+		}
+
+		Cat6
+		{
+			ControlName	RuiButton
+			xpos	-310
+			ypos	-454
+			wide	228
+			tall	40
+			zpos	50
+			visible	1
+			enabled	1
+			rui	"ui/invisible.rpak"
+			sound_focus	"UI_Menu_Focus_Small"
+			sound_accept	"UI_Menu_Accept"
+			cursorVelocityModifier	"0.7"
+			pin_to_sibling	Frame
+			pin_corner_to_sibling	TOP_LEFT
+			pin_to_sibling_corner	TOP_LEFT
+		}
+
+		Cat7
+		{
+			ControlName	RuiButton
+			xpos	-310
+			ypos	-498
+			wide	228
+			tall	40
+			zpos	50
+			visible	1
+			enabled	1
+			rui	"ui/invisible.rpak"
+			sound_focus	"UI_Menu_Focus_Small"
+			sound_accept	"UI_Menu_Accept"
+			cursorVelocityModifier	"0.7"
+			pin_to_sibling	Frame
+			pin_corner_to_sibling	TOP_LEFT
+			pin_to_sibling_corner	TOP_LEFT
+		}
+
+		Cat8
+		{
+			ControlName	RuiButton
+			xpos	-310
+			ypos	-542
+			wide	228
+			tall	40
+			zpos	50
+			visible	1
+			enabled	1
+			rui	"ui/invisible.rpak"
+			sound_focus	"UI_Menu_Focus_Small"
+			sound_accept	"UI_Menu_Accept"
+			cursorVelocityModifier	"0.7"
+			pin_to_sibling	Frame
+			pin_corner_to_sibling	TOP_LEFT
+			pin_to_sibling_corner	TOP_LEFT
+		}
+
+		Cat9
+		{
+			ControlName	RuiButton
+			xpos	-310
+			ypos	-586
+			wide	228
+			tall	40
+			zpos	50
+			visible	1
+			enabled	1
+			rui	"ui/invisible.rpak"
+			sound_focus	"UI_Menu_Focus_Small"
+			sound_accept	"UI_Menu_Accept"
+			cursorVelocityModifier	"0.7"
+			pin_to_sibling	Frame
+			pin_corner_to_sibling	TOP_LEFT
+			pin_to_sibling_corner	TOP_LEFT
+		}
+
+		Cat10
+		{
+			ControlName	RuiButton
+			xpos	-310
+			ypos	-630
+			wide	228
+			tall	40
+			zpos	50
+			visible	1
+			enabled	1
+			rui	"ui/invisible.rpak"
+			sound_focus	"UI_Menu_Focus_Small"
+			sound_accept	"UI_Menu_Accept"
+			cursorVelocityModifier	"0.7"
+			pin_to_sibling	Frame
+			pin_corner_to_sibling	TOP_LEFT
+			pin_to_sibling_corner	TOP_LEFT
+		}
+
+		Cat11
+		{
+			ControlName	RuiButton
+			xpos	-310
+			ypos	-674
+			wide	228
+			tall	40
+			zpos	50
+			visible	1
+			enabled	1
+			rui	"ui/invisible.rpak"
+			sound_focus	"UI_Menu_Focus_Small"
+			sound_accept	"UI_Menu_Accept"
+			cursorVelocityModifier	"0.7"
+			pin_to_sibling	Frame
+			pin_corner_to_sibling	TOP_LEFT
+			pin_to_sibling_corner	TOP_LEFT
+		}
+
+		Cat12
+		{
+			ControlName	RuiButton
+			xpos	-310
+			ypos	-718
+			wide	228
+			tall	40
+			zpos	50
+			visible	1
+			enabled	1
+			rui	"ui/invisible.rpak"
+			sound_focus	"UI_Menu_Focus_Small"
+			sound_accept	"UI_Menu_Accept"
+			cursorVelocityModifier	"0.7"
+			pin_to_sibling	Frame
+			pin_corner_to_sibling	TOP_LEFT
+			pin_to_sibling_corner	TOP_LEFT
+		}
+
+		Cat13
+		{
+			ControlName	RuiButton
+			xpos	-310
+			ypos	-762
+			wide	228
+			tall	40
+			zpos	50
+			visible	1
+			enabled	1
+			rui	"ui/invisible.rpak"
+			sound_focus	"UI_Menu_Focus_Small"
+			sound_accept	"UI_Menu_Accept"
+			cursorVelocityModifier	"0.7"
+			pin_to_sibling	Frame
+			pin_corner_to_sibling	TOP_LEFT
+			pin_to_sibling_corner	TOP_LEFT
+		}
+
+		Cat14
+		{
+			ControlName	RuiButton
+			xpos	-310
+			ypos	-806
+			wide	228
+			tall	40
+			zpos	50
+			visible	1
+			enabled	1
+			rui	"ui/invisible.rpak"
+			sound_focus	"UI_Menu_Focus_Small"
+			sound_accept	"UI_Menu_Accept"
+			cursorVelocityModifier	"0.7"
+			pin_to_sibling	Frame
+			pin_corner_to_sibling	TOP_LEFT
+			pin_to_sibling_corner	TOP_LEFT
+		}
+
+		Cat15
+		{
+			ControlName	RuiButton
+			xpos	-310
+			ypos	-850
+			wide	228
+			tall	40
+			zpos	50
+			visible	1
+			enabled	1
+			rui	"ui/invisible.rpak"
+			sound_focus	"UI_Menu_Focus_Small"
+			sound_accept	"UI_Menu_Accept"
+			cursorVelocityModifier	"0.7"
+			pin_to_sibling	Frame
+			pin_corner_to_sibling	TOP_LEFT
+			pin_to_sibling_corner	TOP_LEFT
+		}
+
+		Cat16
+		{
+			ControlName	RuiButton
+			xpos	-310
+			ypos	-894
+			wide	228
+			tall	40
+			zpos	50
+			visible	1
+			enabled	1
+			rui	"ui/invisible.rpak"
+			sound_focus	"UI_Menu_Focus_Small"
+			sound_accept	"UI_Menu_Accept"
+			cursorVelocityModifier	"0.7"
+			pin_to_sibling	Frame
+			pin_corner_to_sibling	TOP_LEFT
+			pin_to_sibling_corner	TOP_LEFT
+		}
+
+		Cat17
+		{
+			ControlName	RuiButton
+			xpos	-310
+			ypos	-938
+			wide	228
+			tall	40
+			zpos	50
+			visible	1
+			enabled	1
+			rui	"ui/invisible.rpak"
+			sound_focus	"UI_Menu_Focus_Small"
+			sound_accept	"UI_Menu_Accept"
+			cursorVelocityModifier	"0.7"
+			pin_to_sibling	Frame
+			pin_corner_to_sibling	TOP_LEFT
+			pin_to_sibling_corner	TOP_LEFT
+		}
+
+		Filter_all
+		{
+			ControlName	RuiButton
+			xpos	-588
+			ypos	-208
+			wide	64
+			tall	30
+			zpos	50
+			visible	1
+			enabled	1
+			rui	"ui/invisible.rpak"
+			sound_focus	"UI_Menu_Focus_Small"
+			sound_accept	"UI_Menu_Accept"
+			cursorVelocityModifier	"0.7"
+			pin_to_sibling	Frame
+			pin_corner_to_sibling	TOP_LEFT
+			pin_to_sibling_corner	TOP_LEFT
+		}
+
+		Filter_solid
+		{
+			ControlName	RuiButton
+			xpos	-658
+			ypos	-208
+			wide	84
+			tall	30
+			zpos	50
+			visible	1
+			enabled	1
+			rui	"ui/invisible.rpak"
+			sound_focus	"UI_Menu_Focus_Small"
+			sound_accept	"UI_Menu_Accept"
+			cursorVelocityModifier	"0.7"
+			pin_to_sibling	Frame
+			pin_corner_to_sibling	TOP_LEFT
+			pin_to_sibling_corner	TOP_LEFT
+		}
+
+		Filter_ghost
+		{
+			ControlName	RuiButton
+			xpos	-748
+			ypos	-208
+			wide	136
+			tall	30
+			zpos	50
+			visible	1
+			enabled	1
+			rui	"ui/invisible.rpak"
+			sound_focus	"UI_Menu_Focus_Small"
+			sound_accept	"UI_Menu_Accept"
+			cursorVelocityModifier	"0.7"
+			pin_to_sibling	Frame
+			pin_corner_to_sibling	TOP_LEFT
+			pin_to_sibling_corner	TOP_LEFT
+		}
+
+		Row0
+		{
+			ControlName	RuiButton
+			xpos	-586
+			ypos	-272
+			wide	402
+			tall	54
+			zpos	50
+			visible	1
+			enabled	1
+			rui	"ui/invisible.rpak"
+			sound_focus	"UI_Menu_Focus_Small"
+			sound_accept	"UI_Menu_Accept"
+			rightClickEvents	1
+			cursorVelocityModifier	"0.7"
+			pin_to_sibling	Frame
+			pin_corner_to_sibling	TOP_LEFT
+			pin_to_sibling_corner	TOP_LEFT
+		}
+
+		Row1
+		{
+			ControlName	RuiButton
+			xpos	-586
+			ypos	-330
+			wide	402
+			tall	54
+			zpos	50
+			visible	1
+			enabled	1
+			rui	"ui/invisible.rpak"
+			sound_focus	"UI_Menu_Focus_Small"
+			sound_accept	"UI_Menu_Accept"
+			rightClickEvents	1
+			cursorVelocityModifier	"0.7"
+			pin_to_sibling	Frame
+			pin_corner_to_sibling	TOP_LEFT
+			pin_to_sibling_corner	TOP_LEFT
+		}
+
+		Row2
+		{
+			ControlName	RuiButton
+			xpos	-586
+			ypos	-388
+			wide	402
+			tall	54
+			zpos	50
+			visible	1
+			enabled	1
+			rui	"ui/invisible.rpak"
+			sound_focus	"UI_Menu_Focus_Small"
+			sound_accept	"UI_Menu_Accept"
+			rightClickEvents	1
+			cursorVelocityModifier	"0.7"
+			pin_to_sibling	Frame
+			pin_corner_to_sibling	TOP_LEFT
+			pin_to_sibling_corner	TOP_LEFT
+		}
+
+		Row3
+		{
+			ControlName	RuiButton
+			xpos	-586
+			ypos	-446
+			wide	402
+			tall	54
+			zpos	50
+			visible	1
+			enabled	1
+			rui	"ui/invisible.rpak"
+			sound_focus	"UI_Menu_Focus_Small"
+			sound_accept	"UI_Menu_Accept"
+			rightClickEvents	1
+			cursorVelocityModifier	"0.7"
+			pin_to_sibling	Frame
+			pin_corner_to_sibling	TOP_LEFT
+			pin_to_sibling_corner	TOP_LEFT
+		}
+
+		Row4
+		{
+			ControlName	RuiButton
+			xpos	-586
+			ypos	-504
+			wide	402
+			tall	54
+			zpos	50
+			visible	1
+			enabled	1
+			rui	"ui/invisible.rpak"
+			sound_focus	"UI_Menu_Focus_Small"
+			sound_accept	"UI_Menu_Accept"
+			rightClickEvents	1
+			cursorVelocityModifier	"0.7"
+			pin_to_sibling	Frame
+			pin_corner_to_sibling	TOP_LEFT
+			pin_to_sibling_corner	TOP_LEFT
+		}
+
+		Row5
+		{
+			ControlName	RuiButton
+			xpos	-586
+			ypos	-562
+			wide	402
+			tall	54
+			zpos	50
+			visible	1
+			enabled	1
+			rui	"ui/invisible.rpak"
+			sound_focus	"UI_Menu_Focus_Small"
+			sound_accept	"UI_Menu_Accept"
+			rightClickEvents	1
+			cursorVelocityModifier	"0.7"
+			pin_to_sibling	Frame
+			pin_corner_to_sibling	TOP_LEFT
+			pin_to_sibling_corner	TOP_LEFT
+		}
+
+		Row6
+		{
+			ControlName	RuiButton
+			xpos	-586
+			ypos	-620
+			wide	402
+			tall	54
+			zpos	50
+			visible	1
+			enabled	1
+			rui	"ui/invisible.rpak"
+			sound_focus	"UI_Menu_Focus_Small"
+			sound_accept	"UI_Menu_Accept"
+			rightClickEvents	1
+			cursorVelocityModifier	"0.7"
+			pin_to_sibling	Frame
+			pin_corner_to_sibling	TOP_LEFT
+			pin_to_sibling_corner	TOP_LEFT
+		}
+
+		Row7
+		{
+			ControlName	RuiButton
+			xpos	-586
+			ypos	-678
+			wide	402
+			tall	54
+			zpos	50
+			visible	1
+			enabled	1
+			rui	"ui/invisible.rpak"
+			sound_focus	"UI_Menu_Focus_Small"
+			sound_accept	"UI_Menu_Accept"
+			rightClickEvents	1
+			cursorVelocityModifier	"0.7"
+			pin_to_sibling	Frame
+			pin_corner_to_sibling	TOP_LEFT
+			pin_to_sibling_corner	TOP_LEFT
+		}
+
+		Row8
+		{
+			ControlName	RuiButton
+			xpos	-586
+			ypos	-736
+			wide	402
+			tall	54
+			zpos	50
+			visible	1
+			enabled	1
+			rui	"ui/invisible.rpak"
+			sound_focus	"UI_Menu_Focus_Small"
+			sound_accept	"UI_Menu_Accept"
+			rightClickEvents	1
+			cursorVelocityModifier	"0.7"
+			pin_to_sibling	Frame
+			pin_corner_to_sibling	TOP_LEFT
+			pin_to_sibling_corner	TOP_LEFT
+		}
+
+		Row9
+		{
+			ControlName	RuiButton
+			xpos	-586
+			ypos	-794
+			wide	402
+			tall	54
+			zpos	50
+			visible	1
+			enabled	1
+			rui	"ui/invisible.rpak"
+			sound_focus	"UI_Menu_Focus_Small"
+			sound_accept	"UI_Menu_Accept"
+			rightClickEvents	1
+			cursorVelocityModifier	"0.7"
+			pin_to_sibling	Frame
+			pin_corner_to_sibling	TOP_LEFT
+			pin_to_sibling_corner	TOP_LEFT
+		}
+
+		Row10
+		{
+			ControlName	RuiButton
+			xpos	-586
+			ypos	-852
+			wide	402
+			tall	54
+			zpos	50
+			visible	1
+			enabled	1
+			rui	"ui/invisible.rpak"
+			sound_focus	"UI_Menu_Focus_Small"
+			sound_accept	"UI_Menu_Accept"
+			rightClickEvents	1
+			cursorVelocityModifier	"0.7"
+			pin_to_sibling	Frame
+			pin_corner_to_sibling	TOP_LEFT
+			pin_to_sibling_corner	TOP_LEFT
+		}
+
+		Row11
+		{
+			ControlName	RuiButton
+			xpos	-586
+			ypos	-910
+			wide	402
+			tall	54
+			zpos	50
+			visible	1
+			enabled	1
+			rui	"ui/invisible.rpak"
+			sound_focus	"UI_Menu_Focus_Small"
+			sound_accept	"UI_Menu_Accept"
+			rightClickEvents	1
+			cursorVelocityModifier	"0.7"
+			pin_to_sibling	Frame
+			pin_corner_to_sibling	TOP_LEFT
+			pin_to_sibling_corner	TOP_LEFT
+		}
+
+		Row12
+		{
+			ControlName	RuiButton
+			xpos	-586
+			ypos	-968
+			wide	402
+			tall	54
+			zpos	50
+			visible	1
+			enabled	1
+			rui	"ui/invisible.rpak"
+			sound_focus	"UI_Menu_Focus_Small"
+			sound_accept	"UI_Menu_Accept"
+			rightClickEvents	1
+			cursorVelocityModifier	"0.7"
+			pin_to_sibling	Frame
+			pin_corner_to_sibling	TOP_LEFT
+			pin_to_sibling_corner	TOP_LEFT
+		}
+
+		Tool_rotl
+		{
+			ControlName	RuiButton
+			xpos	-1063
+			ypos	-698
+			wide	44
+			tall	44
+			zpos	60
+			visible	1
+			enabled	1
+			rui	"ui/invisible.rpak"
+			sound_focus	"UI_Menu_Focus_Small"
+			sound_accept	"UI_Menu_Accept"
+			cursorVelocityModifier	"0.7"
+			pin_to_sibling	Frame
+			pin_corner_to_sibling	TOP_LEFT
+			pin_to_sibling_corner	TOP_LEFT
+		}
+
+		Tool_rotr
+		{
+			ControlName	RuiButton
+			xpos	-1113
+			ypos	-698
+			wide	44
+			tall	44
+			zpos	60
+			visible	1
+			enabled	1
+			rui	"ui/invisible.rpak"
+			sound_focus	"UI_Menu_Focus_Small"
+			sound_accept	"UI_Menu_Accept"
+			cursorVelocityModifier	"0.7"
+			pin_to_sibling	Frame
+			pin_corner_to_sibling	TOP_LEFT
+			pin_to_sibling_corner	TOP_LEFT
+		}
+
+		Tool_zoomout
+		{
+			ControlName	RuiButton
+			xpos	-1170
+			ypos	-698
+			wide	44
+			tall	44
+			zpos	60
+			visible	1
+			enabled	1
+			rui	"ui/invisible.rpak"
+			sound_focus	"UI_Menu_Focus_Small"
+			sound_accept	"UI_Menu_Accept"
+			cursorVelocityModifier	"0.7"
+			pin_to_sibling	Frame
+			pin_corner_to_sibling	TOP_LEFT
+			pin_to_sibling_corner	TOP_LEFT
+		}
+
+		Tool_slider
+		{
+			ControlName	RuiButton
+			xpos	-1220
+			ypos	-698
+			wide	110
+			tall	44
+			zpos	60
+			visible	1
+			enabled	1
+			rui	"ui/invisible.rpak"
+			sound_focus	"UI_Menu_Focus_Small"
+			sound_accept	"UI_Menu_Accept"
+			cursorVelocityModifier	"0.7"
+			pin_to_sibling	Frame
+			pin_corner_to_sibling	TOP_LEFT
+			pin_to_sibling_corner	TOP_LEFT
+		}
+
+		Tool_zoomin
+		{
+			ControlName	RuiButton
+			xpos	-1336
+			ypos	-698
+			wide	44
+			tall	44
+			zpos	60
+			visible	1
+			enabled	1
+			rui	"ui/invisible.rpak"
+			sound_focus	"UI_Menu_Focus_Small"
+			sound_accept	"UI_Menu_Accept"
+			cursorVelocityModifier	"0.7"
+			pin_to_sibling	Frame
+			pin_corner_to_sibling	TOP_LEFT
+			pin_to_sibling_corner	TOP_LEFT
+		}
+
+		Tool_spin
+		{
+			ControlName	RuiButton
+			xpos	-1393
+			ypos	-698
+			wide	70
+			tall	44
+			zpos	60
+			visible	1
+			enabled	1
+			rui	"ui/invisible.rpak"
+			sound_focus	"UI_Menu_Focus_Small"
+			sound_accept	"UI_Menu_Accept"
+			cursorVelocityModifier	"0.7"
+			pin_to_sibling	Frame
+			pin_corner_to_sibling	TOP_LEFT
+			pin_to_sibling_corner	TOP_LEFT
+		}
+
+		Tool_fit
+		{
+			ControlName	RuiButton
+			xpos	-1469
+			ypos	-698
+			wide	56
+			tall	44
+			zpos	60
+			visible	1
+			enabled	1
+			rui	"ui/invisible.rpak"
+			sound_focus	"UI_Menu_Focus_Small"
+			sound_accept	"UI_Menu_Accept"
+			cursorVelocityModifier	"0.7"
+			pin_to_sibling	Frame
+			pin_corner_to_sibling	TOP_LEFT
+			pin_to_sibling_corner	TOP_LEFT
+		}
+
+		Tool_bounds
+		{
+			ControlName	RuiButton
+			xpos	-1531
+			ypos	-698
+			wide	84
+			tall	44
+			zpos	60
+			visible	1
+			enabled	1
+			rui	"ui/invisible.rpak"
+			sound_focus	"UI_Menu_Focus_Small"
+			sound_accept	"UI_Menu_Accept"
+			cursorVelocityModifier	"0.7"
+			pin_to_sibling	Frame
+			pin_corner_to_sibling	TOP_LEFT
+			pin_to_sibling_corner	TOP_LEFT
+		}
+
+		Tool_light
+		{
+			ControlName	RuiButton
+			xpos	-1621
+			ypos	-698
+			wide	68
+			tall	44
+			zpos	60
+			visible	1
+			enabled	1
+			rui	"ui/invisible.rpak"
+			sound_focus	"UI_Menu_Focus_Small"
+			sound_accept	"UI_Menu_Accept"
+			cursorVelocityModifier	"0.7"
+			pin_to_sibling	Frame
+			pin_corner_to_sibling	TOP_LEFT
+			pin_to_sibling_corner	TOP_LEFT
+		}
+
+		Tool_reset
+		{
+			ControlName	RuiButton
+			xpos	-1695
+			ypos	-698
+			wide	70
+			tall	44
+			zpos	60
+			visible	1
+			enabled	1
+			rui	"ui/invisible.rpak"
+			sound_focus	"UI_Menu_Focus_Small"
+			sound_accept	"UI_Menu_Accept"
+			cursorVelocityModifier	"0.7"
+			pin_to_sibling	Frame
+			pin_corner_to_sibling	TOP_LEFT
+			pin_to_sibling_corner	TOP_LEFT
+		}
+
+		Tool_full
+		{
+			ControlName	RuiButton
+			xpos	-1778
+			ypos	-698
+			wide	60
+			tall	44
+			zpos	60
+			visible	1
+			enabled	1
+			rui	"ui/invisible.rpak"
+			sound_focus	"UI_Menu_Focus_Small"
+			sound_accept	"UI_Menu_Accept"
+			cursorVelocityModifier	"0.7"
+			pin_to_sibling	Frame
+			pin_corner_to_sibling	TOP_LEFT
+			pin_to_sibling_corner	TOP_LEFT
+		}
+
+		ToolFs_rotl
+		{
+			ControlName	RuiButton
+			xpos	-700
+			ypos	-900
+			wide	44
+			tall	44
+			zpos	60
+			visible	1
+			enabled	1
+			rui	"ui/invisible.rpak"
+			sound_focus	"UI_Menu_Focus_Small"
+			sound_accept	"UI_Menu_Accept"
+			cursorVelocityModifier	"0.7"
+			pin_to_sibling	Frame
+			pin_corner_to_sibling	TOP_LEFT
+			pin_to_sibling_corner	TOP_LEFT
+		}
+
+		ToolFs_rotr
+		{
+			ControlName	RuiButton
+			xpos	-750
+			ypos	-900
+			wide	44
+			tall	44
+			zpos	60
+			visible	1
+			enabled	1
+			rui	"ui/invisible.rpak"
+			sound_focus	"UI_Menu_Focus_Small"
+			sound_accept	"UI_Menu_Accept"
+			cursorVelocityModifier	"0.7"
+			pin_to_sibling	Frame
+			pin_corner_to_sibling	TOP_LEFT
+			pin_to_sibling_corner	TOP_LEFT
+		}
+
+		ToolFs_zoomout
+		{
+			ControlName	RuiButton
+			xpos	-807
+			ypos	-900
+			wide	44
+			tall	44
+			zpos	60
+			visible	1
+			enabled	1
+			rui	"ui/invisible.rpak"
+			sound_focus	"UI_Menu_Focus_Small"
+			sound_accept	"UI_Menu_Accept"
+			cursorVelocityModifier	"0.7"
+			pin_to_sibling	Frame
+			pin_corner_to_sibling	TOP_LEFT
+			pin_to_sibling_corner	TOP_LEFT
+		}
+
+		ToolFs_slider
+		{
+			ControlName	RuiButton
+			xpos	-857
+			ypos	-900
+			wide	110
+			tall	44
+			zpos	60
+			visible	1
+			enabled	1
+			rui	"ui/invisible.rpak"
+			sound_focus	"UI_Menu_Focus_Small"
+			sound_accept	"UI_Menu_Accept"
+			cursorVelocityModifier	"0.7"
+			pin_to_sibling	Frame
+			pin_corner_to_sibling	TOP_LEFT
+			pin_to_sibling_corner	TOP_LEFT
+		}
+
+		ToolFs_zoomin
+		{
+			ControlName	RuiButton
+			xpos	-973
+			ypos	-900
+			wide	44
+			tall	44
+			zpos	60
+			visible	1
+			enabled	1
+			rui	"ui/invisible.rpak"
+			sound_focus	"UI_Menu_Focus_Small"
+			sound_accept	"UI_Menu_Accept"
+			cursorVelocityModifier	"0.7"
+			pin_to_sibling	Frame
+			pin_corner_to_sibling	TOP_LEFT
+			pin_to_sibling_corner	TOP_LEFT
+		}
+
+		ToolFs_spin
+		{
+			ControlName	RuiButton
+			xpos	-1030
+			ypos	-900
+			wide	70
+			tall	44
+			zpos	60
+			visible	1
+			enabled	1
+			rui	"ui/invisible.rpak"
+			sound_focus	"UI_Menu_Focus_Small"
+			sound_accept	"UI_Menu_Accept"
+			cursorVelocityModifier	"0.7"
+			pin_to_sibling	Frame
+			pin_corner_to_sibling	TOP_LEFT
+			pin_to_sibling_corner	TOP_LEFT
+		}
+
+		ToolFs_fit
+		{
+			ControlName	RuiButton
+			xpos	-1106
+			ypos	-900
+			wide	56
+			tall	44
+			zpos	60
+			visible	1
+			enabled	1
+			rui	"ui/invisible.rpak"
+			sound_focus	"UI_Menu_Focus_Small"
+			sound_accept	"UI_Menu_Accept"
+			cursorVelocityModifier	"0.7"
+			pin_to_sibling	Frame
+			pin_corner_to_sibling	TOP_LEFT
+			pin_to_sibling_corner	TOP_LEFT
+		}
+
+		ToolFs_bounds
+		{
+			ControlName	RuiButton
+			xpos	-1168
+			ypos	-900
+			wide	84
+			tall	44
+			zpos	60
+			visible	1
+			enabled	1
+			rui	"ui/invisible.rpak"
+			sound_focus	"UI_Menu_Focus_Small"
+			sound_accept	"UI_Menu_Accept"
+			cursorVelocityModifier	"0.7"
+			pin_to_sibling	Frame
+			pin_corner_to_sibling	TOP_LEFT
+			pin_to_sibling_corner	TOP_LEFT
+		}
+
+		ToolFs_light
+		{
+			ControlName	RuiButton
+			xpos	-1258
+			ypos	-900
+			wide	68
+			tall	44
+			zpos	60
+			visible	1
+			enabled	1
+			rui	"ui/invisible.rpak"
+			sound_focus	"UI_Menu_Focus_Small"
+			sound_accept	"UI_Menu_Accept"
+			cursorVelocityModifier	"0.7"
+			pin_to_sibling	Frame
+			pin_corner_to_sibling	TOP_LEFT
+			pin_to_sibling_corner	TOP_LEFT
+		}
+
+		ToolFs_reset
+		{
+			ControlName	RuiButton
+			xpos	-1332
+			ypos	-900
+			wide	70
+			tall	44
+			zpos	60
+			visible	1
+			enabled	1
+			rui	"ui/invisible.rpak"
+			sound_focus	"UI_Menu_Focus_Small"
+			sound_accept	"UI_Menu_Accept"
+			cursorVelocityModifier	"0.7"
+			pin_to_sibling	Frame
+			pin_corner_to_sibling	TOP_LEFT
+			pin_to_sibling_corner	TOP_LEFT
+		}
+
+		ToolFs_full
+		{
+			ControlName	RuiButton
+			xpos	-1415
+			ypos	-900
+			wide	60
+			tall	44
+			zpos	60
+			visible	1
+			enabled	1
+			rui	"ui/invisible.rpak"
+			sound_focus	"UI_Menu_Focus_Small"
+			sound_accept	"UI_Menu_Accept"
+			cursorVelocityModifier	"0.7"
+			pin_to_sibling	Frame
+			pin_corner_to_sibling	TOP_LEFT
+			pin_to_sibling_corner	TOP_LEFT
+		}
+
+		Btn_place
+		{
+			ControlName	RuiButton
+			xpos	-1044
+			ypos	-968
+			wide	140
+			tall	52
+			zpos	50
+			visible	1
+			enabled	1
+			rui	"ui/invisible.rpak"
+			sound_focus	"UI_Menu_Focus_Small"
+			sound_accept	"UI_Menu_Accept"
+			cursorVelocityModifier	"0.7"
+			pin_to_sibling	Frame
+			pin_corner_to_sibling	TOP_LEFT
+			pin_to_sibling_corner	TOP_LEFT
+		}
+
+		Btn_fav
+		{
+			ControlName	RuiButton
+			xpos	-1194
+			ypos	-968
+			wide	120
+			tall	52
+			zpos	50
+			visible	1
+			enabled	1
+			rui	"ui/invisible.rpak"
+			sound_focus	"UI_Menu_Focus_Small"
+			sound_accept	"UI_Menu_Accept"
+			cursorVelocityModifier	"0.7"
+			pin_to_sibling	Frame
+			pin_corner_to_sibling	TOP_LEFT
+			pin_to_sibling_corner	TOP_LEFT
+		}
+
+		Btn_full
+		{
+			ControlName	RuiButton
+			xpos	-1324
+			ypos	-968
+			wide	130
+			tall	52
+			zpos	50
+			visible	1
+			enabled	1
+			rui	"ui/invisible.rpak"
+			sound_focus	"UI_Menu_Focus_Small"
+			sound_accept	"UI_Menu_Accept"
+			cursorVelocityModifier	"0.7"
+			pin_to_sibling	Frame
+			pin_corner_to_sibling	TOP_LEFT
+			pin_to_sibling_corner	TOP_LEFT
+		}
+
+		Set0
+		{
+			ControlName	RuiButton
+			xpos	-1486
+			ypos	-840
+			wide	372
+			tall	44
+			zpos	50
+			visible	1
+			enabled	1
+			rui	"ui/invisible.rpak"
+			sound_focus	"UI_Menu_Focus_Small"
+			sound_accept	"UI_Menu_Accept"
+			cursorVelocityModifier	"0.7"
+			pin_to_sibling	Frame
+			pin_corner_to_sibling	TOP_LEFT
+			pin_to_sibling_corner	TOP_LEFT
+		}
+
+		Set1
+		{
+			ControlName	RuiButton
+			xpos	-1486
+			ypos	-884
+			wide	372
+			tall	44
+			zpos	50
+			visible	1
+			enabled	1
+			rui	"ui/invisible.rpak"
+			sound_focus	"UI_Menu_Focus_Small"
+			sound_accept	"UI_Menu_Accept"
+			cursorVelocityModifier	"0.7"
+			pin_to_sibling	Frame
+			pin_corner_to_sibling	TOP_LEFT
+			pin_to_sibling_corner	TOP_LEFT
+		}
+
+		Set2
+		{
+			ControlName	RuiButton
+			xpos	-1486
+			ypos	-928
+			wide	372
+			tall	44
+			zpos	50
+			visible	1
+			enabled	1
+			rui	"ui/invisible.rpak"
+			sound_focus	"UI_Menu_Focus_Small"
+			sound_accept	"UI_Menu_Accept"
+			cursorVelocityModifier	"0.7"
+			pin_to_sibling	Frame
+			pin_corner_to_sibling	TOP_LEFT
+			pin_to_sibling_corner	TOP_LEFT
+		}
+
+		Set3
+		{
+			ControlName	RuiButton
+			xpos	-1486
+			ypos	-972
+			wide	372
+			tall	44
+			zpos	50
+			visible	1
+			enabled	1
+			rui	"ui/invisible.rpak"
+			sound_focus	"UI_Menu_Focus_Small"
+			sound_accept	"UI_Menu_Accept"
+			cursorVelocityModifier	"0.7"
+			pin_to_sibling	Frame
+			pin_corner_to_sibling	TOP_LEFT
+			pin_to_sibling_corner	TOP_LEFT
+		}
+
+		Fs_fsexit
+		{
+			ControlName	RuiButton
+			xpos	-1680
+			ypos	-44
+			wide	200
+			tall	44
+			zpos	60
+			visible	1
+			enabled	1
+			rui	"ui/invisible.rpak"
+			sound_focus	"UI_Menu_Focus_Small"
+			sound_accept	"UI_Menu_Accept"
+			cursorVelocityModifier	"0.7"
+			pin_to_sibling	Frame
+			pin_corner_to_sibling	TOP_LEFT
+			pin_to_sibling_corner	TOP_LEFT
+		}
+
+		Fs_fsprev
+		{
+			ControlName	RuiButton
+			xpos	-1574
+			ypos	-962
+			wide	52
+			tall	52
+			zpos	60
+			visible	1
+			enabled	1
+			rui	"ui/invisible.rpak"
+			sound_focus	"UI_Menu_Focus_Small"
+			sound_accept	"UI_Menu_Accept"
+			cursorVelocityModifier	"0.7"
+			pin_to_sibling	Frame
+			pin_corner_to_sibling	TOP_LEFT
+			pin_to_sibling_corner	TOP_LEFT
+		}
+
+		Fs_fsnext
+		{
+			ControlName	RuiButton
+			xpos	-1634
+			ypos	-962
+			wide	52
+			tall	52
+			zpos	60
+			visible	1
+			enabled	1
+			rui	"ui/invisible.rpak"
+			sound_focus	"UI_Menu_Focus_Small"
+			sound_accept	"UI_Menu_Accept"
+			cursorVelocityModifier	"0.7"
+			pin_to_sibling	Frame
+			pin_corner_to_sibling	TOP_LEFT
+			pin_to_sibling_corner	TOP_LEFT
+		}
+
+		Fs_fsplace
+		{
+			ControlName	RuiButton
+			xpos	-1694
+			ypos	-962
+			wide	150
+			tall	52
+			zpos	60
+			visible	1
+			enabled	1
+			rui	"ui/invisible.rpak"
+			sound_focus	"UI_Menu_Focus_Small"
+			sound_accept	"UI_Menu_Accept"
+			cursorVelocityModifier	"0.7"
+			pin_to_sibling	Frame
+			pin_corner_to_sibling	TOP_LEFT
+			pin_to_sibling_corner	TOP_LEFT
+		}
+
+		PacksRui
+		{
+			ControlName	RuiPanel
+			xpos	0
+			ypos	0
+			wide	1920
+			tall	1080
+			zpos	80
+			visible	0
+			enabled	1
+			rui	"ui/fs_me_packs.rpak"
+			pin_to_sibling	Frame
+			pin_corner_to_sibling	TOP_LEFT
+			pin_to_sibling_corner	TOP_LEFT
+		}
+
+		PacksBackdrop
+		{
+			ControlName	RuiButton
+			xpos	0
+			ypos	0
+			wide	1920
+			tall	1080
+			zpos	85
+			visible	0
+			enabled	1
+			rui	"ui/invisible.rpak"
+			sound_focus	"UI_Menu_Focus_Small"
+			sound_accept	"UI_Menu_Accept"
+			cursorVelocityModifier	"0.7"
+			pin_to_sibling	Frame
+			pin_corner_to_sibling	TOP_LEFT
+			pin_to_sibling_corner	TOP_LEFT
+		}
+
+		PackRow0
+		{
+			ControlName	RuiButton
+			xpos	-674
+			ypos	-235
+			wide	572
+			tall	38
+			zpos	90
+			visible	0
+			enabled	1
+			rui	"ui/invisible.rpak"
+			sound_focus	"UI_Menu_Focus_Small"
+			sound_accept	"UI_Menu_Accept"
+			cursorVelocityModifier	"0.7"
+			pin_to_sibling	Frame
+			pin_corner_to_sibling	TOP_LEFT
+			pin_to_sibling_corner	TOP_LEFT
+		}
+
+		PackRow1
+		{
+			ControlName	RuiButton
+			xpos	-674
+			ypos	-277
+			wide	572
+			tall	38
+			zpos	90
+			visible	0
+			enabled	1
+			rui	"ui/invisible.rpak"
+			sound_focus	"UI_Menu_Focus_Small"
+			sound_accept	"UI_Menu_Accept"
+			cursorVelocityModifier	"0.7"
+			pin_to_sibling	Frame
+			pin_corner_to_sibling	TOP_LEFT
+			pin_to_sibling_corner	TOP_LEFT
+		}
+
+		PackRow2
+		{
+			ControlName	RuiButton
+			xpos	-674
+			ypos	-319
+			wide	572
+			tall	38
+			zpos	90
+			visible	0
+			enabled	1
+			rui	"ui/invisible.rpak"
+			sound_focus	"UI_Menu_Focus_Small"
+			sound_accept	"UI_Menu_Accept"
+			cursorVelocityModifier	"0.7"
+			pin_to_sibling	Frame
+			pin_corner_to_sibling	TOP_LEFT
+			pin_to_sibling_corner	TOP_LEFT
+		}
+
+		PackRow3
+		{
+			ControlName	RuiButton
+			xpos	-674
+			ypos	-361
+			wide	572
+			tall	38
+			zpos	90
+			visible	0
+			enabled	1
+			rui	"ui/invisible.rpak"
+			sound_focus	"UI_Menu_Focus_Small"
+			sound_accept	"UI_Menu_Accept"
+			cursorVelocityModifier	"0.7"
+			pin_to_sibling	Frame
+			pin_corner_to_sibling	TOP_LEFT
+			pin_to_sibling_corner	TOP_LEFT
+		}
+
+		PackRow4
+		{
+			ControlName	RuiButton
+			xpos	-674
+			ypos	-403
+			wide	572
+			tall	38
+			zpos	90
+			visible	0
+			enabled	1
+			rui	"ui/invisible.rpak"
+			sound_focus	"UI_Menu_Focus_Small"
+			sound_accept	"UI_Menu_Accept"
+			cursorVelocityModifier	"0.7"
+			pin_to_sibling	Frame
+			pin_corner_to_sibling	TOP_LEFT
+			pin_to_sibling_corner	TOP_LEFT
+		}
+
+		PackRow5
+		{
+			ControlName	RuiButton
+			xpos	-674
+			ypos	-445
+			wide	572
+			tall	38
+			zpos	90
+			visible	0
+			enabled	1
+			rui	"ui/invisible.rpak"
+			sound_focus	"UI_Menu_Focus_Small"
+			sound_accept	"UI_Menu_Accept"
+			cursorVelocityModifier	"0.7"
+			pin_to_sibling	Frame
+			pin_corner_to_sibling	TOP_LEFT
+			pin_to_sibling_corner	TOP_LEFT
+		}
+
+		PackRow6
+		{
+			ControlName	RuiButton
+			xpos	-674
+			ypos	-487
+			wide	572
+			tall	38
+			zpos	90
+			visible	0
+			enabled	1
+			rui	"ui/invisible.rpak"
+			sound_focus	"UI_Menu_Focus_Small"
+			sound_accept	"UI_Menu_Accept"
+			cursorVelocityModifier	"0.7"
+			pin_to_sibling	Frame
+			pin_corner_to_sibling	TOP_LEFT
+			pin_to_sibling_corner	TOP_LEFT
+		}
+
+		PackRow7
+		{
+			ControlName	RuiButton
+			xpos	-674
+			ypos	-529
+			wide	572
+			tall	38
+			zpos	90
+			visible	0
+			enabled	1
+			rui	"ui/invisible.rpak"
+			sound_focus	"UI_Menu_Focus_Small"
+			sound_accept	"UI_Menu_Accept"
+			cursorVelocityModifier	"0.7"
+			pin_to_sibling	Frame
+			pin_corner_to_sibling	TOP_LEFT
+			pin_to_sibling_corner	TOP_LEFT
+		}
+
+		PackRow8
+		{
+			ControlName	RuiButton
+			xpos	-674
+			ypos	-571
+			wide	572
+			tall	38
+			zpos	90
+			visible	0
+			enabled	1
+			rui	"ui/invisible.rpak"
+			sound_focus	"UI_Menu_Focus_Small"
+			sound_accept	"UI_Menu_Accept"
+			cursorVelocityModifier	"0.7"
+			pin_to_sibling	Frame
+			pin_corner_to_sibling	TOP_LEFT
+			pin_to_sibling_corner	TOP_LEFT
+		}
+
+		PackRow9
+		{
+			ControlName	RuiButton
+			xpos	-674
+			ypos	-613
+			wide	572
+			tall	38
+			zpos	90
+			visible	0
+			enabled	1
+			rui	"ui/invisible.rpak"
+			sound_focus	"UI_Menu_Focus_Small"
+			sound_accept	"UI_Menu_Accept"
+			cursorVelocityModifier	"0.7"
+			pin_to_sibling	Frame
+			pin_corner_to_sibling	TOP_LEFT
+			pin_to_sibling_corner	TOP_LEFT
+		}
+
+		PackRow10
+		{
+			ControlName	RuiButton
+			xpos	-674
+			ypos	-655
+			wide	572
+			tall	38
+			zpos	90
+			visible	0
+			enabled	1
+			rui	"ui/invisible.rpak"
+			sound_focus	"UI_Menu_Focus_Small"
+			sound_accept	"UI_Menu_Accept"
+			cursorVelocityModifier	"0.7"
+			pin_to_sibling	Frame
+			pin_corner_to_sibling	TOP_LEFT
+			pin_to_sibling_corner	TOP_LEFT
+		}
+
+		PackRow11
+		{
+			ControlName	RuiButton
+			xpos	-674
+			ypos	-697
+			wide	572
+			tall	38
+			zpos	90
+			visible	0
+			enabled	1
+			rui	"ui/invisible.rpak"
+			sound_focus	"UI_Menu_Focus_Small"
+			sound_accept	"UI_Menu_Accept"
+			cursorVelocityModifier	"0.7"
+			pin_to_sibling	Frame
+			pin_corner_to_sibling	TOP_LEFT
+			pin_to_sibling_corner	TOP_LEFT
+		}
+
+		PackRow12
+		{
+			ControlName	RuiButton
+			xpos	-674
+			ypos	-739
+			wide	572
+			tall	38
+			zpos	90
+			visible	0
+			enabled	1
+			rui	"ui/invisible.rpak"
+			sound_focus	"UI_Menu_Focus_Small"
+			sound_accept	"UI_Menu_Accept"
+			cursorVelocityModifier	"0.7"
+			pin_to_sibling	Frame
+			pin_corner_to_sibling	TOP_LEFT
+			pin_to_sibling_corner	TOP_LEFT
+		}
+
+		PackRow13
+		{
+			ControlName	RuiButton
+			xpos	-674
+			ypos	-781
+			wide	572
+			tall	38
+			zpos	90
+			visible	0
+			enabled	1
+			rui	"ui/invisible.rpak"
+			sound_focus	"UI_Menu_Focus_Small"
+			sound_accept	"UI_Menu_Accept"
+			cursorVelocityModifier	"0.7"
+			pin_to_sibling	Frame
+			pin_corner_to_sibling	TOP_LEFT
+			pin_to_sibling_corner	TOP_LEFT
+		}
+
+		PackRow14
+		{
+			ControlName	RuiButton
+			xpos	-674
+			ypos	-823
+			wide	572
+			tall	38
+			zpos	90
+			visible	0
+			enabled	1
+			rui	"ui/invisible.rpak"
+			sound_focus	"UI_Menu_Focus_Small"
+			sound_accept	"UI_Menu_Accept"
+			cursorVelocityModifier	"0.7"
+			pin_to_sibling	Frame
+			pin_corner_to_sibling	TOP_LEFT
+			pin_to_sibling_corner	TOP_LEFT
+		}
+
+		PacksClose
+		{
+			ControlName	RuiButton
+			xpos	-870
+			ypos	-881
+			wide	180
+			tall	48
+			zpos	90
+			visible	0
+			enabled	1
+			rui	"ui/invisible.rpak"
+			sound_focus	"UI_Menu_Focus_Small"
+			sound_accept	"UI_Menu_Accept"
+			cursorVelocityModifier	"0.7"
+			pin_to_sibling	Frame
+			pin_corner_to_sibling	TOP_LEFT
+			pin_to_sibling_corner	TOP_LEFT
+		}
+
+		SearchEntry
+		{
+			ControlName	TextEntry
+			zpos	70
+			xpos	-596
+			ypos	-156
+			wide	382
+			tall	44
+			allowRightClickMenu	0
+			allowSpecialCharacters	0
+			unicode	0
+			visible	1
+			enabled	1
+			textHidden	0
+			editable	1
+			maxchars	40
+			textAlignment	"west"
+			ruiFont	TitleRegularFont
+			ruiFontHeight	20
+			ruiMinFontHeight	16
+			bgcolor_override	"0 0 0 0"
+			paintbackground	0
+			fgcolor_override	"233 237 242 0"
+			keyboardTitle	"Search models"
+			keyboardDescription	"Model or category name"
+			cursorPriority	20
+			pin_to_sibling	Frame
+			pin_corner_to_sibling	TOP_LEFT
+			pin_to_sibling_corner	TOP_LEFT
 		}
 
 		FooterButtons
 		{
-			ControlName				CNestedPanel
-			controlSettingsFile		"resource/ui/menus/panels/footer_buttons.res"
-			xpos					0
-			ypos					0
-			zpos					20
-			wide					f0
-			tall					36
-			visible					1
-
-			pin_to_sibling			DarkenBackground
+			ControlName	CNestedPanel
+			controlSettingsFile	"resource/ui/menus/panels/footer_buttons.res"
+			xpos	0
+			ypos	0
+			zpos	20
+			wide	f0
+			tall	36
+			visible	0
+			pin_to_sibling	DarkenBackground
 			pin_corner_to_sibling	BOTTOM
 			pin_to_sibling_corner	BOTTOM
 		}

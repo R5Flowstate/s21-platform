@@ -103,7 +103,11 @@ bool function LGUN_DoRailJump( entity player, entity weapon )
 	vector impulse = viewVec * ( -850.0 * ( 1.0 - distanceValue ) )
 	player.KnockBack( impulse, 0.1 )
 
-	StartParticleEffectInWorld( GetParticleSystemIndex( INSTAGIB_RAILJUMP_FX ), trace.endPos, <0, 0, 0> )
+	#if SERVER
+		StartParticleEffectInWorldForRealms( GetParticleSystemIndex( INSTAGIB_RAILJUMP_FX ), trace.endPos, <0, 0, 0>, player )
+	#else
+		StartParticleEffectInWorld( GetParticleSystemIndex( INSTAGIB_RAILJUMP_FX ), trace.endPos, <0, 0, 0> )
+	#endif
 
 	#if CLIENT
 		if ( player == GetLocalViewPlayer() )

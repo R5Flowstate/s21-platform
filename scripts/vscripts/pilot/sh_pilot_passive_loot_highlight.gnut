@@ -94,7 +94,7 @@ void function ServerThinkThread( entity player, float range )
 			{
 				if ( PlayerHasPassive( player, pass ) )
 				{
-					TriggerLootSpawnForLootBinsInRadius( player.EyePosition(), range, data.minTier, -1, pass )
+					TriggerLootSpawnForLootBinsInRadius( player.EyePosition(), range, data.minTier, -1, pass, player )
 				}
 			}
 		}

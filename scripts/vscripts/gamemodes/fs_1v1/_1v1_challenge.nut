@@ -389,7 +389,6 @@ void function FS_1v1_ArmAcceptedChallenge( entity player, entity challenger )
 			group.IsKeep = true
 			FS_1v1_OnLockArmed( player, challenger )
 			Gamemode1v1_OnChallengeMatchCreated( group )
-			printt( "[FS-1V1][CHAL] promoted live duel " + player.GetPlayerName() + " vs " + challenger.GetPlayerName() )
 			return
 		}
 	}
@@ -399,7 +398,6 @@ void function FS_1v1_ArmAcceptedChallenge( entity player, entity challenger )
 	FS_1v1_QueueIfIdleForChallenge( player )
 	FS_1v1_QueueIfIdleForChallenge( challenger )
 	thread TriggerMatchmaking()
-	printt( "[FS-1V1][CHAL] armed " + player.GetPlayerName() + " vs " + challenger.GetPlayerName() )
 }
 
 bool function IsPlayerPendingChallenge( entity player )
@@ -843,7 +841,8 @@ void function Gamemode1v1_OnChallengeMatchCreated( MatchGroup group )
 	group.player2.Signal( "ChallengeStarted" )
 	FS_1v1_PushChallengeState( group.player1 )
 	FS_1v1_PushChallengeState( group.player2 )
-	printt( "[FS-1V1][CHAL] match started " + group.player1.GetPlayerName() + " vs " + group.player2.GetPlayerName() )
+	FS_1v1_QueueChallengePick( group.player1, true )
+	FS_1v1_QueueChallengePick( group.player2, true )
 }
 
 bool function isChalValid( ChallengesStruct chalStruct )
@@ -1310,9 +1309,11 @@ void function ClientCommand_mkos_challenge(entity player, array<string> args)
 
 			return;
 		case "legend":
-
-			LocalMsg( player, "#FS_DisabledLegends" )
+		{
+			string refusal = FS_1v1_QueueChallengePick( player )
+			LocalMsg( player, refusal != "" ? refusal : "#FS_ChalLegendNextRound" )
 			return;
+		}
 		case "outlist":
 
 			string list = ""

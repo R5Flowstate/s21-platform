@@ -8,6 +8,7 @@ global function PhaseDoor_CheckInvalidEnt
 
 #if CLIENT
 global function OnCreateClientOnlyModel_ability_phase_door
+global function PhaseDoor_IsPlayerHighligted
 #endif
 
 #if DEVELOPER
@@ -33,6 +34,7 @@ const string PHASE_DOOR_STOP_VISUAL_EFFECT = "PhaseDoor_StopVisualEffect"
 //script names
 global const string PHASE_DOOR_ROOT_ENT_SCRIPTNAME = "phase_door_root_ent"
 global const string PHASE_DOOR_WARMUP_ENT_SCRIPTNAME = "phase_door_warmup_ent"
+global const string PHASE_DOOR_WARMUP_ENT_EXIT_SCRIPTNAME = "phase_door_warmup_exit"
 global const string PHASE_DOOR_TRACE_BLOCKER_SCRIPTNAME = "alter_tac_trace_blocker"
 global const string PHASE_DOOR_PORTAL_EXTENSION_SCRIPTNAME = "alter_tac_portal_extension"
 global const string PHASE_DOOR_PORTAL_EXTENSION_MOVER_SCRIPTNAME = "alter_tac_portal_extension_mover"
@@ -112,8 +114,8 @@ struct BreachKillerChallengeConditions
 
 struct
 {
-	//DO NOT CHANGE THIS. It needs to be changed in code too
-	float wallThicknessMax = 20.0 * METERS_TO_INCHES
+	// Must match the native exit-search depth (client patch + dedi placement).
+	float wallThicknessMax = 30.0 * METERS_TO_INCHES
 	#if SERVER
 	float portalDuration = 15
 	float plantDelay = 0.7
@@ -135,13 +137,21 @@ struct
 	#endif
 
 	bool  spawnCeilingPortalExtensions = true
-	bool  spawnWallPortalExtensions = false
+	bool  spawnWallPortalExtensions = true
 	float wallExtensionMinLength = 4.5
-	float extensionMaxZHeight = 30
+	float extensionMaxZHeight = 45
+	float wallExtensionMaxZHeight = 20
 	float extensionMaxHeightNoGround = 0.0
 	float ceilingPortalExtensionAngle = 60
 
 	#if CLIENT
+	bool doWarmupScan = true
+	bool warmupScanRequiresLos = true
+	float warmupPortalScanTime = 0.7
+	float warmupPortalScanTimeWithUpgrade = 15.7
+	float warmupPortalScanDist = 18
+	float warmupPortalScanDistSqr
+
 	bool createThreatIndicator = true
 	float threatIndicatorRange = 15.0
 	float threatIndicatorLifetime = 1.5
@@ -168,8 +178,12 @@ struct
 	entity exitPortalPlacementFXHolder
 	int entrancePortalPlacementVFXHandle
 	int exitPortalPlacementVFXHandle
+	int entranceRopePlacementVFXHandle = -1
+	int exitRopePlacementVFXHandle = -1
 
 	bool portalFXInitialized = false
+
+	table<entity, int> highlightedEnemiesRefCount
 	#endif
 
 	// Breach Killer Challenge
@@ -254,6 +268,7 @@ void function MpAbilityPhaseDoor_Init()
 
 	PrecacheScriptString( PHASE_DOOR_ROOT_ENT_SCRIPTNAME )
 	PrecacheScriptString( PHASE_DOOR_WARMUP_ENT_SCRIPTNAME )
+	PrecacheScriptString( PHASE_DOOR_WARMUP_ENT_EXIT_SCRIPTNAME )
 	PrecacheScriptString( PHASE_DOOR_TRACE_BLOCKER_SCRIPTNAME )
 	PrecacheScriptString( PHASE_DOOR_PORTAL_EXTENSION_SCRIPTNAME )
 	PrecacheScriptString( PHASE_DOOR_PORTAL_EXTENSION_MOVER_SCRIPTNAME )
@@ -313,6 +328,7 @@ void function SetupTuning()
 	tuning.spawnWallPortalExtensions 	= GetCurrentPlaylistVarBool( "alter_tac_spawnWallPortalExtensions", tuning.spawnWallPortalExtensions )
 	tuning.wallExtensionMinLength       = GetCurrentPlaylistVarFloat( "alter_tac_wallExtensionMinLength", tuning.wallExtensionMinLength ) * METERS_TO_INCHES
 	tuning.extensionMaxZHeight          = GetCurrentPlaylistVarFloat( "alter_tac_extensionMaxZHeight", tuning.extensionMaxZHeight ) * METERS_TO_INCHES
+	tuning.wallExtensionMaxZHeight      = GetCurrentPlaylistVarFloat( "alter_tac_wallExtensionMaxZHeight", tuning.wallExtensionMaxZHeight ) * METERS_TO_INCHES
 	tuning.extensionMaxHeightNoGround   = GetCurrentPlaylistVarFloat( "alter_tac_extensionMaxHeightNoGround", tuning.extensionMaxHeightNoGround ) * METERS_TO_INCHES
 	tuning.ceilingPortalExtensionAngle  = cos( GetCurrentPlaylistVarFloat( "alter_tac_ceilingPortalExtensionAngle", tuning.ceilingPortalExtensionAngle ) * DEG_TO_RAD )
 
@@ -320,6 +336,12 @@ void function SetupTuning()
 	tuning.createThreatIndicator        = GetCurrentPlaylistVarBool( "alter_tac_createThreatIndicator", tuning.createThreatIndicator )
 	tuning.threatIndicatorRange         = GetCurrentPlaylistVarFloat( "alter_tac_threatIndicatorRange", tuning.threatIndicatorRange ) * METERS_TO_INCHES
 	tuning.threatIndicatorLifetime      = GetCurrentPlaylistVarFloat( "alter_tac_threatIndicatorLifetime", tuning.threatIndicatorLifetime )
+	tuning.doWarmupScan                 = GetCurrentPlaylistVarBool( "alter_tac_doWarmupScan", tuning.doWarmupScan )
+	tuning.warmupScanRequiresLos        = GetCurrentPlaylistVarBool( "alter_tac_warmupScanRequiresLos", tuning.warmupScanRequiresLos )
+	tuning.warmupPortalScanTime         = GetCurrentPlaylistVarFloat( "alter_tac_warmupPortalScanTime", tuning.warmupPortalScanTime )
+	tuning.warmupPortalScanTimeWithUpgrade = GetCurrentPlaylistVarFloat( "alter_tac_warmupPortalScanTimeWithUpgrade", tuning.warmupPortalScanTimeWithUpgrade )
+	tuning.warmupPortalScanDist         = GetCurrentPlaylistVarFloat( "alter_tac_warmupPortalScanDist", tuning.warmupPortalScanDist ) * METERS_TO_INCHES
+	tuning.warmupPortalScanDistSqr      = tuning.warmupPortalScanDist * tuning.warmupPortalScanDist
 	#endif
 }
 
@@ -492,24 +514,18 @@ void function OnCreateClientOnlyModel_ability_phase_door( entity weapon, entity 
 		EffectSetControlPointVector( file.exitPortalPlacementVFXHandle, 3, showExitFX ? color : hideColour )
 	}
 
-	bool hasRope = false
+	bool hasRopeEntrance = false
+	bool hasRopeExit = false
 	if ( validHighlight )
 	{
-		vector origin = entranceOrigin
-		int portalOrientation = GetPortalDirectionForPortalExtension( AnglesToForward( entranceAngles ) )
-		if ( !( portalOrientation == ePhaseDoorOrientation.PHASE_DOOR_ORIENTATION_CEILING_OR_FLOOR_DOWN ) )
-		{
-			origin = exitOrigin
-			portalOrientation = GetPortalDirectionForPortalExtension( AnglesToForward( exitAngles ) )
-		}
-
-		PassByReferenceVector portalExtensionStartPos
-		PassByReferenceVector portalExtensionEndPos
-		if ( tuning.spawnCeilingPortalExtensions && (portalOrientation == ePhaseDoorOrientation.PHASE_DOOR_ORIENTATION_CEILING_OR_FLOOR_DOWN) )
-		{
-			hasRope = ShouldCreateVerticalPortalExtension( origin, portalExtensionStartPos, portalExtensionEndPos )
-		}
+		hasRopeEntrance = UpdatePortalRopePreview( file.entrancePortalPlacementFXHolder, entranceOrigin, entranceAngles, true )
+		hasRopeExit = UpdatePortalRopePreview( file.exitPortalPlacementFXHolder, exitOrigin, exitAngles, false )
 	}
+	else
+	{
+		StopPortalRopePreviews()
+	}
+	bool hasRope = hasRopeEntrance || hasRopeExit
 
 	float distanceRatioForSound = validHighlight ? (distanceBetweenPortals / tuning.wallThicknessMax ) * 0.9 : 1.0
 	weapon.SetSoundCodeControllerValue_ClientOverride( distanceRatioForSound )
@@ -526,8 +542,56 @@ void function OnCreateClientOnlyModel_ability_phase_door( entity weapon, entity 
 #endif
 
 #if CLIENT
+bool function UpdatePortalRopePreview( entity fxHolder, vector portalOrigin, vector portalAngles, bool isEntrance )
+{
+	PassByReferenceVector ropeStart
+	PassByReferenceVector ropeEnd
+	bool hasRope = false
+	int orientation = GetPortalDirectionForPortalExtension( AnglesToForward( portalAngles ) )
+	if ( tuning.spawnCeilingPortalExtensions && orientation == ePhaseDoorOrientation.PHASE_DOOR_ORIENTATION_CEILING_OR_FLOOR_DOWN )
+		hasRope = ShouldCreateVerticalPortalExtension( portalOrigin, ropeStart, ropeEnd )
+	else if ( tuning.spawnWallPortalExtensions && orientation == ePhaseDoorOrientation.PHASE_DOOR_ORIENTATION_WALL )
+		hasRope = ShouldCreateHorizontalPortalExtension( portalOrigin, AnglesToForward( portalAngles ), ropeStart, ropeEnd )
+
+	int handle = isEntrance ? file.entranceRopePlacementVFXHandle : file.exitRopePlacementVFXHandle
+	if ( hasRope )
+	{
+		if ( !EffectDoesExist( handle ) )
+			handle = StartParticleEffectOnEntity( fxHolder, GetParticleSystemIndex( PHASE_DOOR_ROPE_FX ), FX_PATTACH_ABSORIGIN_FOLLOW, ATTACHMENTID_INVALID )
+
+		EffectSetControlPointVector( handle, 1, ropeEnd.value )
+		EffectSetControlPointVector( handle, 2, ropeEnd.value )
+		EffectSetControlPointVector( handle, 3, ropeEnd.value )
+	}
+	else if ( EffectDoesExist( handle ) )
+	{
+		EffectStop( handle, true, false )
+		handle = -1
+	}
+
+	if ( isEntrance )
+		file.entranceRopePlacementVFXHandle = handle
+	else
+		file.exitRopePlacementVFXHandle = handle
+
+	return hasRope
+}
+
+void function StopPortalRopePreviews()
+{
+	if ( EffectDoesExist( file.entranceRopePlacementVFXHandle ) )
+		EffectStop( file.entranceRopePlacementVFXHandle, true, false )
+	if ( EffectDoesExist( file.exitRopePlacementVFXHandle ) )
+		EffectStop( file.exitRopePlacementVFXHandle, true, false )
+
+	file.entranceRopePlacementVFXHandle = -1
+	file.exitRopePlacementVFXHandle = -1
+}
+
 void function DeactivateClientPreviewFxRui( )
 {
+	StopPortalRopePreviews()
+
 	if ( file.placementDepthRui != null )
 	{
 		RuiDestroyIfAlive( file.placementDepthRui )
@@ -673,8 +737,8 @@ void function ManageDoorLifetime_Thread( entity owner, vector startOrigin, vecto
 	PassByReferenceEntity entranceTraceBlocker
 	PassByReferenceEntity exitTraceBlocker
 
-	entity entranceWarmup = CreatePhaseDoorWarmupEnt( owner, startOrigin, startSurfaceNormal, startParent, entranceTraceBlocker )
-	entity exitWarmup = CreatePhaseDoorWarmupEnt( owner, endOrigin, endSurfaceNormal, endParent, exitTraceBlocker )
+	entity entranceWarmup = CreatePhaseDoorWarmupEnt( owner, startOrigin, startSurfaceNormal, startParent, entranceTraceBlocker, false )
+	entity exitWarmup = CreatePhaseDoorWarmupEnt( owner, endOrigin, endSurfaceNormal, endParent, exitTraceBlocker, true )
 
 	entranceWarmup.LinkToEnt( exitWarmup )
 	exitWarmup.LinkToEnt( entranceWarmup )
@@ -784,7 +848,7 @@ void function DoPortalCleanup( entity portalRootEnt, entity trigger )
 		portalRootEnt.Destroy()
 }
 
-entity function CreatePhaseDoorWarmupEnt( entity owner, vector origin, vector surfaceNormal, entity parentEnt, PassByReferenceEntity traceBlocker )
+entity function CreatePhaseDoorWarmupEnt( entity owner, vector origin, vector surfaceNormal, entity parentEnt, PassByReferenceEntity traceBlocker, bool isExit )
 {
 	origin = origin + (surfaceNormal * surfaceOffset)
 
@@ -792,7 +856,7 @@ entity function CreatePhaseDoorWarmupEnt( entity owner, vector origin, vector su
 	portalAngles = RotateAnglesAboutAxis( portalAngles, AnglesToUp( portalAngles ), 90.0 )
 
 	entity portalWarmupEnt = CreatePropScript( $"mdl/dev/empty_model.rmdl", origin, portalAngles )
-	portalWarmupEnt.SetScriptName( PHASE_DOOR_WARMUP_ENT_SCRIPTNAME )
+	portalWarmupEnt.SetScriptName( isExit ? PHASE_DOOR_WARMUP_ENT_EXIT_SCRIPTNAME : PHASE_DOOR_WARMUP_ENT_SCRIPTNAME )
 	portalWarmupEnt.SetOwner( owner )
 	SetTeam( portalWarmupEnt, owner.GetTeam() )
 	portalWarmupEnt.RemoveFromAllRealms()
@@ -912,7 +976,7 @@ entity function CreatePhaseDoorTriggers( entity owner, entity portalRootEnt, vec
 	}
 	else if ( tuning.spawnWallPortalExtensions && (portalOrientation == ePhaseDoorOrientation.PHASE_DOOR_ORIENTATION_WALL))
 	{
-		createPortalExtension = ShouldCreateHorizontalPortalExtension( portalRootEnt.GetOrigin(), portalRootEnt.GetRightVector(), portalExtensionStartPos, portalExtensionEndPos )
+		createPortalExtension = ShouldCreateHorizontalPortalExtension( portalRootEnt.GetOrigin(), surfaceNormal, portalExtensionStartPos, portalExtensionEndPos )
 	}
 
 	if ( createPortalExtension )
@@ -1024,8 +1088,8 @@ bool function ShouldCreateHorizontalPortalExtension( vector rootEntPos, vector r
 
 	vector endOffset = ( portalNormalFlattened * 45.0 )
 	float heightTraceFudgeValue = 5.0
-	vector traceEndZPos = startPos - <0, 0, tuning.extensionMaxZHeight + heightTraceFudgeValue> + endOffset
-	vector traceHorizontalStep = portalNormalFlattened * tuning.extensionMaxZHeight
+	vector traceEndZPos = startPos - <0, 0, tuning.wallExtensionMaxZHeight + heightTraceFudgeValue> + endOffset
+	vector traceHorizontalStep = portalNormalFlattened * tuning.wallExtensionMaxZHeight
 
 	const float heightDiffForBetter = 2 * METERS_TO_INCHES
 
@@ -1150,7 +1214,8 @@ entity function CreatePortalExtension( vector startPos, vector endPos, entity po
 
 	portalExtension.SetUsable()
 	portalExtension.SetUsableByGroup( "pilot" )
-	portalExtension.AddUsableValue( USABLE_USE_DISTANCE_OVERRIDE )
+	// The rope is a 4u-wide line; without this the use check needs you to aim straight at it.
+	portalExtension.AddUsableValue( USABLE_USE_DISTANCE_OVERRIDE | USABLE_NO_FOV_REQUIREMENTS )
 	portalExtension.SetUsableDistanceOverride( 64 )
 	portalExtension.SetUsePrompts( "#ABL_TAC_PHASE_DOOR_USE_PROMPT" , "#ABL_TAC_PHASE_DOOR_USE_PROMPT" )
 	SetCallback_CanUseEntityCallback( portalExtension, PortalExtension_CanUseCallback )
@@ -1760,12 +1825,17 @@ void function _____________ClientWork___________________________(){}
 #if CLIENT
 void function OnPropCreated( entity ent )
 {
-	if ( ent.GetScriptName() == PHASE_DOOR_WARMUP_ENT_SCRIPTNAME )
+	string scriptName = ent.GetScriptName()
+	if ( scriptName == PHASE_DOOR_WARMUP_ENT_SCRIPTNAME || scriptName == PHASE_DOOR_WARMUP_ENT_EXIT_SCRIPTNAME )
 	{
 		ManageWarmupFX( ent )
 		if ( tuning.createThreatIndicator )
 		{
 			thread ManageThreatIndicator_Thread( ent )
+		}
+		if ( tuning.doWarmupScan && scriptName == PHASE_DOOR_WARMUP_ENT_EXIT_SCRIPTNAME )
+		{
+			thread ScanOnWarmupPortal_Thread( ent )
 		}
 	}
 	if ( ent.GetScriptName() == PHASE_DOOR_ROOT_ENT_SCRIPTNAME )
@@ -1784,6 +1854,107 @@ void function OnPropCreated( entity ent )
 		SetCallback_ShouldUseBlockReloadCallback( ent, SimpleShouldNotBlockReloadCallback )
 		thread ManageRopeSFX_Thread( ent )
 	}
+}
+
+// Owner and allies see enemies near the exit while the portal warms up.
+void function ScanOnWarmupPortal_Thread( entity exitPortal )
+{
+	entity player = GetLocalViewPlayer()
+	if ( !IsValid( player ) || !IsValid( exitPortal ) )
+		return
+
+	if ( !IsFriendlyTeam( player.GetTeam(), exitPortal.GetTeam() ) && exitPortal.GetOwner() != player )
+		return
+
+	entity otherPortal = exitPortal.GetLinkEnt()
+	if ( !IsValid( otherPortal ) )
+		return
+
+	vector otherPortalPoint = otherPortal.GetOrigin()
+
+	array<entity> staleKeys
+	foreach ( entity key, int value in file.highlightedEnemiesRefCount )
+	{
+		if ( !IsValid( key ) || value <= 0 )
+			staleKeys.append( key )
+	}
+	foreach ( entity key in staleKeys )
+	{
+		if ( key in file.highlightedEnemiesRefCount )
+			delete file.highlightedEnemiesRefCount[ key ]
+	}
+
+	EndSignal( player, "OnDestroy", "OnDeath" )
+
+	array<entity> highlightedPlayers
+
+	OnThreadEnd(
+		function() : ( highlightedPlayers )
+		{
+			foreach ( entity otherPlayer in highlightedPlayers )
+			{
+				if ( otherPlayer in file.highlightedEnemiesRefCount )
+				{
+					file.highlightedEnemiesRefCount[ otherPlayer ]--
+					if ( file.highlightedEnemiesRefCount[ otherPlayer ] <= 0 )
+						delete file.highlightedEnemiesRefCount[ otherPlayer ]
+				}
+
+				if ( IsValid( otherPlayer ) )
+					ManageHighlightEntity( otherPlayer )
+			}
+		}
+	)
+
+	float scanTime = PlayerHasPassive( player, ePassives.PAS_ALTER_UPGRADE_TAC_SCAN ) ? tuning.warmupPortalScanTimeWithUpgrade : tuning.warmupPortalScanTime
+	float endTime = Time() + scanTime
+
+	vector exitPortalPos = exitPortal.GetOrigin()
+	while ( Time() < endTime )
+	{
+		array<entity> playersToHighlight
+		array<entity> playersToNotHighlight
+
+		if ( tuning.warmupScanRequiresLos && !PlayerCanSeePos( player, otherPortalPoint, true, 90 ) )
+			playersToNotHighlight = clone highlightedPlayers
+		else
+			VoidVision_GetPlayersToHighlightFromPoint_WithSettings( player, exitPortalPos, tuning.warmupPortalScanDistSqr, playersToHighlight, playersToNotHighlight )
+
+		foreach ( entity otherPlayer in playersToHighlight )
+		{
+			if ( highlightedPlayers.contains( otherPlayer ) )
+				continue
+
+			if ( !( otherPlayer in file.highlightedEnemiesRefCount ) )
+				file.highlightedEnemiesRefCount[ otherPlayer ] <- 0
+
+			highlightedPlayers.append( otherPlayer )
+			file.highlightedEnemiesRefCount[ otherPlayer ]++
+			ManageHighlightEntity( otherPlayer )
+		}
+
+		foreach ( entity otherPlayer in playersToNotHighlight )
+		{
+			if ( !highlightedPlayers.contains( otherPlayer ) )
+				continue
+
+			highlightedPlayers.fastremovebyvalue( otherPlayer )
+			if ( otherPlayer in file.highlightedEnemiesRefCount )
+			{
+				file.highlightedEnemiesRefCount[ otherPlayer ]--
+				if ( file.highlightedEnemiesRefCount[ otherPlayer ] <= 0 )
+					delete file.highlightedEnemiesRefCount[ otherPlayer ]
+			}
+			ManageHighlightEntity( otherPlayer )
+		}
+
+		WaitFrame()
+	}
+}
+
+bool function PhaseDoor_IsPlayerHighligted( entity player, entity otherPlayer )
+{
+	return ( otherPlayer in file.highlightedEnemiesRefCount ) && file.highlightedEnemiesRefCount[ otherPlayer ] > 0
 }
 
 void function ManageThreatIndicator_Thread( entity portal )

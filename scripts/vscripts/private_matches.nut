@@ -357,7 +357,7 @@ void function PrivateMatch_EntitiesDidLoad()
 // Retail player.HasMatchAdminRole is S21-client-only, so the dedi gates these on the sticky Flowstate admin flag instead.
 bool function PrivateMatch_PlayerIsAdmin( entity player )
 {
-	return IsValid( player ) && player.p.isAdmin
+	return IsValid( player ) && ( player.p.isAdmin || player.Cafe_IsLocalHostAdmin() )
 }
 
 void function ClientCallback_PrivateMatchSetPlaylist( entity player, int playlistIndex )

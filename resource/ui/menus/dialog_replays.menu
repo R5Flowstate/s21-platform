@@ -1,0 +1,2367 @@
+resource/ui/menus/dialog_replays.menu
+{
+	menu
+	{
+		ControlName				Frame
+		xpos					0
+		ypos					0
+		zpos					3
+		wide					f0
+		tall					f0
+		autoResize				0
+		pinCorner				0
+		visible					1
+		enabled					1
+		PaintBackgroundType		0
+		infocus_bgcolor_override	"0 0 0 0"
+		outoffocus_bgcolor_override	"0 0 0 0"
+
+		ScreenBlur
+		{
+			ControlName				Label
+			labelText				""
+		}
+
+		DarkenBackground
+		{
+			ControlName				ImagePanel
+			xpos					0
+			ypos					0
+			wide					%100
+			tall					%100
+			visible					1
+			scaleImage				1
+			image					"vgui/white"
+			drawColor				"6 6 8 250"
+			zpos					0
+		}
+
+		TitleLabel
+		{
+			ControlName				Label
+			labelText				"#DEMO_REPLAYS_TITLE"
+			font					DefaultBold_41
+			fontHeight				40
+			fgcolor_override		"255 255 255 255"
+			visible					1
+			xpos					40
+			ypos					22
+			wide					900
+			tall					46
+			zpos					10
+		}
+
+		HintLabel
+		{
+			ControlName				Label
+			labelText				"#DEMO_REPLAYS_HINT"
+			font					Default_27_Outline
+			fontHeight				24
+			fgcolor_override		"200 200 200 255"
+			visible					1
+			xpos					40
+			ypos					70
+			wide					1395
+			tall					30
+			zpos					10
+		}
+
+		HeaderBG
+		{
+			ControlName				ImagePanel
+			wide					1395
+			tall					50
+			visible					1
+			scaleImage				1
+			image					"vgui/white"
+			drawColor				"40 40 46 255"
+			xpos					-245
+			ypos					-115
+			zpos					3
+			pin_to_sibling			DarkenBackground
+			pin_corner_to_sibling	TOP
+			pin_to_sibling_corner	TOP
+		}
+
+		ColDateLbl
+		{
+			ControlName				Label
+			labelText				"#DEMO_REPLAYS_COL_DATE"
+			font					Default_27_Outline
+			fontHeight				30
+			fgcolor_override		"255 255 255 255"
+			visible					1
+			textAlignment			west
+			xpos					-25
+			ypos					0
+			wide					220
+			tall					35
+			zpos					6
+			pin_to_sibling			HeaderBG
+			pin_corner_to_sibling	LEFT
+			pin_to_sibling_corner	LEFT
+		}
+
+		ColModeLbl
+		{
+			ControlName				Label
+			labelText				"#DEMO_REPLAYS_COL_MODE"
+			font					Default_27_Outline
+			fontHeight				30
+			fgcolor_override		"255 255 255 255"
+			visible					1
+			textAlignment			west
+			xpos					-260
+			ypos					0
+			wide					300
+			tall					35
+			zpos					6
+			pin_to_sibling			HeaderBG
+			pin_corner_to_sibling	LEFT
+			pin_to_sibling_corner	LEFT
+		}
+
+		ColMapLbl
+		{
+			ControlName				Label
+			labelText				"#DEMO_REPLAYS_COL_MAP"
+			font					Default_27_Outline
+			fontHeight				30
+			fgcolor_override		"255 255 255 255"
+			visible					1
+			textAlignment			west
+			xpos					-575
+			ypos					0
+			wide					270
+			tall					35
+			zpos					6
+			pin_to_sibling			HeaderBG
+			pin_corner_to_sibling	LEFT
+			pin_to_sibling_corner	LEFT
+		}
+
+		ColPlayersLbl
+		{
+			ControlName				Label
+			labelText				"#DEMO_REPLAYS_COL_PLAYERS"
+			font					Default_27_Outline
+			fontHeight				30
+			fgcolor_override		"255 255 255 255"
+			visible					1
+			textAlignment			west
+			xpos					-860
+			ypos					0
+			wide					330
+			tall					35
+			zpos					6
+			pin_to_sibling			HeaderBG
+			pin_corner_to_sibling	LEFT
+			pin_to_sibling_corner	LEFT
+		}
+
+		ColLengthLbl
+		{
+			ControlName				Label
+			labelText				"#DEMO_REPLAYS_COL_LENGTH"
+			font					Default_27_Outline
+			fontHeight				30
+			fgcolor_override		"255 255 255 255"
+			visible					1
+			textAlignment			center
+			xpos					-1215
+			ypos					0
+			wide					160
+			tall					35
+			zpos					6
+			pin_to_sibling			HeaderBG
+			pin_corner_to_sibling	LEFT
+			pin_to_sibling_corner	LEFT
+		}
+
+		ListBG
+		{
+			ControlName				ImagePanel
+			wide					1395
+			tall					600
+			visible					1
+			scaleImage				1
+			image					"vgui/white"
+			drawColor				"16 16 20 235"
+			xpos					0
+			ypos					0
+			zpos					0
+			pin_to_sibling			HeaderBG
+			pin_corner_to_sibling	TOP_LEFT
+			pin_to_sibling_corner	BOTTOM_LEFT
+		}
+
+		HeaderAccent
+		{
+			ControlName				ImagePanel
+			wide					1395
+			tall					3
+			visible					1
+			scaleImage				1
+			image					"vgui/white"
+			drawColor				"53 194 214 255"
+			xpos					0
+			ypos					0
+			zpos					4
+			pin_to_sibling			HeaderBG
+			pin_corner_to_sibling	TOP_LEFT
+			pin_to_sibling_corner	BOTTOM_LEFT
+		}
+
+		ColLine0
+		{
+			ControlName				ImagePanel
+			wide					2
+			tall					600
+			visible					1
+			scaleImage				1
+			image					"vgui/white"
+			drawColor				"55 55 62 255"
+			xpos					-250
+			ypos					0
+			zpos					3
+			pin_to_sibling			HeaderBG
+			pin_corner_to_sibling	TOP_LEFT
+			pin_to_sibling_corner	BOTTOM_LEFT
+		}
+
+		ColLine1
+		{
+			ControlName				ImagePanel
+			wide					2
+			tall					600
+			visible					1
+			scaleImage				1
+			image					"vgui/white"
+			drawColor				"55 55 62 255"
+			xpos					-565
+			ypos					0
+			zpos					3
+			pin_to_sibling			HeaderBG
+			pin_corner_to_sibling	TOP_LEFT
+			pin_to_sibling_corner	BOTTOM_LEFT
+		}
+
+		ColLine2
+		{
+			ControlName				ImagePanel
+			wide					2
+			tall					600
+			visible					1
+			scaleImage				1
+			image					"vgui/white"
+			drawColor				"55 55 62 255"
+			xpos					-850
+			ypos					0
+			zpos					3
+			pin_to_sibling			HeaderBG
+			pin_corner_to_sibling	TOP_LEFT
+			pin_to_sibling_corner	BOTTOM_LEFT
+		}
+
+		ColLine3
+		{
+			ControlName				ImagePanel
+			wide					2
+			tall					600
+			visible					1
+			scaleImage				1
+			image					"vgui/white"
+			drawColor				"55 55 62 255"
+			xpos					-1200
+			ypos					0
+			zpos					3
+			pin_to_sibling			HeaderBG
+			pin_corner_to_sibling	TOP_LEFT
+			pin_to_sibling_corner	BOTTOM_LEFT
+		}
+
+		Row0
+		{
+			ControlName				RuiButton
+			style					RuiButton
+			rui						"ui/generic_button.rpak"
+			wide					1395
+			tall					40
+			visible					1
+			enabled					1
+			zpos					100
+			cursorVelocityModifier	0.7
+			cursorPriority			20
+			sound_focus				"UI_Menu_Focus_Large"
+			xpos					0
+			ypos					0
+			scriptID				0
+			pin_to_sibling			HeaderBG
+			pin_corner_to_sibling	TOP_LEFT
+			pin_to_sibling_corner	BOTTOM_LEFT
+			ruiArgs
+			{
+				buttonText			""
+			}
+		}
+
+		Date0
+		{
+			ControlName				Label
+			labelText				""
+			font					Default_27_Outline
+			fontHeight				28
+			fgcolor_override		"255 255 255 255"
+			visible					1
+			textAlignment			west
+			xpos					-25
+			ypos					0
+			wide					220
+			tall					30
+			zpos					104
+			pin_to_sibling			Row0
+			pin_corner_to_sibling	LEFT
+			pin_to_sibling_corner	LEFT
+		}
+
+		Mode0
+		{
+			ControlName				Label
+			labelText				""
+			font					Default_27_Outline
+			fontHeight				28
+			fgcolor_override		"255 255 255 255"
+			visible					1
+			textAlignment			west
+			xpos					-260
+			ypos					0
+			wide					300
+			tall					30
+			zpos					104
+			pin_to_sibling			Row0
+			pin_corner_to_sibling	LEFT
+			pin_to_sibling_corner	LEFT
+		}
+
+		Map0
+		{
+			ControlName				Label
+			labelText				""
+			font					Default_27_Outline
+			fontHeight				28
+			fgcolor_override		"255 255 255 255"
+			visible					1
+			textAlignment			west
+			xpos					-575
+			ypos					0
+			wide					270
+			tall					30
+			zpos					104
+			pin_to_sibling			Row0
+			pin_corner_to_sibling	LEFT
+			pin_to_sibling_corner	LEFT
+		}
+
+		Players0
+		{
+			ControlName				Label
+			labelText				""
+			font					Default_27_Outline
+			fontHeight				28
+			fgcolor_override		"255 255 255 255"
+			visible					1
+			textAlignment			west
+			xpos					-860
+			ypos					0
+			wide					330
+			tall					30
+			zpos					104
+			pin_to_sibling			Row0
+			pin_corner_to_sibling	LEFT
+			pin_to_sibling_corner	LEFT
+		}
+
+		Length0
+		{
+			ControlName				Label
+			labelText				""
+			font					Default_27_Outline
+			fontHeight				28
+			fgcolor_override		"255 255 255 255"
+			visible					1
+			textAlignment			center
+			xpos					-1215
+			ypos					0
+			wide					160
+			tall					30
+			zpos					104
+			pin_to_sibling			Row0
+			pin_corner_to_sibling	LEFT
+			pin_to_sibling_corner	LEFT
+		}
+
+		Row1
+		{
+			ControlName				RuiButton
+			style					RuiButton
+			rui						"ui/generic_button.rpak"
+			wide					1395
+			tall					40
+			visible					1
+			enabled					1
+			zpos					100
+			cursorVelocityModifier	0.7
+			cursorPriority			20
+			sound_focus				"UI_Menu_Focus_Large"
+			xpos					0
+			ypos					0
+			scriptID				1
+			pin_to_sibling			Row0
+			pin_corner_to_sibling	TOP_LEFT
+			pin_to_sibling_corner	BOTTOM_LEFT
+			ruiArgs
+			{
+				buttonText			""
+			}
+		}
+
+		Date1
+		{
+			ControlName				Label
+			labelText				""
+			font					Default_27_Outline
+			fontHeight				28
+			fgcolor_override		"255 255 255 255"
+			visible					1
+			textAlignment			west
+			xpos					-25
+			ypos					0
+			wide					220
+			tall					30
+			zpos					104
+			pin_to_sibling			Row1
+			pin_corner_to_sibling	LEFT
+			pin_to_sibling_corner	LEFT
+		}
+
+		Mode1
+		{
+			ControlName				Label
+			labelText				""
+			font					Default_27_Outline
+			fontHeight				28
+			fgcolor_override		"255 255 255 255"
+			visible					1
+			textAlignment			west
+			xpos					-260
+			ypos					0
+			wide					300
+			tall					30
+			zpos					104
+			pin_to_sibling			Row1
+			pin_corner_to_sibling	LEFT
+			pin_to_sibling_corner	LEFT
+		}
+
+		Map1
+		{
+			ControlName				Label
+			labelText				""
+			font					Default_27_Outline
+			fontHeight				28
+			fgcolor_override		"255 255 255 255"
+			visible					1
+			textAlignment			west
+			xpos					-575
+			ypos					0
+			wide					270
+			tall					30
+			zpos					104
+			pin_to_sibling			Row1
+			pin_corner_to_sibling	LEFT
+			pin_to_sibling_corner	LEFT
+		}
+
+		Players1
+		{
+			ControlName				Label
+			labelText				""
+			font					Default_27_Outline
+			fontHeight				28
+			fgcolor_override		"255 255 255 255"
+			visible					1
+			textAlignment			west
+			xpos					-860
+			ypos					0
+			wide					330
+			tall					30
+			zpos					104
+			pin_to_sibling			Row1
+			pin_corner_to_sibling	LEFT
+			pin_to_sibling_corner	LEFT
+		}
+
+		Length1
+		{
+			ControlName				Label
+			labelText				""
+			font					Default_27_Outline
+			fontHeight				28
+			fgcolor_override		"255 255 255 255"
+			visible					1
+			textAlignment			center
+			xpos					-1215
+			ypos					0
+			wide					160
+			tall					30
+			zpos					104
+			pin_to_sibling			Row1
+			pin_corner_to_sibling	LEFT
+			pin_to_sibling_corner	LEFT
+		}
+
+		Row2
+		{
+			ControlName				RuiButton
+			style					RuiButton
+			rui						"ui/generic_button.rpak"
+			wide					1395
+			tall					40
+			visible					1
+			enabled					1
+			zpos					100
+			cursorVelocityModifier	0.7
+			cursorPriority			20
+			sound_focus				"UI_Menu_Focus_Large"
+			xpos					0
+			ypos					0
+			scriptID				2
+			pin_to_sibling			Row1
+			pin_corner_to_sibling	TOP_LEFT
+			pin_to_sibling_corner	BOTTOM_LEFT
+			ruiArgs
+			{
+				buttonText			""
+			}
+		}
+
+		Date2
+		{
+			ControlName				Label
+			labelText				""
+			font					Default_27_Outline
+			fontHeight				28
+			fgcolor_override		"255 255 255 255"
+			visible					1
+			textAlignment			west
+			xpos					-25
+			ypos					0
+			wide					220
+			tall					30
+			zpos					104
+			pin_to_sibling			Row2
+			pin_corner_to_sibling	LEFT
+			pin_to_sibling_corner	LEFT
+		}
+
+		Mode2
+		{
+			ControlName				Label
+			labelText				""
+			font					Default_27_Outline
+			fontHeight				28
+			fgcolor_override		"255 255 255 255"
+			visible					1
+			textAlignment			west
+			xpos					-260
+			ypos					0
+			wide					300
+			tall					30
+			zpos					104
+			pin_to_sibling			Row2
+			pin_corner_to_sibling	LEFT
+			pin_to_sibling_corner	LEFT
+		}
+
+		Map2
+		{
+			ControlName				Label
+			labelText				""
+			font					Default_27_Outline
+			fontHeight				28
+			fgcolor_override		"255 255 255 255"
+			visible					1
+			textAlignment			west
+			xpos					-575
+			ypos					0
+			wide					270
+			tall					30
+			zpos					104
+			pin_to_sibling			Row2
+			pin_corner_to_sibling	LEFT
+			pin_to_sibling_corner	LEFT
+		}
+
+		Players2
+		{
+			ControlName				Label
+			labelText				""
+			font					Default_27_Outline
+			fontHeight				28
+			fgcolor_override		"255 255 255 255"
+			visible					1
+			textAlignment			west
+			xpos					-860
+			ypos					0
+			wide					330
+			tall					30
+			zpos					104
+			pin_to_sibling			Row2
+			pin_corner_to_sibling	LEFT
+			pin_to_sibling_corner	LEFT
+		}
+
+		Length2
+		{
+			ControlName				Label
+			labelText				""
+			font					Default_27_Outline
+			fontHeight				28
+			fgcolor_override		"255 255 255 255"
+			visible					1
+			textAlignment			center
+			xpos					-1215
+			ypos					0
+			wide					160
+			tall					30
+			zpos					104
+			pin_to_sibling			Row2
+			pin_corner_to_sibling	LEFT
+			pin_to_sibling_corner	LEFT
+		}
+
+		Row3
+		{
+			ControlName				RuiButton
+			style					RuiButton
+			rui						"ui/generic_button.rpak"
+			wide					1395
+			tall					40
+			visible					1
+			enabled					1
+			zpos					100
+			cursorVelocityModifier	0.7
+			cursorPriority			20
+			sound_focus				"UI_Menu_Focus_Large"
+			xpos					0
+			ypos					0
+			scriptID				3
+			pin_to_sibling			Row2
+			pin_corner_to_sibling	TOP_LEFT
+			pin_to_sibling_corner	BOTTOM_LEFT
+			ruiArgs
+			{
+				buttonText			""
+			}
+		}
+
+		Date3
+		{
+			ControlName				Label
+			labelText				""
+			font					Default_27_Outline
+			fontHeight				28
+			fgcolor_override		"255 255 255 255"
+			visible					1
+			textAlignment			west
+			xpos					-25
+			ypos					0
+			wide					220
+			tall					30
+			zpos					104
+			pin_to_sibling			Row3
+			pin_corner_to_sibling	LEFT
+			pin_to_sibling_corner	LEFT
+		}
+
+		Mode3
+		{
+			ControlName				Label
+			labelText				""
+			font					Default_27_Outline
+			fontHeight				28
+			fgcolor_override		"255 255 255 255"
+			visible					1
+			textAlignment			west
+			xpos					-260
+			ypos					0
+			wide					300
+			tall					30
+			zpos					104
+			pin_to_sibling			Row3
+			pin_corner_to_sibling	LEFT
+			pin_to_sibling_corner	LEFT
+		}
+
+		Map3
+		{
+			ControlName				Label
+			labelText				""
+			font					Default_27_Outline
+			fontHeight				28
+			fgcolor_override		"255 255 255 255"
+			visible					1
+			textAlignment			west
+			xpos					-575
+			ypos					0
+			wide					270
+			tall					30
+			zpos					104
+			pin_to_sibling			Row3
+			pin_corner_to_sibling	LEFT
+			pin_to_sibling_corner	LEFT
+		}
+
+		Players3
+		{
+			ControlName				Label
+			labelText				""
+			font					Default_27_Outline
+			fontHeight				28
+			fgcolor_override		"255 255 255 255"
+			visible					1
+			textAlignment			west
+			xpos					-860
+			ypos					0
+			wide					330
+			tall					30
+			zpos					104
+			pin_to_sibling			Row3
+			pin_corner_to_sibling	LEFT
+			pin_to_sibling_corner	LEFT
+		}
+
+		Length3
+		{
+			ControlName				Label
+			labelText				""
+			font					Default_27_Outline
+			fontHeight				28
+			fgcolor_override		"255 255 255 255"
+			visible					1
+			textAlignment			center
+			xpos					-1215
+			ypos					0
+			wide					160
+			tall					30
+			zpos					104
+			pin_to_sibling			Row3
+			pin_corner_to_sibling	LEFT
+			pin_to_sibling_corner	LEFT
+		}
+
+		Row4
+		{
+			ControlName				RuiButton
+			style					RuiButton
+			rui						"ui/generic_button.rpak"
+			wide					1395
+			tall					40
+			visible					1
+			enabled					1
+			zpos					100
+			cursorVelocityModifier	0.7
+			cursorPriority			20
+			sound_focus				"UI_Menu_Focus_Large"
+			xpos					0
+			ypos					0
+			scriptID				4
+			pin_to_sibling			Row3
+			pin_corner_to_sibling	TOP_LEFT
+			pin_to_sibling_corner	BOTTOM_LEFT
+			ruiArgs
+			{
+				buttonText			""
+			}
+		}
+
+		Date4
+		{
+			ControlName				Label
+			labelText				""
+			font					Default_27_Outline
+			fontHeight				28
+			fgcolor_override		"255 255 255 255"
+			visible					1
+			textAlignment			west
+			xpos					-25
+			ypos					0
+			wide					220
+			tall					30
+			zpos					104
+			pin_to_sibling			Row4
+			pin_corner_to_sibling	LEFT
+			pin_to_sibling_corner	LEFT
+		}
+
+		Mode4
+		{
+			ControlName				Label
+			labelText				""
+			font					Default_27_Outline
+			fontHeight				28
+			fgcolor_override		"255 255 255 255"
+			visible					1
+			textAlignment			west
+			xpos					-260
+			ypos					0
+			wide					300
+			tall					30
+			zpos					104
+			pin_to_sibling			Row4
+			pin_corner_to_sibling	LEFT
+			pin_to_sibling_corner	LEFT
+		}
+
+		Map4
+		{
+			ControlName				Label
+			labelText				""
+			font					Default_27_Outline
+			fontHeight				28
+			fgcolor_override		"255 255 255 255"
+			visible					1
+			textAlignment			west
+			xpos					-575
+			ypos					0
+			wide					270
+			tall					30
+			zpos					104
+			pin_to_sibling			Row4
+			pin_corner_to_sibling	LEFT
+			pin_to_sibling_corner	LEFT
+		}
+
+		Players4
+		{
+			ControlName				Label
+			labelText				""
+			font					Default_27_Outline
+			fontHeight				28
+			fgcolor_override		"255 255 255 255"
+			visible					1
+			textAlignment			west
+			xpos					-860
+			ypos					0
+			wide					330
+			tall					30
+			zpos					104
+			pin_to_sibling			Row4
+			pin_corner_to_sibling	LEFT
+			pin_to_sibling_corner	LEFT
+		}
+
+		Length4
+		{
+			ControlName				Label
+			labelText				""
+			font					Default_27_Outline
+			fontHeight				28
+			fgcolor_override		"255 255 255 255"
+			visible					1
+			textAlignment			center
+			xpos					-1215
+			ypos					0
+			wide					160
+			tall					30
+			zpos					104
+			pin_to_sibling			Row4
+			pin_corner_to_sibling	LEFT
+			pin_to_sibling_corner	LEFT
+		}
+
+		Row5
+		{
+			ControlName				RuiButton
+			style					RuiButton
+			rui						"ui/generic_button.rpak"
+			wide					1395
+			tall					40
+			visible					1
+			enabled					1
+			zpos					100
+			cursorVelocityModifier	0.7
+			cursorPriority			20
+			sound_focus				"UI_Menu_Focus_Large"
+			xpos					0
+			ypos					0
+			scriptID				5
+			pin_to_sibling			Row4
+			pin_corner_to_sibling	TOP_LEFT
+			pin_to_sibling_corner	BOTTOM_LEFT
+			ruiArgs
+			{
+				buttonText			""
+			}
+		}
+
+		Date5
+		{
+			ControlName				Label
+			labelText				""
+			font					Default_27_Outline
+			fontHeight				28
+			fgcolor_override		"255 255 255 255"
+			visible					1
+			textAlignment			west
+			xpos					-25
+			ypos					0
+			wide					220
+			tall					30
+			zpos					104
+			pin_to_sibling			Row5
+			pin_corner_to_sibling	LEFT
+			pin_to_sibling_corner	LEFT
+		}
+
+		Mode5
+		{
+			ControlName				Label
+			labelText				""
+			font					Default_27_Outline
+			fontHeight				28
+			fgcolor_override		"255 255 255 255"
+			visible					1
+			textAlignment			west
+			xpos					-260
+			ypos					0
+			wide					300
+			tall					30
+			zpos					104
+			pin_to_sibling			Row5
+			pin_corner_to_sibling	LEFT
+			pin_to_sibling_corner	LEFT
+		}
+
+		Map5
+		{
+			ControlName				Label
+			labelText				""
+			font					Default_27_Outline
+			fontHeight				28
+			fgcolor_override		"255 255 255 255"
+			visible					1
+			textAlignment			west
+			xpos					-575
+			ypos					0
+			wide					270
+			tall					30
+			zpos					104
+			pin_to_sibling			Row5
+			pin_corner_to_sibling	LEFT
+			pin_to_sibling_corner	LEFT
+		}
+
+		Players5
+		{
+			ControlName				Label
+			labelText				""
+			font					Default_27_Outline
+			fontHeight				28
+			fgcolor_override		"255 255 255 255"
+			visible					1
+			textAlignment			west
+			xpos					-860
+			ypos					0
+			wide					330
+			tall					30
+			zpos					104
+			pin_to_sibling			Row5
+			pin_corner_to_sibling	LEFT
+			pin_to_sibling_corner	LEFT
+		}
+
+		Length5
+		{
+			ControlName				Label
+			labelText				""
+			font					Default_27_Outline
+			fontHeight				28
+			fgcolor_override		"255 255 255 255"
+			visible					1
+			textAlignment			center
+			xpos					-1215
+			ypos					0
+			wide					160
+			tall					30
+			zpos					104
+			pin_to_sibling			Row5
+			pin_corner_to_sibling	LEFT
+			pin_to_sibling_corner	LEFT
+		}
+
+		Row6
+		{
+			ControlName				RuiButton
+			style					RuiButton
+			rui						"ui/generic_button.rpak"
+			wide					1395
+			tall					40
+			visible					1
+			enabled					1
+			zpos					100
+			cursorVelocityModifier	0.7
+			cursorPriority			20
+			sound_focus				"UI_Menu_Focus_Large"
+			xpos					0
+			ypos					0
+			scriptID				6
+			pin_to_sibling			Row5
+			pin_corner_to_sibling	TOP_LEFT
+			pin_to_sibling_corner	BOTTOM_LEFT
+			ruiArgs
+			{
+				buttonText			""
+			}
+		}
+
+		Date6
+		{
+			ControlName				Label
+			labelText				""
+			font					Default_27_Outline
+			fontHeight				28
+			fgcolor_override		"255 255 255 255"
+			visible					1
+			textAlignment			west
+			xpos					-25
+			ypos					0
+			wide					220
+			tall					30
+			zpos					104
+			pin_to_sibling			Row6
+			pin_corner_to_sibling	LEFT
+			pin_to_sibling_corner	LEFT
+		}
+
+		Mode6
+		{
+			ControlName				Label
+			labelText				""
+			font					Default_27_Outline
+			fontHeight				28
+			fgcolor_override		"255 255 255 255"
+			visible					1
+			textAlignment			west
+			xpos					-260
+			ypos					0
+			wide					300
+			tall					30
+			zpos					104
+			pin_to_sibling			Row6
+			pin_corner_to_sibling	LEFT
+			pin_to_sibling_corner	LEFT
+		}
+
+		Map6
+		{
+			ControlName				Label
+			labelText				""
+			font					Default_27_Outline
+			fontHeight				28
+			fgcolor_override		"255 255 255 255"
+			visible					1
+			textAlignment			west
+			xpos					-575
+			ypos					0
+			wide					270
+			tall					30
+			zpos					104
+			pin_to_sibling			Row6
+			pin_corner_to_sibling	LEFT
+			pin_to_sibling_corner	LEFT
+		}
+
+		Players6
+		{
+			ControlName				Label
+			labelText				""
+			font					Default_27_Outline
+			fontHeight				28
+			fgcolor_override		"255 255 255 255"
+			visible					1
+			textAlignment			west
+			xpos					-860
+			ypos					0
+			wide					330
+			tall					30
+			zpos					104
+			pin_to_sibling			Row6
+			pin_corner_to_sibling	LEFT
+			pin_to_sibling_corner	LEFT
+		}
+
+		Length6
+		{
+			ControlName				Label
+			labelText				""
+			font					Default_27_Outline
+			fontHeight				28
+			fgcolor_override		"255 255 255 255"
+			visible					1
+			textAlignment			center
+			xpos					-1215
+			ypos					0
+			wide					160
+			tall					30
+			zpos					104
+			pin_to_sibling			Row6
+			pin_corner_to_sibling	LEFT
+			pin_to_sibling_corner	LEFT
+		}
+
+		Row7
+		{
+			ControlName				RuiButton
+			style					RuiButton
+			rui						"ui/generic_button.rpak"
+			wide					1395
+			tall					40
+			visible					1
+			enabled					1
+			zpos					100
+			cursorVelocityModifier	0.7
+			cursorPriority			20
+			sound_focus				"UI_Menu_Focus_Large"
+			xpos					0
+			ypos					0
+			scriptID				7
+			pin_to_sibling			Row6
+			pin_corner_to_sibling	TOP_LEFT
+			pin_to_sibling_corner	BOTTOM_LEFT
+			ruiArgs
+			{
+				buttonText			""
+			}
+		}
+
+		Date7
+		{
+			ControlName				Label
+			labelText				""
+			font					Default_27_Outline
+			fontHeight				28
+			fgcolor_override		"255 255 255 255"
+			visible					1
+			textAlignment			west
+			xpos					-25
+			ypos					0
+			wide					220
+			tall					30
+			zpos					104
+			pin_to_sibling			Row7
+			pin_corner_to_sibling	LEFT
+			pin_to_sibling_corner	LEFT
+		}
+
+		Mode7
+		{
+			ControlName				Label
+			labelText				""
+			font					Default_27_Outline
+			fontHeight				28
+			fgcolor_override		"255 255 255 255"
+			visible					1
+			textAlignment			west
+			xpos					-260
+			ypos					0
+			wide					300
+			tall					30
+			zpos					104
+			pin_to_sibling			Row7
+			pin_corner_to_sibling	LEFT
+			pin_to_sibling_corner	LEFT
+		}
+
+		Map7
+		{
+			ControlName				Label
+			labelText				""
+			font					Default_27_Outline
+			fontHeight				28
+			fgcolor_override		"255 255 255 255"
+			visible					1
+			textAlignment			west
+			xpos					-575
+			ypos					0
+			wide					270
+			tall					30
+			zpos					104
+			pin_to_sibling			Row7
+			pin_corner_to_sibling	LEFT
+			pin_to_sibling_corner	LEFT
+		}
+
+		Players7
+		{
+			ControlName				Label
+			labelText				""
+			font					Default_27_Outline
+			fontHeight				28
+			fgcolor_override		"255 255 255 255"
+			visible					1
+			textAlignment			west
+			xpos					-860
+			ypos					0
+			wide					330
+			tall					30
+			zpos					104
+			pin_to_sibling			Row7
+			pin_corner_to_sibling	LEFT
+			pin_to_sibling_corner	LEFT
+		}
+
+		Length7
+		{
+			ControlName				Label
+			labelText				""
+			font					Default_27_Outline
+			fontHeight				28
+			fgcolor_override		"255 255 255 255"
+			visible					1
+			textAlignment			center
+			xpos					-1215
+			ypos					0
+			wide					160
+			tall					30
+			zpos					104
+			pin_to_sibling			Row7
+			pin_corner_to_sibling	LEFT
+			pin_to_sibling_corner	LEFT
+		}
+
+		Row8
+		{
+			ControlName				RuiButton
+			style					RuiButton
+			rui						"ui/generic_button.rpak"
+			wide					1395
+			tall					40
+			visible					1
+			enabled					1
+			zpos					100
+			cursorVelocityModifier	0.7
+			cursorPriority			20
+			sound_focus				"UI_Menu_Focus_Large"
+			xpos					0
+			ypos					0
+			scriptID				8
+			pin_to_sibling			Row7
+			pin_corner_to_sibling	TOP_LEFT
+			pin_to_sibling_corner	BOTTOM_LEFT
+			ruiArgs
+			{
+				buttonText			""
+			}
+		}
+
+		Date8
+		{
+			ControlName				Label
+			labelText				""
+			font					Default_27_Outline
+			fontHeight				28
+			fgcolor_override		"255 255 255 255"
+			visible					1
+			textAlignment			west
+			xpos					-25
+			ypos					0
+			wide					220
+			tall					30
+			zpos					104
+			pin_to_sibling			Row8
+			pin_corner_to_sibling	LEFT
+			pin_to_sibling_corner	LEFT
+		}
+
+		Mode8
+		{
+			ControlName				Label
+			labelText				""
+			font					Default_27_Outline
+			fontHeight				28
+			fgcolor_override		"255 255 255 255"
+			visible					1
+			textAlignment			west
+			xpos					-260
+			ypos					0
+			wide					300
+			tall					30
+			zpos					104
+			pin_to_sibling			Row8
+			pin_corner_to_sibling	LEFT
+			pin_to_sibling_corner	LEFT
+		}
+
+		Map8
+		{
+			ControlName				Label
+			labelText				""
+			font					Default_27_Outline
+			fontHeight				28
+			fgcolor_override		"255 255 255 255"
+			visible					1
+			textAlignment			west
+			xpos					-575
+			ypos					0
+			wide					270
+			tall					30
+			zpos					104
+			pin_to_sibling			Row8
+			pin_corner_to_sibling	LEFT
+			pin_to_sibling_corner	LEFT
+		}
+
+		Players8
+		{
+			ControlName				Label
+			labelText				""
+			font					Default_27_Outline
+			fontHeight				28
+			fgcolor_override		"255 255 255 255"
+			visible					1
+			textAlignment			west
+			xpos					-860
+			ypos					0
+			wide					330
+			tall					30
+			zpos					104
+			pin_to_sibling			Row8
+			pin_corner_to_sibling	LEFT
+			pin_to_sibling_corner	LEFT
+		}
+
+		Length8
+		{
+			ControlName				Label
+			labelText				""
+			font					Default_27_Outline
+			fontHeight				28
+			fgcolor_override		"255 255 255 255"
+			visible					1
+			textAlignment			center
+			xpos					-1215
+			ypos					0
+			wide					160
+			tall					30
+			zpos					104
+			pin_to_sibling			Row8
+			pin_corner_to_sibling	LEFT
+			pin_to_sibling_corner	LEFT
+		}
+
+		Row9
+		{
+			ControlName				RuiButton
+			style					RuiButton
+			rui						"ui/generic_button.rpak"
+			wide					1395
+			tall					40
+			visible					1
+			enabled					1
+			zpos					100
+			cursorVelocityModifier	0.7
+			cursorPriority			20
+			sound_focus				"UI_Menu_Focus_Large"
+			xpos					0
+			ypos					0
+			scriptID				9
+			pin_to_sibling			Row8
+			pin_corner_to_sibling	TOP_LEFT
+			pin_to_sibling_corner	BOTTOM_LEFT
+			ruiArgs
+			{
+				buttonText			""
+			}
+		}
+
+		Date9
+		{
+			ControlName				Label
+			labelText				""
+			font					Default_27_Outline
+			fontHeight				28
+			fgcolor_override		"255 255 255 255"
+			visible					1
+			textAlignment			west
+			xpos					-25
+			ypos					0
+			wide					220
+			tall					30
+			zpos					104
+			pin_to_sibling			Row9
+			pin_corner_to_sibling	LEFT
+			pin_to_sibling_corner	LEFT
+		}
+
+		Mode9
+		{
+			ControlName				Label
+			labelText				""
+			font					Default_27_Outline
+			fontHeight				28
+			fgcolor_override		"255 255 255 255"
+			visible					1
+			textAlignment			west
+			xpos					-260
+			ypos					0
+			wide					300
+			tall					30
+			zpos					104
+			pin_to_sibling			Row9
+			pin_corner_to_sibling	LEFT
+			pin_to_sibling_corner	LEFT
+		}
+
+		Map9
+		{
+			ControlName				Label
+			labelText				""
+			font					Default_27_Outline
+			fontHeight				28
+			fgcolor_override		"255 255 255 255"
+			visible					1
+			textAlignment			west
+			xpos					-575
+			ypos					0
+			wide					270
+			tall					30
+			zpos					104
+			pin_to_sibling			Row9
+			pin_corner_to_sibling	LEFT
+			pin_to_sibling_corner	LEFT
+		}
+
+		Players9
+		{
+			ControlName				Label
+			labelText				""
+			font					Default_27_Outline
+			fontHeight				28
+			fgcolor_override		"255 255 255 255"
+			visible					1
+			textAlignment			west
+			xpos					-860
+			ypos					0
+			wide					330
+			tall					30
+			zpos					104
+			pin_to_sibling			Row9
+			pin_corner_to_sibling	LEFT
+			pin_to_sibling_corner	LEFT
+		}
+
+		Length9
+		{
+			ControlName				Label
+			labelText				""
+			font					Default_27_Outline
+			fontHeight				28
+			fgcolor_override		"255 255 255 255"
+			visible					1
+			textAlignment			center
+			xpos					-1215
+			ypos					0
+			wide					160
+			tall					30
+			zpos					104
+			pin_to_sibling			Row9
+			pin_corner_to_sibling	LEFT
+			pin_to_sibling_corner	LEFT
+		}
+
+		Row10
+		{
+			ControlName				RuiButton
+			style					RuiButton
+			rui						"ui/generic_button.rpak"
+			wide					1395
+			tall					40
+			visible					1
+			enabled					1
+			zpos					100
+			cursorVelocityModifier	0.7
+			cursorPriority			20
+			sound_focus				"UI_Menu_Focus_Large"
+			xpos					0
+			ypos					0
+			scriptID				10
+			pin_to_sibling			Row9
+			pin_corner_to_sibling	TOP_LEFT
+			pin_to_sibling_corner	BOTTOM_LEFT
+			ruiArgs
+			{
+				buttonText			""
+			}
+		}
+
+		Date10
+		{
+			ControlName				Label
+			labelText				""
+			font					Default_27_Outline
+			fontHeight				28
+			fgcolor_override		"255 255 255 255"
+			visible					1
+			textAlignment			west
+			xpos					-25
+			ypos					0
+			wide					220
+			tall					30
+			zpos					104
+			pin_to_sibling			Row10
+			pin_corner_to_sibling	LEFT
+			pin_to_sibling_corner	LEFT
+		}
+
+		Mode10
+		{
+			ControlName				Label
+			labelText				""
+			font					Default_27_Outline
+			fontHeight				28
+			fgcolor_override		"255 255 255 255"
+			visible					1
+			textAlignment			west
+			xpos					-260
+			ypos					0
+			wide					300
+			tall					30
+			zpos					104
+			pin_to_sibling			Row10
+			pin_corner_to_sibling	LEFT
+			pin_to_sibling_corner	LEFT
+		}
+
+		Map10
+		{
+			ControlName				Label
+			labelText				""
+			font					Default_27_Outline
+			fontHeight				28
+			fgcolor_override		"255 255 255 255"
+			visible					1
+			textAlignment			west
+			xpos					-575
+			ypos					0
+			wide					270
+			tall					30
+			zpos					104
+			pin_to_sibling			Row10
+			pin_corner_to_sibling	LEFT
+			pin_to_sibling_corner	LEFT
+		}
+
+		Players10
+		{
+			ControlName				Label
+			labelText				""
+			font					Default_27_Outline
+			fontHeight				28
+			fgcolor_override		"255 255 255 255"
+			visible					1
+			textAlignment			west
+			xpos					-860
+			ypos					0
+			wide					330
+			tall					30
+			zpos					104
+			pin_to_sibling			Row10
+			pin_corner_to_sibling	LEFT
+			pin_to_sibling_corner	LEFT
+		}
+
+		Length10
+		{
+			ControlName				Label
+			labelText				""
+			font					Default_27_Outline
+			fontHeight				28
+			fgcolor_override		"255 255 255 255"
+			visible					1
+			textAlignment			center
+			xpos					-1215
+			ypos					0
+			wide					160
+			tall					30
+			zpos					104
+			pin_to_sibling			Row10
+			pin_corner_to_sibling	LEFT
+			pin_to_sibling_corner	LEFT
+		}
+
+		Row11
+		{
+			ControlName				RuiButton
+			style					RuiButton
+			rui						"ui/generic_button.rpak"
+			wide					1395
+			tall					40
+			visible					1
+			enabled					1
+			zpos					100
+			cursorVelocityModifier	0.7
+			cursorPriority			20
+			sound_focus				"UI_Menu_Focus_Large"
+			xpos					0
+			ypos					0
+			scriptID				11
+			pin_to_sibling			Row10
+			pin_corner_to_sibling	TOP_LEFT
+			pin_to_sibling_corner	BOTTOM_LEFT
+			ruiArgs
+			{
+				buttonText			""
+			}
+		}
+
+		Date11
+		{
+			ControlName				Label
+			labelText				""
+			font					Default_27_Outline
+			fontHeight				28
+			fgcolor_override		"255 255 255 255"
+			visible					1
+			textAlignment			west
+			xpos					-25
+			ypos					0
+			wide					220
+			tall					30
+			zpos					104
+			pin_to_sibling			Row11
+			pin_corner_to_sibling	LEFT
+			pin_to_sibling_corner	LEFT
+		}
+
+		Mode11
+		{
+			ControlName				Label
+			labelText				""
+			font					Default_27_Outline
+			fontHeight				28
+			fgcolor_override		"255 255 255 255"
+			visible					1
+			textAlignment			west
+			xpos					-260
+			ypos					0
+			wide					300
+			tall					30
+			zpos					104
+			pin_to_sibling			Row11
+			pin_corner_to_sibling	LEFT
+			pin_to_sibling_corner	LEFT
+		}
+
+		Map11
+		{
+			ControlName				Label
+			labelText				""
+			font					Default_27_Outline
+			fontHeight				28
+			fgcolor_override		"255 255 255 255"
+			visible					1
+			textAlignment			west
+			xpos					-575
+			ypos					0
+			wide					270
+			tall					30
+			zpos					104
+			pin_to_sibling			Row11
+			pin_corner_to_sibling	LEFT
+			pin_to_sibling_corner	LEFT
+		}
+
+		Players11
+		{
+			ControlName				Label
+			labelText				""
+			font					Default_27_Outline
+			fontHeight				28
+			fgcolor_override		"255 255 255 255"
+			visible					1
+			textAlignment			west
+			xpos					-860
+			ypos					0
+			wide					330
+			tall					30
+			zpos					104
+			pin_to_sibling			Row11
+			pin_corner_to_sibling	LEFT
+			pin_to_sibling_corner	LEFT
+		}
+
+		Length11
+		{
+			ControlName				Label
+			labelText				""
+			font					Default_27_Outline
+			fontHeight				28
+			fgcolor_override		"255 255 255 255"
+			visible					1
+			textAlignment			center
+			xpos					-1215
+			ypos					0
+			wide					160
+			tall					30
+			zpos					104
+			pin_to_sibling			Row11
+			pin_corner_to_sibling	LEFT
+			pin_to_sibling_corner	LEFT
+		}
+
+		Row12
+		{
+			ControlName				RuiButton
+			style					RuiButton
+			rui						"ui/generic_button.rpak"
+			wide					1395
+			tall					40
+			visible					1
+			enabled					1
+			zpos					100
+			cursorVelocityModifier	0.7
+			cursorPriority			20
+			sound_focus				"UI_Menu_Focus_Large"
+			xpos					0
+			ypos					0
+			scriptID				12
+			pin_to_sibling			Row11
+			pin_corner_to_sibling	TOP_LEFT
+			pin_to_sibling_corner	BOTTOM_LEFT
+			ruiArgs
+			{
+				buttonText			""
+			}
+		}
+
+		Date12
+		{
+			ControlName				Label
+			labelText				""
+			font					Default_27_Outline
+			fontHeight				28
+			fgcolor_override		"255 255 255 255"
+			visible					1
+			textAlignment			west
+			xpos					-25
+			ypos					0
+			wide					220
+			tall					30
+			zpos					104
+			pin_to_sibling			Row12
+			pin_corner_to_sibling	LEFT
+			pin_to_sibling_corner	LEFT
+		}
+
+		Mode12
+		{
+			ControlName				Label
+			labelText				""
+			font					Default_27_Outline
+			fontHeight				28
+			fgcolor_override		"255 255 255 255"
+			visible					1
+			textAlignment			west
+			xpos					-260
+			ypos					0
+			wide					300
+			tall					30
+			zpos					104
+			pin_to_sibling			Row12
+			pin_corner_to_sibling	LEFT
+			pin_to_sibling_corner	LEFT
+		}
+
+		Map12
+		{
+			ControlName				Label
+			labelText				""
+			font					Default_27_Outline
+			fontHeight				28
+			fgcolor_override		"255 255 255 255"
+			visible					1
+			textAlignment			west
+			xpos					-575
+			ypos					0
+			wide					270
+			tall					30
+			zpos					104
+			pin_to_sibling			Row12
+			pin_corner_to_sibling	LEFT
+			pin_to_sibling_corner	LEFT
+		}
+
+		Players12
+		{
+			ControlName				Label
+			labelText				""
+			font					Default_27_Outline
+			fontHeight				28
+			fgcolor_override		"255 255 255 255"
+			visible					1
+			textAlignment			west
+			xpos					-860
+			ypos					0
+			wide					330
+			tall					30
+			zpos					104
+			pin_to_sibling			Row12
+			pin_corner_to_sibling	LEFT
+			pin_to_sibling_corner	LEFT
+		}
+
+		Length12
+		{
+			ControlName				Label
+			labelText				""
+			font					Default_27_Outline
+			fontHeight				28
+			fgcolor_override		"255 255 255 255"
+			visible					1
+			textAlignment			center
+			xpos					-1215
+			ypos					0
+			wide					160
+			tall					30
+			zpos					104
+			pin_to_sibling			Row12
+			pin_corner_to_sibling	LEFT
+			pin_to_sibling_corner	LEFT
+		}
+
+		Row13
+		{
+			ControlName				RuiButton
+			style					RuiButton
+			rui						"ui/generic_button.rpak"
+			wide					1395
+			tall					40
+			visible					1
+			enabled					1
+			zpos					100
+			cursorVelocityModifier	0.7
+			cursorPriority			20
+			sound_focus				"UI_Menu_Focus_Large"
+			xpos					0
+			ypos					0
+			scriptID				13
+			pin_to_sibling			Row12
+			pin_corner_to_sibling	TOP_LEFT
+			pin_to_sibling_corner	BOTTOM_LEFT
+			ruiArgs
+			{
+				buttonText			""
+			}
+		}
+
+		Date13
+		{
+			ControlName				Label
+			labelText				""
+			font					Default_27_Outline
+			fontHeight				28
+			fgcolor_override		"255 255 255 255"
+			visible					1
+			textAlignment			west
+			xpos					-25
+			ypos					0
+			wide					220
+			tall					30
+			zpos					104
+			pin_to_sibling			Row13
+			pin_corner_to_sibling	LEFT
+			pin_to_sibling_corner	LEFT
+		}
+
+		Mode13
+		{
+			ControlName				Label
+			labelText				""
+			font					Default_27_Outline
+			fontHeight				28
+			fgcolor_override		"255 255 255 255"
+			visible					1
+			textAlignment			west
+			xpos					-260
+			ypos					0
+			wide					300
+			tall					30
+			zpos					104
+			pin_to_sibling			Row13
+			pin_corner_to_sibling	LEFT
+			pin_to_sibling_corner	LEFT
+		}
+
+		Map13
+		{
+			ControlName				Label
+			labelText				""
+			font					Default_27_Outline
+			fontHeight				28
+			fgcolor_override		"255 255 255 255"
+			visible					1
+			textAlignment			west
+			xpos					-575
+			ypos					0
+			wide					270
+			tall					30
+			zpos					104
+			pin_to_sibling			Row13
+			pin_corner_to_sibling	LEFT
+			pin_to_sibling_corner	LEFT
+		}
+
+		Players13
+		{
+			ControlName				Label
+			labelText				""
+			font					Default_27_Outline
+			fontHeight				28
+			fgcolor_override		"255 255 255 255"
+			visible					1
+			textAlignment			west
+			xpos					-860
+			ypos					0
+			wide					330
+			tall					30
+			zpos					104
+			pin_to_sibling			Row13
+			pin_corner_to_sibling	LEFT
+			pin_to_sibling_corner	LEFT
+		}
+
+		Length13
+		{
+			ControlName				Label
+			labelText				""
+			font					Default_27_Outline
+			fontHeight				28
+			fgcolor_override		"255 255 255 255"
+			visible					1
+			textAlignment			center
+			xpos					-1215
+			ypos					0
+			wide					160
+			tall					30
+			zpos					104
+			pin_to_sibling			Row13
+			pin_corner_to_sibling	LEFT
+			pin_to_sibling_corner	LEFT
+		}
+
+		Row14
+		{
+			ControlName				RuiButton
+			style					RuiButton
+			rui						"ui/generic_button.rpak"
+			wide					1395
+			tall					40
+			visible					1
+			enabled					1
+			zpos					100
+			cursorVelocityModifier	0.7
+			cursorPriority			20
+			sound_focus				"UI_Menu_Focus_Large"
+			xpos					0
+			ypos					0
+			scriptID				14
+			pin_to_sibling			Row13
+			pin_corner_to_sibling	TOP_LEFT
+			pin_to_sibling_corner	BOTTOM_LEFT
+			ruiArgs
+			{
+				buttonText			""
+			}
+		}
+
+		Date14
+		{
+			ControlName				Label
+			labelText				""
+			font					Default_27_Outline
+			fontHeight				28
+			fgcolor_override		"255 255 255 255"
+			visible					1
+			textAlignment			west
+			xpos					-25
+			ypos					0
+			wide					220
+			tall					30
+			zpos					104
+			pin_to_sibling			Row14
+			pin_corner_to_sibling	LEFT
+			pin_to_sibling_corner	LEFT
+		}
+
+		Mode14
+		{
+			ControlName				Label
+			labelText				""
+			font					Default_27_Outline
+			fontHeight				28
+			fgcolor_override		"255 255 255 255"
+			visible					1
+			textAlignment			west
+			xpos					-260
+			ypos					0
+			wide					300
+			tall					30
+			zpos					104
+			pin_to_sibling			Row14
+			pin_corner_to_sibling	LEFT
+			pin_to_sibling_corner	LEFT
+		}
+
+		Map14
+		{
+			ControlName				Label
+			labelText				""
+			font					Default_27_Outline
+			fontHeight				28
+			fgcolor_override		"255 255 255 255"
+			visible					1
+			textAlignment			west
+			xpos					-575
+			ypos					0
+			wide					270
+			tall					30
+			zpos					104
+			pin_to_sibling			Row14
+			pin_corner_to_sibling	LEFT
+			pin_to_sibling_corner	LEFT
+		}
+
+		Players14
+		{
+			ControlName				Label
+			labelText				""
+			font					Default_27_Outline
+			fontHeight				28
+			fgcolor_override		"255 255 255 255"
+			visible					1
+			textAlignment			west
+			xpos					-860
+			ypos					0
+			wide					330
+			tall					30
+			zpos					104
+			pin_to_sibling			Row14
+			pin_corner_to_sibling	LEFT
+			pin_to_sibling_corner	LEFT
+		}
+
+		Length14
+		{
+			ControlName				Label
+			labelText				""
+			font					Default_27_Outline
+			fontHeight				28
+			fgcolor_override		"255 255 255 255"
+			visible					1
+			textAlignment			center
+			xpos					-1215
+			ypos					0
+			wide					160
+			tall					30
+			zpos					104
+			pin_to_sibling			Row14
+			pin_corner_to_sibling	LEFT
+			pin_to_sibling_corner	LEFT
+		}
+
+		EmptyLabel
+		{
+			ControlName				Label
+			labelText				"#DEMO_REPLAYS_EMPTY"
+			font					Default_27_Outline
+			fontHeight				30
+			fgcolor_override		"255 255 255 255"
+			visible					1
+			textAlignment			center
+			xpos					0
+			ypos					0
+			wide					1100
+			tall					120
+			wrap					1
+			zpos					10
+			pin_to_sibling			ListBG
+			pin_corner_to_sibling	CENTER
+			pin_to_sibling_corner	CENTER
+		}
+
+		BottomBG
+		{
+			ControlName				ImagePanel
+			wide					1395
+			tall					60
+			visible					1
+			scaleImage				1
+			image					"vgui/white"
+			drawColor				"40 40 46 255"
+			xpos					0
+			ypos					10
+			zpos					0
+			pin_to_sibling			ListBG
+			pin_corner_to_sibling	TOP_LEFT
+			pin_to_sibling_corner	BOTTOM_LEFT
+		}
+
+		CountLabel
+		{
+			ControlName				Label
+			labelText				""
+			font					DefaultBold_41
+			fontHeight				26
+			fgcolor_override		"255 255 255 255"
+			visible					1
+			xpos					-25
+			ypos					0
+			wide					400
+			tall					35
+			zpos					6
+			pin_to_sibling			BottomBG
+			pin_corner_to_sibling	LEFT
+			pin_to_sibling_corner	LEFT
+		}
+
+		PageLabel
+		{
+			ControlName				Label
+			labelText				""
+			font					DefaultBold_41
+			fontHeight				26
+			fgcolor_override		"255 255 255 255"
+			visible					1
+			textAlignment			center
+			xpos					0
+			ypos					0
+			wide					300
+			tall					35
+			zpos					6
+			pin_to_sibling			BottomBG
+			pin_corner_to_sibling	CENTER
+			pin_to_sibling_corner	CENTER
+		}
+
+		NextButton
+		{
+			ControlName				RuiButton
+			style					RuiButton
+			rui						"ui/generic_button.rpak"
+			wide					200
+			tall					40
+			visible					1
+			enabled					1
+			zpos					100
+			cursorVelocityModifier	0.7
+			cursorPriority			20
+			sound_focus				"UI_Menu_Focus_Large"
+			xpos					-10
+			ypos					0
+			pin_to_sibling			BottomBG
+			pin_corner_to_sibling	RIGHT
+			pin_to_sibling_corner	RIGHT
+			ruiArgs
+			{
+				buttonText			"#DEMO_REPLAYS_NEXT"
+			}
+		}
+
+		PrevButton
+		{
+			ControlName				RuiButton
+			style					RuiButton
+			rui						"ui/generic_button.rpak"
+			wide					200
+			tall					40
+			visible					1
+			enabled					1
+			zpos					100
+			cursorVelocityModifier	0.7
+			cursorPriority			20
+			sound_focus				"UI_Menu_Focus_Large"
+			xpos					10
+			ypos					0
+			pin_to_sibling			NextButton
+			pin_corner_to_sibling	RIGHT
+			pin_to_sibling_corner	LEFT
+			ruiArgs
+			{
+				buttonText			"#DEMO_REPLAYS_PREV"
+			}
+		}
+
+		InfoBG
+		{
+			ControlName				ImagePanel
+			wide					450
+			tall					420
+			visible					1
+			scaleImage				1
+			image					"vgui/white"
+			drawColor				"28 28 34 240"
+			xpos					40
+			ypos					0
+			zpos					1
+			pin_to_sibling			HeaderBG
+			pin_corner_to_sibling	TOP_LEFT
+			pin_to_sibling_corner	TOP_RIGHT
+		}
+
+		InfoAccent
+		{
+			ControlName				ImagePanel
+			wide					450
+			tall					3
+			visible					1
+			scaleImage				1
+			image					"vgui/white"
+			drawColor				"53 194 214 255"
+			xpos					0
+			ypos					0
+			zpos					4
+			pin_to_sibling			InfoBG
+			pin_corner_to_sibling	TOP_LEFT
+			pin_to_sibling_corner	TOP_LEFT
+		}
+
+		InfoTitle
+		{
+			ControlName				Label
+			labelText				""
+			font					DefaultBold_41
+			fontHeight				32
+			fgcolor_override		"255 255 255 255"
+			visible					1
+			textAlignment			center
+			xpos					0
+			ypos					-20
+			wide					420
+			tall					80
+			wrap					1
+			zpos					7
+			pin_to_sibling			InfoBG
+			pin_corner_to_sibling	TOP
+			pin_to_sibling_corner	TOP
+		}
+
+		DetailLabel
+		{
+			ControlName				Label
+			labelText				"#DEMO_REPLAYS_SELECT"
+			font					Default_27_Outline
+			fontHeight				26
+			fgcolor_override		"235 235 235 255"
+			visible					1
+			textAlignment			north-west
+			xpos					-20
+			ypos					-115
+			wide					410
+			tall					290
+			wrap					1
+			zpos					7
+			pin_to_sibling			InfoBG
+			pin_corner_to_sibling	TOP_LEFT
+			pin_to_sibling_corner	TOP_LEFT
+		}
+
+		PlayPov0Button
+		{
+			ControlName				RuiButton
+			style					RuiButton
+			rui						"ui/generic_ready_button.rpak"
+			wide					450
+			tall					100
+			visible					1
+			enabled					1
+			zpos					100
+			cursorVelocityModifier	0.7
+			cursorPriority			20
+			sound_focus				"UI_Menu_Focus_Large"
+			xpos					0
+			ypos					15
+			pin_to_sibling			InfoBG
+			pin_corner_to_sibling	TOP
+			pin_to_sibling_corner	BOTTOM
+			ruiArgs
+			{
+				buttonText			"#DEMO_REPLAYS_PLAY"
+			}
+		}
+
+		PlayPov1Button
+		{
+			ControlName				RuiButton
+			style					RuiButton
+			rui						"ui/generic_ready_button.rpak"
+			wide					450
+			tall					100
+			visible					1
+			enabled					1
+			zpos					100
+			cursorVelocityModifier	0.7
+			cursorPriority			20
+			sound_focus				"UI_Menu_Focus_Large"
+			xpos					0
+			ypos					10
+			pin_to_sibling			PlayPov0Button
+			pin_corner_to_sibling	TOP
+			pin_to_sibling_corner	BOTTOM
+			ruiArgs
+			{
+				buttonText			"#DEMO_REPLAYS_PLAY"
+			}
+		}
+
+		DeleteButton
+		{
+			ControlName				RuiButton
+			style					RuiButton
+			rui						"ui/generic_button.rpak"
+			wide					450
+			tall					44
+			visible					1
+			enabled					1
+			zpos					100
+			cursorVelocityModifier	0.7
+			cursorPriority			20
+			sound_focus				"UI_Menu_Focus_Large"
+			xpos					0
+			ypos					25
+			pin_to_sibling			PlayPov1Button
+			pin_corner_to_sibling	TOP
+			pin_to_sibling_corner	BOTTOM
+			ruiArgs
+			{
+				buttonText			"#DEMO_REPLAYS_DELETE"
+			}
+		}
+
+		FooterButtons
+		{
+			ControlName				CNestedPanel
+			controlSettingsFile		"resource/ui/menus/panels/footer_buttons.res"
+			xpos					0
+			ypos					0
+			zpos					20
+			wide					f0
+			tall					48
+			visible					1
+			pin_to_sibling			DarkenBackground
+			pin_corner_to_sibling	BOTTOM
+			pin_to_sibling_corner	BOTTOM
+		}
+
+	}
+}

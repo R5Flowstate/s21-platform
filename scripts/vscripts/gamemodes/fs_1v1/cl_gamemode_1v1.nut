@@ -136,6 +136,7 @@ struct {
 
 	string scorebarDeathArg = "?"
 	bool combatHudPainted = false
+	bool combatHudShown = false
 	bool minimapHeldHidden = false
 	bool enemyMinimapActive = false
 	var enemyMinimapRui = null
@@ -200,7 +201,9 @@ void function Cl_Gamemode1v1_Init()
 
 		// Full scoreboard = FSLeaderboard on map key (default PC: M = toggle_map).
 		// TAB is inventory. Stock ToggleScoreboard blocked by FS_CAP_CUSTOM_SCOREBOARD.
-		RegisterConCommandTriggeredCallback( "toggle_map", FS_1v1_ToggleFullScoreboard )
+		// Zone Wars keeps M as the fullmap; its leaderboard opens at round end.
+		if ( !FS_IsScenarios() )
+			RegisterConCommandTriggeredCallback( "toggle_map", FS_1v1_ToggleFullScoreboard )
 	}
 
 	// Resolution change callback
@@ -215,6 +218,16 @@ void function Cl_Gamemode1v1_Init()
 
 	thread Cl_1v1_HudBind_THREAD()
 	thread FS_1v1_RoundClock_THREAD()
+
+	if ( FS_IsScenarios() )
+	{
+		// Deathbox bindings, ground list fill and loot prompts; normally run by ClGamemodeSurvival_Init.
+		Cl_Survival_LootInit()
+		Cl_FS_Scenarios_Init()
+	}
+	else if ( CharSelect_UsesPlayerState() )
+		RegisterNetVarBoolChangeCallback( CharSelect_PlayerStateNetVar( "characterSelectionReady" ), Cl_1v1_OnChallengePickReadyChanged )
+
 	printt( "[FS-1V1] Cl_Gamemode1v1_Init complete (watchdog started)" )
 }
 
@@ -313,6 +326,9 @@ void function FS_1v1_GameModeScoreBarRules( var gamestateRui )
 	FS_1v1_RuiSetIntSafe( gamestateRui, "damageDealt", FS_1v1_HudDamage( player ) )
 	FS_1v1_RuiSetIntSafe( gamestateRui, "assistCount", FS_1v1_HudNetInt( player, "assists" ) )
 	FS_1v1_FeedScorebarDeaths( gamestateRui, FS_1v1_HudNetInt( player, "deaths" ) )
+
+	if ( FS_IsScenarios() )
+		Cl_FS_Scenarios_ScoreBarRules( gamestateRui, player )
 }
 
 // The bar layout decides which name it exposes for deaths, and this runs every
@@ -390,6 +406,22 @@ void function CL_1v1_RegisterNetworkFunctions()
 void function Gamemode1v1_ForceLegendSelector_Deprecated()
 {
 	printt( "[FS-1V1] legend selector is disabled" )
+}
+
+void function Cl_1v1_OnChallengePickReadyChanged( entity player, bool ready )
+{
+	if ( player != GetLocalClientPlayer() )
+		return
+
+	if ( ready )
+	{
+		if ( !CharacterSelect_MenuIsOpen() )
+			OpenCharacterSelectMenu()
+		return
+	}
+
+	if ( CharacterSelect_MenuIsOpen() )
+		CloseCharacterSelectMenu()
 }
 
 void function Gamemode1v1_OnLegendSelector_Close()
@@ -718,10 +750,12 @@ void function FS_1v1_SetCombatHudVisible( bool show )
 
 	if ( show )
 	{
+		file.combatHudShown = true
 		ShowScriptHUD( lp )
 		try { FS_1v1_SetRuiVisibleSafe( GetCompassRui(), false ) } catch ( eCompassShow ) {}
 		FS_1v1_SetMinimapVisible( true )
-		FS_1v1_SetEnemyMinimapActive( true )
+		// The duel arrow marks the one other player in the realm; a team fight has several.
+		FS_1v1_SetEnemyMinimapActive( !FS_IsScenarios() )
 		FS_1v1_ApplyRoundHudVisibility()
 		FS_1v1_ApplyAbilityHudVisibility()
 		if ( !file.combatHudPainted )
@@ -733,6 +767,7 @@ void function FS_1v1_SetCombatHudVisible( bool show )
 	}
 
 	file.combatHudPainted = false
+	file.combatHudShown = false
 
 	// Rest/wait keeps the scorebar: HideScriptHUD would take it and the
 	// netgraph nested on it down with the combat pieces.
@@ -748,18 +783,24 @@ void function FS_1v1_ApplyAbilityHudVisibility()
 {
 	if ( GetCurrentPlaylistVarBool( "freedm_ffa_active", false ) )
 		return
-	if ( GetCurrentPlaylistVarBool( "give_legend_tactical", false ) )
+	if ( GetCurrentPlaylistVarBool( "give_legend_tactical", false ) || FS_IsScenarios() )
 		return
+
+	// Challenges can grant legend abilities on a playlist that otherwise has none.
+	entity lp = GetLocalViewPlayer()
+	bool granted = IsValid( lp ) && lp.IsPlayer()
+		&& ( IsValid( lp.GetOffhandWeapon( OFFHAND_TACTICAL ) ) || IsValid( lp.GetOffhandWeapon( OFFHAND_ULTIMATE ) ) )
+	bool show = granted && file.combatHudShown && !FS_1v1_FullscreenPresentationActive()
 
 	try
 	{
 		var tactical = GetTacticalRui()
 		if ( tactical != null )
-			RuiSetBool( tactical, "isVisible", false )
+			RuiSetBool( tactical, "isVisible", show )
 
 		var ultimate = GetUltimateRui()
 		if ( ultimate != null )
-			RuiSetBool( ultimate, "isVisible", false )
+			RuiSetBool( ultimate, "isVisible", show )
 	}
 	catch ( eAbilityHud )
 	{
@@ -938,6 +979,8 @@ void function FS_1v1_PlayerStateChanged( entity player, int newValue )
 void function FS_1v1_ToggleUIVisibility( bool toggle, entity newEnt )
 {
 	entity player = GetLocalClientPlayer()
+	if ( !IsValid( player ) )
+		return
 
 	Signal( player, "StopCurrentEnemyThread" )
 
@@ -2138,6 +2181,8 @@ void function ServerCallback_1v1_VsHudHide()
 
 void function ServerCallback_1v1_Obituary( int a1, int a2, int a3, int a4, int v1, int v2, int v3, int v4, int damageSourceId, int obitFlags )
 {
+	DemoMoments_OnDeath( Scoreboard1v1_UnpackName( a1, a2, a3, a4 ), Scoreboard1v1_UnpackName( v1, v2, v3, v4 ), damageSourceId, obitFlags )
+
 	if ( GetConVarInt( "hud_setting_showObituary" ) == 0 )
 		return
 

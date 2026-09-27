@@ -299,6 +299,9 @@ void function TrackingVision_SetActivePOIEventTypes()
 		file.activePOIEvents[  eTrackingVisionNetworkedPOITypes.PLAYER_ABILITY_ALTER_ULTIMATE_USED ] <- file.trackingVision_ENABLE_POI_PLAYER_ABILITIES
 		file.activePOIEvents[  eTrackingVisionNetworkedPOITypes.PLAYER_ABILITY_ALTER_TACTICAL_USED ] <- file.trackingVision_ENABLE_POI_PLAYER_ABILITIES
 		file.activePOIEvents[  eTrackingVisionNetworkedPOITypes.PLAYER_ABILITY_ALTER_PASSIVE_USED ] <- file.trackingVision_ENABLE_POI_PLAYER_ABILITIES
+		file.activePOIEvents[  eTrackingVisionNetworkedPOITypes.PLAYER_ABILITY_SPRROW_DOUBLE_JUMP ] <- file.trackingVision_ENABLE_POI_PLAYER_ABILITIES
+		file.activePOIEvents[  eTrackingVisionNetworkedPOITypes.PLAYER_ABILITY_SPRROW_TRACKER_DART ] <- file.trackingVision_ENABLE_POI_PLAYER_ABILITIES
+		file.activePOIEvents[  eTrackingVisionNetworkedPOITypes.PLAYER_ABILITY_SPRROW_STINGER_BOLT ] <- file.trackingVision_ENABLE_POI_PLAYER_ABILITIES
        
 
 	                             

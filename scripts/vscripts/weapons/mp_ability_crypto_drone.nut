@@ -169,6 +169,7 @@ struct
 	#endif
 
 	float neurolinkRange
+	table<entity, float> neurolinkRangeByPlayer
 	float droneMaxZ = 100000
 	int   droneHealth
 	bool  ForceExitDroneView = false
@@ -1108,9 +1109,10 @@ void function Drone_RecallThink( entity camera, entity player )
 	vector cameraOrigin = camera.GetOrigin()
 	EmitSoundAtPosition( TEAM_UNASSIGNED, cameraOrigin, "Char_11_TacticalA_D", camera )
 
-	StartParticleEffectInWorld( GetParticleSystemIndex( DRONE_RECALL_END_FX_3P ), cameraOrigin, <0, 0, 0> )
+	StartParticleEffectInWorldForRealms( GetParticleSystemIndex( DRONE_RECALL_END_FX_3P ), cameraOrigin, <0, 0, 0>, camera )
 
-	thread CryptoDrone_TestSendPoint_Think( player )
+	if ( IsValid( player ) )
+		thread CryptoDrone_TestSendPoint_Think( player )
 
 	// if( PlayerHasPassive( owner, ePassives.PAS_STOWED_DRONE_SCAN ) )
 	// {
@@ -1649,7 +1651,7 @@ void function Crypto_TryAutoEnterDroneView( entity player, entity weapon )
 
 void function Crypto_TryAddExitViewCommand( entity player )
 {
-	EndSignal( player, "OnDeath" )
+	EndSignal( player, "OnDeath", "OnDestroy" )
 
 	while ( player.IsInputCommandHeld( IN_OFFHAND1 ) )
 		WaitFrame()
@@ -1767,7 +1769,9 @@ void function SwapToCameraView_Thread( entity owner, entity activeCamera )
 	OnThreadEnd(
 		function() : ( owner, activeCamera, visorFX, wasAlreadyInShoulderMode )
 		{
-			owner.Signal( "OnContinousUseStopped" )
+			// OnDestroy ends this thread when Crypto disconnects in view.
+			if ( IsValid( owner ) )
+				owner.Signal( "OnContinousUseStopped" )
 			thread TransitionOutOfCamera( owner, activeCamera, visorFX, wasAlreadyInShoulderMode )
 			SetForceExitDroneView(false)
 		}
@@ -1796,7 +1800,9 @@ void function SwapToCameraView_Thread( entity owner, entity activeCamera )
 	entity currentlyReloadingWeapon = null
 	float reloadEndTime = -1.0
 
-	AddEntityCallback_OnDamaged( owner, OnPlayerTookDamage ) //(mk): adding damage callback here..
+	// Only Drone_ExitView removes it; other exits leave it registered, so never stack a second copy.
+	if ( !owner.e.entDamageCallbacks.contains( OnPlayerTookDamage ) )
+		AddEntityCallback_OnDamaged( owner, OnPlayerTookDamage ) //(mk): adding damage callback here..
 	#if DEVELOPER
 		//printt( "Crypto AddEntityCallback_OnDamaged:", owner )
 	#endif
@@ -1956,9 +1962,11 @@ void function TransitionOutOfCamera( entity owner, entity activeCamera, entity v
 			ScreenFade( owner, 255, 255, 255, 255, fadeInTime, 0.2, (FFADE_OUT | FFADE_PURGE) )
 			wait fadeInTime
 		}
-		Set1pHealRopeVisibility( owner )
 		if ( IsValid( owner ) )
+		{
+			Set1pHealRopeVisibility( owner )
 			owner.EnableMantle()
+		}
 	}
 
 	if ( IsValid( visorFX ) )
@@ -2159,7 +2167,7 @@ void function OnCameraDestroyed( entity cameraProxy )
 		return
 
 	vector cameraPosition = cameraProxy.GetOrigin()
-	PlayFX( CAMERA_EXPLOSION_FX, cameraPosition )
+	StartParticleEffectInWorldForRealms( GetParticleSystemIndex( CAMERA_EXPLOSION_FX ), cameraPosition, <0, 0, 0>, cameraProxy )
 	EmitSoundAtPosition( TEAM_UNASSIGNED, cameraPosition, DRONE_EXPLOSION_3P, cameraProxy )
 
 	entity owner = cameraProxy.GetOwner()
@@ -3181,6 +3189,9 @@ void function CryptoDrone_TestSendPoint_Think( entity player )
 	OnThreadEnd(
 		function() : ( player )
 		{
+			if ( !IsValid( player ) )
+				return
+
 			entity weapon = player.GetOffhandWeapon( OFFHAND_TACTICAL )
 			bool isPredictedOrServer = InPrediction() && IsFirstTimePredicted()
 			#if SERVER
@@ -3583,8 +3594,12 @@ bool function AutoReloadWhileInCryptoDroneCameraView()
 float function GetNeurolinkRange( entity player )
 {
 
-	if( IsValid( player ) && player.HasPassive( ePassives.PAS_PAS_UPGRADE_ONE ) && !player.GetPlayerNetBool( "isDoingEMPSequence" ) ) 
-		file.neurolinkRange = GetCurrentPlaylistVarFloat( "crypto_neurolink_range", EMP_RANGE ) * EMP_RANGE_UPGRADE_MULTIPLIER
+	// Per player, so one Crypto's upgrade does not widen every other Crypto's range.
+	if( IsValid( player ) && player.HasPassive( ePassives.PAS_PAS_UPGRADE_ONE ) && !player.GetPlayerNetBool( "isDoingEMPSequence" ) )
+		file.neurolinkRangeByPlayer[ player ] <- GetCurrentPlaylistVarFloat( "crypto_neurolink_range", EMP_RANGE ) * EMP_RANGE_UPGRADE_MULTIPLIER
+
+	if ( IsValid( player ) && ( player in file.neurolinkRangeByPlayer ) )
+		return file.neurolinkRangeByPlayer[ player ]
 
 	return file.neurolinkRange
 }

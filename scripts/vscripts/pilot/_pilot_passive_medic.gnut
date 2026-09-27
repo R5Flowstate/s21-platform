@@ -42,7 +42,7 @@ const FX_DRONE_MEDIC_JET_LOOP			= $"P_LL_med_drone_jet_loop"
 
 const asset DRONE_BEAM_EFFECT_DUD = $"P_drone_medic_shield_beam"
 
-const asset DRONE_MODEL = $"mdl/props/lifeline_drone/lifeline_drone.rmdl"
+const asset DRONE_MODEL = $"mdl/props/lifeline_drone_rework/lifeline_drone_rework.rmdl"
 const vector DRONE_MINS = <-9, -9, -10>
 const vector DRONE_MAXS = <9, 9, 10>
 
@@ -709,7 +709,7 @@ void function ClientCallback_CancelRevive( entity player )
 	array<entity> players = GetPlayerArrayOfTeam_Alive( player.GetTeam() )
 	foreach ( entity teammate in players )
 	{
-		if( PlayerHasPassive( teammate, ePassives.PAS_MEDIC ) )
+		if( PlayerHasPassive( teammate, ePassives.PAS_MEDIC ) && IsValid( player.p.droneRevivingPlayer ) )
 		{
 			player.p.droneRevivingPlayer.Signal( "OnDestroy" )
 		}
@@ -779,6 +779,8 @@ void function ServerToClient_DisplaySelfResRuiForPlayer( entity player )
 	if ( player != GetLocalViewPlayer() )
 		return
 
+	// One live UI thread; a repeat call restarts it instead of stacking another.
+	player.Signal( "PassiveMedic_DestroySelfResRUI" )
 	thread PassiveMedic_UpdateSelfResRUI( player )
 }
 

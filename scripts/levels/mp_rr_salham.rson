@@ -1,0 +1,7 @@
+IsTestMap: true
+
+When: "SERVER || CLIENT"
+Scripts:
+[
+	mp/levels/mp_rr_salham.nut
+]

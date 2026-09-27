@@ -143,7 +143,7 @@
         pin_to_sibling_corner	TOP
     }
 
-	LabMatchPanel
+	LabChallengesPanel
     {
         ControlName				CNestedPanel
         classname				"TabPanelClass"
@@ -155,7 +155,7 @@
         visible                 0
         enabled                 1
         tabPosition             1
-        controlSettingsFile		"resource/ui/menus/panels/lab_match.res"
+        controlSettingsFile		"resource/ui/menus/panels/lab_challenges.res"
 
         xcounterscroll			0.0
         ycounterscroll			0.0

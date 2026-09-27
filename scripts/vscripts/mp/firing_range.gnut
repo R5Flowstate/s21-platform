@@ -397,7 +397,7 @@ struct
 void function FiringRangeGameMode_Init()
 {
 	//This is to prevent out-of-edicts Jiras from being created when devs mistakenly load a BR map on the firing range playlist
-	Assert( GetMapName() == "mp_rr_canyonlands_staging_mu1", "Invalid: the firing range playlist only supports mp_rr_canyonlands_staging_mu1" )
+	Assert( GetMapName() == "mp_rr_canyonlands_staging_mu1" || GetMapName() == "mp_rr_canyonlands_staging", "Invalid: the firing range playlist only supports the firing range maps" )
 
 	Remote_RegisterServerFunction( "UCB_SV_FRSetting_FriendlyFire_Toggle" )
 
@@ -548,8 +548,8 @@ void function FiringRangeGameMode_Init()
 // FRINTSETTINGS_MAXSELECTIONS.
 float function FRDummie_StrafeDurationIndexToSeconds( int index )
 {
-	// 10 steps -- the settings button's list tops out at index 9.
-	array< float > steps = [ 0.10, 0.15, 0.20, 0.25, 0.30, 0.40, 0.50, 0.60, 0.75, 0.90 ]
+	// The FR settings list shows indices 0-9; the Lab strafe time list uses all 16.
+	array< float > steps = [ 0.10, 0.15, 0.20, 0.25, 0.30, 0.40, 0.50, 0.60, 0.75, 0.90, 1.00, 1.25, 1.50, 2.00, 2.50, 3.00 ]
 	if( ( index < 0 ) || ( index >= steps.len() ) )
 		index = 2 // fall back to the 0.20s default
 	return steps[ index ]
@@ -568,6 +568,12 @@ string function FRDummie_StrafeDurationIndexToLabel( int index )
 		"#FRSETTING_DUMMIESTRAFEDURATION_060",
 		"#FRSETTING_DUMMIESTRAFEDURATION_075",
 		"#FRSETTING_DUMMIESTRAFEDURATION_090",
+		"#FRSETTING_DUMMIESTRAFEDURATION_100",
+		"#FRSETTING_DUMMIESTRAFEDURATION_125",
+		"#FRSETTING_DUMMIESTRAFEDURATION_150",
+		"#FRSETTING_DUMMIESTRAFEDURATION_200",
+		"#FRSETTING_DUMMIESTRAFEDURATION_250",
+		"#FRSETTING_DUMMIESTRAFEDURATION_300",
 	]
 	if( ( index < 0 ) || ( index >= labels.len() ) )
 		index = 2

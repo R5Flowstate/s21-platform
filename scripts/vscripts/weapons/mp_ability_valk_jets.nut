@@ -2,6 +2,8 @@ global function MpAbilityValkJets_Init
 
 global function OnWeaponActivate_ability_valk_jets
 global function OnWeaponDeactivate_ability_valk_jets
+global function OnWeaponChargeBegin_ability_valk_jets
+global function OnWeaponChargeEnd_ability_valk_jets
 global function OnWeaponPrimaryAttack_ability_valk_jets
 global function OnWeaponAttemptOffhandSwitch_ability_valk_jets
 
@@ -23,6 +25,9 @@ global function CodeCallback_OnPlayerJetpackStart
 const float SLOW_FALL_TIME = 0.5
 const float VALK_JETPACK_SPEED = 250
 const float VALK_JETPACK_REACTIVATION_DELAY = 0.25
+const float VALK_ULT_REVEAL_RANGE = 210 * METERS_TO_INCHES
+const float VALK_ULT_REVEAL_RANGE_UPGRADED = 250 * METERS_TO_INCHES
+const float VALK_ULT_REVEAL_RANGE_THROUGH_WALLS = 100 * METERS_TO_INCHES
 const asset SKYWARD_JUMPJETS_FRIENDLY = $"P_valk_jet_fly_ON"
 const asset SKYWARD_JUMPJETS_ENEMY = $"P_valk_jet_fly_ON"
 
@@ -118,21 +123,24 @@ void function ValkTeammateStartTracking( entity valk )
 	// dklein: for ease of tuning, you can set a reveal distance in playlist. Remember that it's distance SQUARED, and that
 	// distance is measured in inches, for reasons. 69,000,000 translates to 8,306 inches or 210 meters. Nice.
 
-	float valkPasRevealDistance = GetCurrentPlaylistVarFloat( "valkpas_enemy_reveal_distance", 69000000 )
+	float valkPasRevealDistance = GetCurrentPlaylistVarFloat( "valkpas_enemy_reveal_distance", VALK_ULT_REVEAL_RANGE * VALK_ULT_REVEAL_RANGE )
+	bool hasRecon = PlayerHasPassive( valk, ePassives.PAS_ULT_UPGRADE_THREE )
+	if ( hasRecon )
+		valkPasRevealDistance = VALK_ULT_REVEAL_RANGE_UPGRADED * VALK_ULT_REVEAL_RANGE_UPGRADED
 	while ( true )
 	{
 		int valkTeam				= valk.GetTeam()
 		array<entity> enemyPlayers 	= GetPlayerArrayOfEnemies( valkTeam )
 		array<entity> decoyArray 	= GetPlayerDecoyArray()
-		//decoyArray.extend( GetEntArrayByScriptName( MIRAGE_DECOY_DROP_SCRIPTNAME ) )
+		decoyArray.extend( GetEntArrayByScriptName( MIRAGE_DECOY_DROP_SCRIPTNAME ) )
 
-		/*if ( GameModeVariant_IsActive( eGameModeVariants.SURVIVAL_FIRING_RANGE ) )
+		if ( GameModeVariant_IsActive( eGameModeVariants.SURVIVAL_FIRING_RANGE ) )
 		{
 			array<entity> dummies = GetEntArrayByScriptName( FIRING_RANGE_DUMMIE_SCRIPT_NAME )
 			dummies.extend( GetEntArrayByScriptName( FIRING_RANGE_COMBAT_DUMMIE_SCRIPT_NAME ) )
 
 			enemyPlayers.extend( dummies )
-		}*/
+		}
 
 		foreach ( decoy in decoyArray )
 		{
@@ -153,7 +161,7 @@ void function ValkTeammateStartTracking( entity valk )
 			if( IsValid( enemy ) )
 			{
 				scriptName = enemy.GetScriptName()
-				//isDropDecoy = ( scriptName == MIRAGE_DECOY_DROP_SCRIPTNAME )
+				isDropDecoy = ( scriptName == MIRAGE_DECOY_DROP_SCRIPTNAME )
 			}
 
 			if ( IsAlive( enemy ) || isDropDecoy )
@@ -167,7 +175,8 @@ void function ValkTeammateStartTracking( entity valk )
 						enemyTracePos = enemy.EyePosition()
 
 					TraceResults trace = TraceLine( valk.EyePosition(), enemyTracePos, [ valk ], TRACE_MASK_VISIBLE, TRACE_COLLISION_GROUP_NONE )
-					if ( trace.fraction == 1.0 && ValkThreatVisionShouldRevealEnemy( enemy ) )
+					bool revealedThroughWalls = hasRecon && DistanceSqr( valk.GetOrigin(), enemy.GetOrigin() ) < VALK_ULT_REVEAL_RANGE_THROUGH_WALLS * VALK_ULT_REVEAL_RANGE_THROUGH_WALLS
+					if ( revealedThroughWalls || ( trace.fraction == 1.0 && ValkThreatVisionShouldRevealEnemy( enemy ) ) )
 					{
 						if ( !(targetsShown.contains( enemy )) )
 						{
@@ -246,7 +255,13 @@ bool function ValkThreatVisionShouldRevealEnemy( entity enemy )
 {
 	if ( !enemy.IsPlayer() && !enemy.IsPlayerDecoy() )
 	{
-		return false
+		string scriptName = enemy.GetScriptName()
+		if( scriptName == MIRAGE_DECOY_DROP_SCRIPTNAME )
+			return true
+		else if ( GameModeVariant_IsActive( eGameModeVariants.SURVIVAL_FIRING_RANGE ) && ( scriptName == FIRING_RANGE_DUMMIE_SCRIPT_NAME || scriptName == FIRING_RANGE_COMBAT_DUMMIE_SCRIPT_NAME ) )
+			return true
+		else
+			return false
 	}
 
 	if( !enemy.IsPlayerDecoy() )
@@ -347,17 +362,16 @@ void function _ValkFlightReveal( entity victim )
 
 	int attachment = victim.LookupAttachment( "CHESTFOCUS" )
 	RuiTrackFloat3( rui, "pos", victim, RUI_TRACK_POINT_FOLLOW, attachment )
-	bool isChampion   = false//GameModeVariant_IsActive( eGameModeVariants.SURVIVAL_FIRING_RANGE ) && victim.IsNPC() ? false : GradeFlagsHas( victim, eTargetGrade.CHAMPION )
-	bool isKillLeader = false//GameModeVariant_IsActive( eGameModeVariants.SURVIVAL_FIRING_RANGE ) && victim.IsNPC() ? false : GradeFlagsHas( victim, eTargetGrade.CHAMP_KILLLEADER )
+	bool isChampion   = GameModeVariant_IsActive( eGameModeVariants.SURVIVAL_FIRING_RANGE ) && victim.IsNPC() ? false : GradeFlagsHas( victim, eTargetGrade.CHAMPION )
+	bool isKillLeader = GameModeVariant_IsActive( eGameModeVariants.SURVIVAL_FIRING_RANGE ) && victim.IsNPC() ? false : GradeFlagsHas( victim, eTargetGrade.CHAMP_KILLLEADER )
 	RuiSetBool( rui, "isChampion", isChampion )
 	RuiSetBool( rui, "isKillLeader", isKillLeader )
 
-
-		/*if ( GameMode_IsActive( eGameModes.CONTROL ) )
+		if ( GameMode_IsActive( eGameModes.CONTROL ) )
 		{
 			bool isEXPLeader = GradeFlagsHas( victim, eTargetGrade.EXP_LEADER )
 			RuiSetBool( rui, "isEXPLeader", isEXPLeader )
-		}*/
+		}
 
 
 
@@ -376,7 +390,7 @@ void function _ValkFlightReveal( entity victim )
 
 		while( true )
 		{
-			bool scanBlocked = false//FerroWall_BlockScan( player.EyePosition(), victim.GetWorldSpaceCenter() )
+			bool scanBlocked = FerroWall_BlockScan( player.EyePosition(), victim.GetWorldSpaceCenter() )
 			RuiSetBool( rui, "isVisible", !scanBlocked )
 			WaitFrame()
 		}
@@ -537,6 +551,10 @@ bool function OnWeaponAttemptOffhandSwitch_ability_valk_jets( entity weapon )
 		primaryMelee.AddMod( "using_jets" )
 
 
+	entity tacWeapon = weaponOwner.GetOffhandWeapon( OFFHAND_TACTICAL )
+	if ( IsValid( tacWeapon ) && tacWeapon.IsBurstFireInProgress() )
+		return false
+
 	if ( weaponOwner.GetPlayerNetBool( "isHealing" ) )
 		return false
 
@@ -544,15 +562,11 @@ bool function OnWeaponAttemptOffhandSwitch_ability_valk_jets( entity weapon )
 	if ( now < weaponOwner.p.lastTimeDeactivatedJetpack + VALK_JETPACK_REACTIVATION_DELAY )
 		return false
 
-	// S21 client: CanUseJetpack returns int (no ! autopromote). S3 dedi: bool.
 	#if CLIENT
-		int jetOk = weaponOwner.CanUseJetpack( weaponOwner.GetVelocity() )
-		if ( jetOk == 0 )
-		{
+		int result = weaponOwner.CanUseJetpack( weaponOwner.GetVelocity() )
+		if ( result == JETPACK_ENGAGE_FAILED_OUT_OF_FUEL )
 			EmitSoundOnEntity( weaponOwner, "Valk_Hover_Start_Fail_1P" )
-			return false
-		}
-		return true
+		return result == JETPACK_ENGAGE_SUCCEED
 	#else
 		bool jetOk = weaponOwner.CanUseJetpack( weaponOwner.GetVelocity() )
 		return jetOk
@@ -564,7 +578,32 @@ var function OnWeaponPrimaryAttack_ability_valk_jets( entity weapon, WeaponPrima
 	return 0
 }
 
+bool function ValkJets_EngageOnCharge()
+{
+	return GetCurrentPlaylistVarBool( "valk_jets_engage_on_charge", false )
+}
+
 void function OnWeaponActivate_ability_valk_jets( entity weapon )
+{
+	if ( !ValkJets_EngageOnCharge() )
+		ValkJets_TurnOn( weapon )
+}
+
+bool function OnWeaponChargeBegin_ability_valk_jets( entity weapon )
+{
+	if ( ValkJets_EngageOnCharge() )
+		ValkJets_TurnOn( weapon )
+
+	return true
+}
+
+void function OnWeaponChargeEnd_ability_valk_jets( entity weapon )
+{
+	if ( ValkJets_EngageOnCharge() )
+		ValkJets_TurnOff( weapon )
+}
+
+void function ValkJets_TurnOn( entity weapon )
 {
 	entity owner = weapon.GetWeaponOwner()
 
@@ -581,7 +620,8 @@ void function OnWeaponActivate_ability_valk_jets( entity weapon )
 
 	#if SERVER
 		array<string> attachments = [ "vent_left", "vent_right" ]
-		CreateValkJumpJetEffects( owner, attachments, SKYWARD_JUMPJETS_FRIENDLY, SKYWARD_JUMPJETS_ENEMY, false ) // todo: don't use a single file struct field for all players
+		// Owner sees their own jets only from a third-person camera
+		CreateValkJumpJetEffects( owner, attachments, SKYWARD_JUMPJETS_FRIENDLY, SKYWARD_JUMPJETS_ENEMY, owner.IsThirdPersonShoulderModeOn() ) // todo: don't use a single file struct field for all players
 		// todo: Do FX in thread?
 	#endif
 
@@ -628,7 +668,13 @@ void function ValkUlt_FreefallEnd( entity player )
 
 void function OnWeaponDeactivate_ability_valk_jets( entity weapon )
 {
-	entity valk = weapon.GetWeaponOwner() // todo: check owner is valid
+	if ( !ValkJets_EngageOnCharge() )
+		ValkJets_TurnOff( weapon )
+}
+
+void function ValkJets_TurnOff( entity weapon )
+{
+	entity valk = weapon.GetWeaponOwner()
 	if ( !IsValid( valk ) )
 		return
 
@@ -659,8 +705,7 @@ void function OnPassiveChanged( entity player, int passive, bool didHave, bool n
 				UpdateAbilityToggleOrHoldBasedOnInput()
 		#elseif SERVER
 			GivePlayerOffhandEquipment( player, "mp_ability_valk_jets" )
-			// TODO(s3): SetGlideMeter missing on S3 / compile - restore when bound
-			// player.SetGlideMeter( player.GetPlayerSettingFloat( "glideDuration" ) )
+			player.SetGlideMeter( player.GetPlayerSettingFloat( "glideDuration" ) )
 		#endif
 	}
 }
@@ -673,9 +718,7 @@ void function CodeCallback_OnPlayerJetpackStop( entity player )
 
 	#if SERVER
 		entity tacticalWeapon = player.GetOffhandWeapon( OFFHAND_TACTICAL )
-		// TODO(s3): the original also required ` && player.GetGlideMeter() <= 0 `.
-		// Left out until GetGlideMeter is confirmed available to server scripts.
-		if ( IsValid( tacticalWeapon ) && tacticalWeapon.IsWeaponActivated() )
+		if ( IsValid( tacticalWeapon ) && tacticalWeapon.IsWeaponActivated() && player.GetGlideMeter() <= 0 )
 		{
 			tacticalWeapon.FastHolster()
 		}
@@ -698,8 +741,7 @@ void function CodeCallback_OnPlayerJetpackStart( entity player )
 
 		float timeSinceLastVo = Time() - file.valkPassiveVODebounce[player]
 
-		// TODO(s3): GetGlideMeter missing on S3 / compile - was (timeSinceLastVo > 6) && (player.GetGlideMeter() > 1.5)
-		if ( timeSinceLastVo > 6 )
+		if ( (timeSinceLastVo > 6) && (player.GetGlideMeter() > 1.5) )
 			PlayBattleChatterLineToPlayer( "bc_valk_passive", player, player )
 
 		file.valkPassiveVODebounce[player] = Time()
@@ -725,6 +767,9 @@ void function ValkStatTrackerPassiveDistance( entity valk )
 	OnThreadEnd(
 		function() : ( valk, totalDistance, curPos )
 		{
+			if ( !IsValid( valk ) )
+				return
+
 			valk.EnableWeaponTypes( WPT_MELEE )
 			//TrackingVision_CreatePOI( eTrackingVisionNetworkedPOITypes.PLAYER_ABILITY_VALK_PASSIVE_END, valk, valk.GetOrigin(), valk.GetTeam(), valk )
 			float distanceSinceLastCheck = (Distance( curPos, valk.GetOrigin() )) / 40

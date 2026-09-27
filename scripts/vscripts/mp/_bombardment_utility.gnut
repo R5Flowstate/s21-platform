@@ -486,6 +486,8 @@ void function MortarFromWeapon( entity weapon, asset markerFx, float delay, vect
 	missile.WaitSignal( "OnDestroy" )
 
 	entity shake = CreateShake( target, 5, 150, 1, 1000 )
+	if ( IsValid( weapon ) )
+		CopyRealmsFromTo( weapon, shake )
 	shake.kv.spawnflags = 4 // SF_SHAKE_INAIR
 
 	if ( isWeaponPlayerOffhand )

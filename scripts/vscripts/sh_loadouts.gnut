@@ -2128,7 +2128,7 @@ int function Loadout_ReadPersistentSlotInt( EHI playerEHI, string key )
 		var raw = GetPersistentVar( key )
 	#endif
 
-	if ( type( raw ) != "integer" )
+	if ( type( raw ) != "int" )
 		return PERSISTENT_DATA_INVALID_SENTINEL
 	return expect int( raw )
 }
@@ -3171,9 +3171,16 @@ void function ValidateAndFixAllLoadoutSlots( EHI playerEHI, array<LoadoutEntry> 
 	entity player = FromEHI( playerEHI )
 	if ( !player.IsBot() )
 	{
-		foreach ( int slotIndex in queuedSlotsIndicesForRpc )
+		// One call per slot is ~1200 calls at connect; batch them, padding unused args past the last entry.
+		int pad = fileLevel.loadoutSlotEntries.len()
+		array<int> b
+		for ( int i = 0; i < queuedSlotsIndicesForRpc.len(); i += 15 )
 		{
-			Remote_CallFunction_NonReplay( player, "ServerToClient_LoadoutSlotDidChange", player, slotIndex )
+			b.clear()
+			for ( int k = 0; k < 15; k++ )
+				b.append( i + k < queuedSlotsIndicesForRpc.len() ? queuedSlotsIndicesForRpc[i + k] : pad )
+			Remote_CallFunction_NonReplay( player, "ServerToClient_LoadoutSlotDidChangeBatch", player,
+				b[0], b[1], b[2], b[3], b[4], b[5], b[6], b[7], b[8], b[9], b[10], b[11], b[12], b[13], b[14] )
 		}
 	}
 

@@ -27,6 +27,7 @@ global function CastleWall_EntityShouldBeHighlighted
 global function ArmoredLeap_TargetEntityShouldBeHighlighted
 global function ArmoredLeap_HandleInterruptedMidLeap
 global function GetCurrentArmoredLeapPhase
+global function IsNewcastleIn3PLeapCamera
 
 #if SERVER
 global function ClientCallback_TryPickupCastleWall
@@ -64,7 +65,7 @@ const bool DEBUG_CAMERA_LERP								= false
 const bool DEBUG_PHASE_CHANGES								= false
 const bool DEBUG_BETTER_AIR_POS								= false
 const bool DEBUG_DRAW_ANTI_GRENADE_DEBUG					= false
-#endif //DEV
+#endif //DEVELOPER
 
 
 const float ARMORED_LEAP_DISTANCE_MIN 						= 50.0
@@ -189,7 +190,7 @@ const float CASTLE_WALL_OVERLAP_CLEANUP_RADIUS_ANCHOR			= 180
 const int CASTLE_WALL_BARRIER_DAMAGE 							= 20
 const float CASTLE_WALL_BARRIER_DAMAGE_INTERVAL 				= 2.5	// How often the Shield deals EMP Damage (also how long the status effect lasts)
 const float CASTLE_WALL_BARRIER_DELAY_TIME 						= 3.0	// This is not go lower than the minimum time it takes to construct the Castle
-const float CASTLE_WALL_BARRIER_DURATION 						= 60.0
+const float CASTLE_WALL_BARRIER_DURATION 						= 120.0
 const float CASTLE_WALL_BARRIER_WARNING_DURATION 				= 2.0
 
 const float CASTLE_WALL_WARNING_RADIUS 							= 150
@@ -267,6 +268,17 @@ const asset ARMORED_LEAP_AFTERBURNER_FX							= $"P_NC_lanuch_aftburn_trail"
 const asset ARMORED_LEAP_ENERGY_RADIUS_FX 						= $"P_armored_leap_radius" //P_emp_charge_radius_MDL"
 
 const asset ARMORED_LEAP_IMPACT_FX 								= $"P_armored_leap_shockwave"
+
+const int ARMORED_LEAP_UPGRADE_SHIELD_REGEN_AMOUNT 				= 100
+const float ARMORED_LEAP_UPGRADE_SHIELD_REGEN_HP_PER_SEC		= 10.0
+const float ARMORED_LEAP_UPGRADE_SHIELD_REGEN_DURATION 			= 15.0
+const float ARMORED_LEAP_UPGRADE_SHIELD_REGEN_DAMAGE_DELAY 		= 2.0
+const asset ARMORED_LEAP_UPGRADE_REGEN_IMPACT_FX 				= $"P_armored_leap_upgrade_shockwave"
+const asset ARMORED_LEAP_UPGRADE_REGEN_FX_1P					= $"P_armor_FP_loop_charging_CP"
+const string ARMORED_LEAP_UPGRADE_SHIELDS_CHARGE_FULL_1P 		= "CampFire_Healing_End_1P"
+const string ARMORED_LEAP_UPGRADE_SHIELDS_CHARGE_1P 			= "Conduit_Tac_Healing_Loop_1p"
+const string ARMORED_LEAP_UPGRADE_SHIELDS_CHARGE_3P 			= "Conduit_Tac_Healing_Loop_3p"
+const string ARMORED_LEAP_IMPACT_REGEN_END						= "armored_leap_impact_regen_end"
 const string ARMORED_LEAP_IMPACT_FX_TABLE 						= "exp_armored_leap_WallSlam"	// New FX w Sound
 const string CASTLE_WALL_SNAKE_IMPACT_FX_TABLE 					= "pilot_bodyslam"   	 		// using bodyslam.  looks good to me
 
@@ -380,36 +392,6 @@ struct FindOffsetPosStruct
 	bool success
 	vector position
 }
-// S21 client registers these in code; S3 dedi needs the full phase ladder.
-// Do not nest #if inside the table body -- Squirrel rejects that as a bracket/new-line error.
-#if SERVER
-global const int PLAYER_ARMORED_LEAP_PHASE_NONE            = 0
-global const int PLAYER_ARMORED_LEAP_PHASE_PREP            = 1
-global const int PLAYER_ARMORED_LEAP_PHASE_TRAVEL_AIR      = 2
-global const int PLAYER_ARMORED_LEAP_PHASE_TRAVEL_AIR_HOVER = 3
-global const int PLAYER_ARMORED_LEAP_PHASE_TRAVEL_GROUND   = 4
-global const int PLAYER_ARMORED_LEAP_PHASE_ARRIVAL         = 5
-global const int PLAYER_ARMORED_LEAP_PHASE_INTERRUPTED     = 6
-
-// Leap mode selection (S21 Client_RegisterSharedScriptConsts order).
-global const int PLAYER_ARMORED_LEAP_TYPE_NONE           = 0
-global const int PLAYER_ARMORED_LEAP_TYPE_DASH           = 1
-global const int PLAYER_ARMORED_LEAP_TYPE_JUMP           = 2
-global const int PLAYER_ARMORED_LEAP_TYPE_AIR_DIVE       = 3
-global const int PLAYER_ARMORED_LEAP_TYPE_AIR_DIVE_LONG  = 4
-
-// Deprecated anim-state ints used by script path (S21 register order).
-global const int PLAYER_ARMORED_LEAP_STATE_NONE            = 0
-global const int PLAYER_ARMORED_LEAP_STATE_AIR_START       = 1
-global const int PLAYER_ARMORED_LEAP_STATE_AIR_UP          = 2
-global const int PLAYER_ARMORED_LEAP_STATE_AIR_HOVER       = 3
-global const int PLAYER_ARMORED_LEAP_STATE_AIR_DIVE        = 4
-global const int PLAYER_ARMORED_LEAP_STATE_AIR_DIVE_LONG   = 5
-global const int PLAYER_ARMORED_LEAP_STATE_AIR_END         = 6
-global const int PLAYER_ARMORED_LEAP_STATE_GROUND_START    = 7
-global const int PLAYER_ARMORED_LEAP_STATE_GROUND_DASH     = 8
-global const int PLAYER_ARMORED_LEAP_STATE_GROUND_END      = 9
-#endif
 
 #if DEVELOPER
 const table<int,string> armoredLeapPhaseToStringMap = {
@@ -419,7 +401,7 @@ const table<int,string> armoredLeapPhaseToStringMap = {
 	[ PLAYER_ARMORED_LEAP_PHASE_TRAVEL_AIR_HOVER ] = "PLAYER_ARMORED_LEAP_PHASE_TRAVEL_AIR_HOVER",
 	[ PLAYER_ARMORED_LEAP_PHASE_TRAVEL_GROUND ] = "PLAYER_ARMORED_LEAP_PHASE_TRAVEL_GROUND",
 	[ PLAYER_ARMORED_LEAP_PHASE_ARRIVAL ] = "PLAYER_ARMORED_LEAP_PHASE_ARRIVAL",
-	[ PLAYER_ARMORED_LEAP_PHASE_INTERRUPTED ] = "PLAYER_ARMORED_LEAP_PHASE_INTERRUPTED",
+	[ PLAYER_ARMORED_LEAP_PHASE_INTERRUPTED ] = "PLAYER_ARMORED_LEAP_PHASE_INTERRUPTED"
 }
 #endif
 
@@ -517,6 +499,7 @@ struct
 	table<entity, bool> isTargetPlacementActive = {}
 	table<entity, bool> allyIsInDanger = {}
 	table<entity, bool> ultDeployed = {}
+	table<entity, bool> isIn3PLeapCamera = {}
 
 	bool allowStartOnMovers 		= ARMORED_LEAP_ALLOW_START_ON_MOVERS_DEFAULT
 	bool allowEndOnMovers 			= ARMORED_LEAP_ALLOW_END_ON_MOVERS_DEFAULT
@@ -601,6 +584,8 @@ void function MpAbilityArmoredLeap_Init()
 	PrecacheParticleSystem( CASTLE_WALL_ELEC_PANEL_SM_FX_RIGHT_03 )
 
 	PrecacheParticleSystem( ARMORED_LEAP_IMPACT_FX )
+	PrecacheParticleSystem( ARMORED_LEAP_UPGRADE_REGEN_IMPACT_FX )
+	PrecacheParticleSystem( ARMORED_LEAP_UPGRADE_REGEN_FX_1P )
 
 	PrecacheImpactEffectTable( ARMORED_LEAP_IMPACT_FX_TABLE )
 	PrecacheImpactEffectTable( CASTLE_WALL_SNAKE_IMPACT_FX_TABLE )
@@ -612,18 +597,14 @@ void function MpAbilityArmoredLeap_Init()
 	PrecacheParticleSystem( CASTLE_WALL_INTERCEPT_PROJECTILE_CLOSE_ENEMY_FX )
       
 
-	#if SERVER || CLIENT
 	PrecacheModel( CASTLE_WALL_SHIELD_ANCHOR_COL_FX )
-	#endif // SERVER || CLIENT
 	PrecacheModel( CASTLE_WALL_SHIELD_WALL_CENTRE_MDL )
 	PrecacheModel( CASTLE_WALL_SHIELD_WALL_ENDS_L_MDL )
 	PrecacheModel( CASTLE_WALL_SHIELD_WALL_ENDS_R_MDL )
 	PrecacheModel( CASTLE_WALL_SHIELD_WALL_ENDS_LOW_COL_L_MDL )
 	PrecacheModel( CASTLE_WALL_SHIELD_WALL_ENDS_LOW_COL_R_MDL )
 	PrecacheModel( CASTLE_WALL_SHIELD_WALL_SEG_L_MDL )
-	#if SERVER || CLIENT
 	PrecacheModel( CASTLE_WALL_SHIELD_WALL_SEG_R_MDL )
-	#endif // SERVER || CLIENT
 
 	PrecacheScriptString( ARMORED_LEAP_SHIELD_ANCHOR_SCRIPTNAME )
 	PrecacheScriptString( CASTLE_WALL_THREAT_TARGETNAME )
@@ -654,6 +635,8 @@ void function MpAbilityArmoredLeap_Init()
 	RegisterSignal( "ArmoredLeap_EndArrivalPhase" )
 	RegisterSignal( "ArmoredLeap_Interrupted" )
 	RegisterSignal( "NewcastlePassiveEnd" )
+	RegisterSignal( "ArmoredLeap_RegenFxEnd" )
+	RegisterSignal( ARMORED_LEAP_IMPACT_REGEN_END )
 
 	AddCallback_PlayerCanUseZipline( ArmoredLeap_CanUseZipline )
 
@@ -676,6 +659,8 @@ void function MpAbilityArmoredLeap_Init()
 		AddDestroyCallback( "prop_script", CastleWall_OnPropScriptDestroyed )
 		AddCallback_ModifyDamageFlyoutForScriptName( ARMORED_LEAP_SHIELD_ANCHOR_SCRIPTNAME, CastleWall_OffsetDamageNumbers )
 		AddTargetNameCreateCallback( ARMORED_LEAP_IMPACT_ZONE_THREAT_TARGETNAME, AddImpactZoneThreatIndicator )
+		StatusEffect_RegisterEnabledCallback( eStatusEffect.newcastle_ult_shield_regen, Upgrade_ArmoredLeapRegenStatus_Enabled )
+		StatusEffect_RegisterDisabledCallback( eStatusEffect.newcastle_ult_shield_regen, Upgrade_ArmoredLeapRegenStatus_Disabled )
 
 	#endif
 
@@ -955,6 +940,7 @@ void function ArmoredLeap_Master_Thread( entity player, vector endPoint, vector 
 	file.ultDeployed[player] <- false
 
 	thread ArmoredLeap_CheckForUpdraft_Thread( player ) //todo: Travis -> Can we move this to code as part of the normal Interrupt logic?
+	file.isIn3PLeapCamera[player] <- true
 
 	#if SERVER
 
@@ -1027,6 +1013,9 @@ void function ArmoredLeap_Master_Thread( entity player, vector endPoint, vector 
 		{
 			if ( IsValid( player ) )
 			{
+				if ( player in file.isIn3PLeapCamera )
+					thread ArmoredLeap_DelayedSet3PCameraState_Thread( player )
+
 				#if SERVER
 					//// --- end 3rd person ---
 					player.SetTrackEntityOffsetRight( 0 )
@@ -1098,20 +1087,12 @@ void function ArmoredLeap_Master_Thread( entity player, vector endPoint, vector 
 				#endif
 
 				if ( !GetArmoredLeapUseCode() )
-				{
-					#if CLIENT
 					player.Player_FinishArmoredLeap_Depricated()
-					#endif
-				}
 
 				if ( !GetArmoredLeapUseCode() )
 				{
-					#if CLIENT
 					if( player.GetArmoredLeapState_Depricated() != PLAYER_ARMORED_LEAP_STATE_GROUND_END && player.GetArmoredLeapState_Depricated() != PLAYER_ARMORED_LEAP_STATE_AIR_END )
-					#endif
-						#if CLIENT
 						player.Player_FinishArmoredLeap_Depricated() //If we're in the END state - let the end flow return in ArmoredLeap_ReturnControlToPlayerAfterDelay
-						#endif
 				}
 
 				#if SERVER
@@ -1208,9 +1189,7 @@ void function ArmoredLeap_Master_Thread( entity player, vector endPoint, vector 
 			endPoint = ArmoredLeap_GetUpdatedLKP( player, airPoint, endPoint ) //Will return LKP if valid
 
 			float dashSpeed = GraphCapped( Distance( player.GetOrigin(), endPoint ), 0, ARMORED_LEAP_GROUND_DASH_RANGE, file.groundDashSpeedMin, file.groundDashSpeedMax )
-			#if CLIENT
 			player.StartArmoredLeapDash( ignoreArray, dashSpeed, ARMORED_LEAP_GROUND_DASH_ACCEL, ARMORED_LEAP_LAUNCH_DASH_CROUCH_TIME, ARMORED_LEAP_RECOVERY_TIME, endPoint, ARMORED_LEAP_TIMEOUT_DASH )
-			#endif
 
 			table signalData = player.WaitSignal( "ArmoredLeap_StartTravelGroundPhase", "ArmoredLeap_Interrupted" )
 			bool interrupted = WasArmoredLeapInterrupted( player, signalData )
@@ -1227,9 +1206,7 @@ void function ArmoredLeap_Master_Thread( entity player, vector endPoint, vector 
 		}
 		else
 		{
-			#if CLIENT
 			player.Player_SetArmoredLeapState_Depricated( PLAYER_ARMORED_LEAP_STATE_GROUND_START ) //Dash Start State
-			#endif
 			waitthread ArmoredLeap_LaunchPrep_Thread( player, endPoint, airPoint, ARMORED_LEAP_LAUNCH_DASH_CROUCH_TIME )
 		}
 
@@ -1269,9 +1246,7 @@ void function ArmoredLeap_Master_Thread( entity player, vector endPoint, vector 
 			float airPosRange 	= ARMORED_LEAP_AIRPOS_CHECK_RANGE
 			float hoverRange	= GraphCapped( leapDist, ARMORED_LEAP_GROUND_DASH_RANGE, ARMORED_LEAP_DISTANCE, ARMORED_LEAP_AIRPOS_CHECK_RANGE_MIN, ARMORED_LEAP_AIRPOS_CHECK_RANGE_MAX )
 
-			#if CLIENT
 			player.StartArmoredLeapJump( ignoreArray, jumpSpeed, ARMORED_LEAP_JUMP_ACCEL, hoverSpeed, ARMORED_LEAP_HOVER_ACCEL, diveSpeed, ARMORED_LEAP_DIVE_ACCEL, ARMORED_LEAP_LAUNCH_CROUCH_TIME, ARMORED_LEAP_RECOVERY_TIME, airPosRange, hoverRange, airPoint, endPoint, timeOut )
-			#endif
 			thread ArmoredLeap_LaunchToAirPosition( player, null,endPoint, airPoint )
 
 			table signalData = player.WaitSignal( "ArmoredLeap_StartTravelGroundPhase", "ArmoredLeap_Interrupted" )
@@ -1296,9 +1271,7 @@ void function ArmoredLeap_Master_Thread( entity player, vector endPoint, vector 
 	{
 		if ( GetArmoredLeapUseCode() )
 		{
-			#if CLIENT
 			player.StartArmoredLeapAirDive( ignoreArray, ARMORED_LEAP_HOVER_DIVE_PREP_SPEED, ARMORED_LEAP_HOVER_DIVE_PREP_ACCEL, diveSpeed, diveSpeed / ARMORED_LEAP_SLAM_EASE_IN_TIME, ARMORED_LEAP_AIR_HOVER_TIME, ARMORED_LEAP_RECOVERY_TIME, endPoint, ARMORED_LEAP_TIMEOUT_AIR_DIVE, armoredLeapType == PLAYER_ARMORED_LEAP_TYPE_AIR_DIVE_LONG )
-			#endif
 			thread ArmoredLeap_LaunchHoverPrep_Thread( player, endPoint, player.EyePosition() )
 
 			table signalData = player.WaitSignal( "ArmoredLeap_StartTravelGroundPhase", "ArmoredLeap_Interrupted" )
@@ -1316,9 +1289,7 @@ void function ArmoredLeap_Master_Thread( entity player, vector endPoint, vector 
 		}
 		else
 		{
-			#if CLIENT
 			player.Player_SetArmoredLeapState_Depricated( PLAYER_ARMORED_LEAP_STATE_AIR_HOVER ) //Air Hover State
-			#endif
 
 			#if SERVER
 				player.ClearParent() //allow Hover Thread to control Gravity
@@ -1355,9 +1326,7 @@ void function ArmoredLeap_Master_Thread( entity player, vector endPoint, vector 
 
 	//if( isHoverSlam )
 	//{
-	#if CLIENT
 	//	player.Player_SetArmoredLeapState( PLAYER_ARMORED_LEAP_STATE_AIR_UP ) //Dash State
-	#endif
 	//}
 	//else
 
@@ -1367,16 +1336,10 @@ void function ArmoredLeap_Master_Thread( entity player, vector endPoint, vector 
 	{
 		if( inDashRange )
 		{
-			#if CLIENT
 			player.Player_SetArmoredLeapState_Depricated( PLAYER_ARMORED_LEAP_STATE_GROUND_DASH ) //Dash State
-			#endif
 		}
 		else
-		{
-			#if CLIENT
 			player.Player_SetArmoredLeapState_Depricated( PLAYER_ARMORED_LEAP_STATE_AIR_DIVE ) //Slam State
-			#endif
-		}
 	}
 
 	Signal( player,"ArmoredLeap_LaunchEffectsEnd" )
@@ -1429,17 +1392,9 @@ void function ArmoredLeap_Master_Thread( entity player, vector endPoint, vector 
 	{
 	//Set the Slam Animation State//
 		if( inDashRange ) //dist <= ARMORED_LEAP_DASH_RANGE_MAX && visionTrace.fraction == 1 && distZ < ARMORED_LEAP_DASH_HEIGHT_LIMIT && player.IsOnGround() )
-		{
-			#if CLIENT
 			player.Player_SetArmoredLeapState_Depricated( PLAYER_ARMORED_LEAP_STATE_GROUND_END ) //Dash End State
-			#endif
-		}
 		else
-		{
-			#if CLIENT
 			player.Player_SetArmoredLeapState_Depricated( PLAYER_ARMORED_LEAP_STATE_AIR_END ) //Air End State
-			#endif
-		}
 	}
 
 	vector finalAngles = VectorToAngles( player.GetViewVector() )
@@ -1559,20 +1514,10 @@ int function GetCurrentArmoredLeapPhase( entity player )
 
 void function ArmoredLeap_HandleInterruptedMidLeap( entity player )
 {
-	// S21: IsArmoredLeapActive/EndArmoredLeap are engine natives.
-	// S3: track phase in script only.
-	bool leapActive = false
-	#if CLIENT
-		leapActive = player.IsArmoredLeapActive()
-	#else
-		leapActive = ( GetCurrentArmoredLeapPhase( player ) != PLAYER_ARMORED_LEAP_PHASE_NONE )
-	#endif
-	if ( leapActive )
+	if ( player.IsArmoredLeapActive() )
 	{
 		player.Signal( "ArmoredLeap_Interrupted", { interrupted = true } )
-		#if CLIENT
-			player.EndArmoredLeap()
-		#endif
+		player.EndArmoredLeap()
 
 		#if SERVER
 		float currentSpeed = player.GetVelocity().Length()
@@ -1622,6 +1567,7 @@ void function ArmoredLeap_UpdateLKP_Thread( entity player, vector airPoint, vect
 	while( true )
 	{
 		endPoint = ArmoredLeap_GetUpdatedLKP( player, airPoint, endPoint ) //Updates LKP & endPoint
+		player.UpdateArmoredLeapEndPos( endPoint )
 		WaitFrame()
 	}
 }
@@ -1715,8 +1661,8 @@ void function ArmoredLeap_LaunchHoverPrep_Thread( entity player, vector endPoint
 				{
 					float curGravity = player.GetLocalGravityStrength()
 					#if DEVELOPER
-						//if ( curGravity != 1 )
-						//	player.SetLocalGravityStrength( 1 )
+						if ( curGravity != 1 )
+							player.SetLocalGravityStrength( 1 )
 					#endif
 				}
 				#endif
@@ -1733,8 +1679,8 @@ void function ArmoredLeap_LaunchHoverPrep_Thread( entity player, vector endPoint
 
 		//Set Gravity & Hover Speed
 		#if DEVELOPER
-		//player.SetLocalGravityStrength( ARMORED_LEAP_AIR_HOVER_GRAVITY )
-		//player.SetVelocity( newVel )
+		player.SetLocalGravityStrength( ARMORED_LEAP_AIR_HOVER_GRAVITY )
+		player.SetVelocity( newVel )
 		#endif
 	}
 	#endif
@@ -1781,6 +1727,9 @@ void function ArmoredLeap_LaunchToAirPosition( entity player, entity mover, vect
 	if ( !IsValid( player ) )
 		return
 
+	if ( !GetArmoredLeapUseCode() )
+		player.Player_SetArmoredLeapState_Depricated( PLAYER_ARMORED_LEAP_STATE_AIR_START ) //Leap Start State
+
 	OnThreadEnd(
 		function() : ( player )
 		{
@@ -1818,6 +1767,8 @@ void function ArmoredLeap_LaunchToAirPosition( entity player, entity mover, vect
 		if ( !IsValid( player ) )
 			return
 
+		player.Player_SetArmoredLeapState_Depricated( PLAYER_ARMORED_LEAP_STATE_AIR_UP ) //Leap Active State
+
 		//Update the end position
 		endPoint = ArmoredLeap_GetUpdatedLKP( player, airPoint, endPoint ) //Will return LKP if valid
 	}
@@ -1851,7 +1802,7 @@ void function ArmoredLeap_LaunchToAirPosition( entity player, entity mover, vect
 				printt( "Setting starting height to: " + ARMORED_LEAP_INITIAL_CAMERA_HEIGHT + " ending height: " + ARMORED_LEAP_AIR_CAMERA_HEIGHT + " over: " + lerpTime )
 				printt( "Setting starting right to: " + ARMORED_LEAP_INITIAL_CAMERA_RIGHT + " ending right: " + ARMORED_LEAP_AIR_CAMERA_RIGHT + " over: " + lerpTime )
 			}
-		#endif //DEV
+		#endif //DEVELOPER
 
 		if ( !GetArmoredLeapUseCode() )
 			mover.NonPhysicsMoveTo( airPoint, lerpTime, 0, easeTime )
@@ -1882,6 +1833,7 @@ void function ArmoredLeap_LaunchToAirPosition( entity player, entity mover, vect
 
 			if( dist < ARMORED_LEAP_AIRPOS_CHECK_RANGE * 2 && !isAtHoverDist )
 			{
+				player.Player_SetArmoredLeapState_Depricated( PLAYER_ARMORED_LEAP_STATE_AIR_HOVER ) //Air Hover State
 				isAtHoverDist = true
 			}
 
@@ -1931,7 +1883,7 @@ void function ArmoredLeap_SlamToGroundPosition( entity player, entity mover, vec
 					printt( "Setting starting height to: " + ARMORED_LEAP_INITIAL_CAMERA_HEIGHT + " ending height: " + ARMORED_LEAP_END_CAMERA_HEIGHT + " over: " + lerpTime )
 					printt( "Setting starting right to: " + ARMORED_LEAP_INITIAL_CAMERA_RIGHT + " ending right: " + ARMORED_LEAP_END_CAMERA_RIGHT + " over: " + lerpTime )
 				}
-			#endif //DEV
+			#endif //DEVELOPER
 		}
 		else
 		{
@@ -1944,7 +1896,7 @@ void function ArmoredLeap_SlamToGroundPosition( entity player, entity mover, vec
 					printt( "Setting starting height to: " + ARMORED_LEAP_AIR_CAMERA_HEIGHT + " ending height: " + ARMORED_LEAP_END_CAMERA_HEIGHT + " over: " + lerpTime )
 					printt( "Setting starting right to: " + ARMORED_LEAP_AIR_CAMERA_RIGHT + " ending right: " + ARMORED_LEAP_END_CAMERA_RIGHT + " over: " + lerpTime )
 				}
-			#endif //DEV
+			#endif //DEVELOPER
 		}
 
 		player.SetTrackEntityOffsetDistanceOverTimeLogLerpGrowthFactor( 1 )
@@ -2105,11 +2057,11 @@ void function ArmoredLeap_ReturnControlToPlayerAfterDelay( entity player, float 
 				#endif
 				if ( GetArmoredLeapUseCode() )
 				{
-
+					player.SetArmoredLeapState( PLAYER_ARMORED_LEAP_STATE_NONE )
 				}
 				else
 				{
-	
+					player.Player_FinishArmoredLeap_Depricated()
 				}
 			}
 		}
@@ -2214,7 +2166,7 @@ void function ArmoredLeapPhaseChangeQueueProcessor_Thread( entity player )
 						player.Signal( "ArmoredLeap_EndTravelAirHoverPhase" )
 						break
 					case PLAYER_ARMORED_LEAP_PHASE_TRAVEL_GROUND:
-						player.Signal( "ArmoredLeap_EndTravelGroundPhase" )
+						player.Signal("ArmoredLeap_EndTravelGroundPhase")
 						break
 					case PLAYER_ARMORED_LEAP_PHASE_ARRIVAL:
 						player.Signal( "ArmoredLeap_EndArrivalPhase" )
@@ -2243,8 +2195,10 @@ void function ArmoredLeapPhaseChangeQueueProcessor_Thread( entity player )
 					case PLAYER_ARMORED_LEAP_PHASE_INTERRUPTED:
 						player.Signal( "ArmoredLeap_Interrupted", { interrupted = true } )
 						#if SERVER
+						//client side predicted ents can be put to sleep (IE when entering a phase gate) so they are no longer updating their armored leap state.
+						//In the case of us being interrupted though (again, phase gate) we want to make sure he client script knows that.
 						Remote_CallFunction_NonReplay( player, "ServerToClient_ArmoredLeapInterrupted", player )
-						#endif
+						#endif //SERVER
 						break
 				}
 
@@ -2394,6 +2348,12 @@ bool function ArmoredLeap_IsInterrupted( entity player, vector destination )
 	{
 		bool isValidEnd = ArmoredLeap_HasValidHullRoom( player, destination )
 		entity pusher = GetPusherEnt( results.hitEnt )
+		if ( pusher )
+		{
+			vector position = pusher.GetOrigin()
+			if ( LengthSqr(pusher.GetAbsVelocityAtPoint(position)) > file.maxEndingMoverSpeedSqr )	// Needs to be a bit above 0 since gondolas don't report velocity well on the client
+				return true
+		}
 
 		if( !isValidEnd )
 			return true
@@ -3217,7 +3177,7 @@ void function ArmoredLeap_AR_Placement_Thread( entity weapon )
 				GetBetterAirPos( player, info )
 			}
 		}
-		#endif //DEV
+		#endif //DEVELOPER
 
 		int leapPhase = GetCurrentArmoredLeapPhase( player )
 
@@ -3505,6 +3465,9 @@ void function ArmoredLeap_AR_Placement_Thread( entity weapon )
 
 		int leapPhase = GetCurrentArmoredLeapPhase( player )
 
+		if ( leapPhase == PLAYER_ARMORED_LEAP_PHASE_ARRIVAL || leapPhase == PLAYER_ARMORED_LEAP_PHASE_INTERRUPTED )
+			return
+
 		if( player in file.allyLKP )
 			endPoint = file.allyLKP[player]
 
@@ -3629,11 +3592,7 @@ void function ArmoredLeap_VisionMode_Thread( entity player )
 	)
 
 	const LERP_IN_TIME = 0.0125
-	#if UI
-	float startTime = UITime()
-	#else
 	float startTime = Time()
-	#endif
 
 	while ( true )
 	{
@@ -3897,6 +3856,95 @@ void function ArmoredLeap_Impact( entity player )
 	//Apply Knockback & Blast//
 	ArmoredLeap_ApplyKnockbackForce( player, origin, ARMORED_LEAP_IMPACT_RANGE, ARMORED_LEAP_DAMAGE, ARMORED_LEAP_MAX_FORCE )
 
+	if ( PlayerHasPassive( player, ePassives.PAS_ULT_UPGRADE_THREE ) )
+		ArmoredLeap_ApplyImpactShieldRegen( player, origin )
+}
+#endif //SERVER
+
+#if SERVER
+void function ArmoredLeap_ApplyImpactShieldRegen( entity owner, vector origin )
+{
+	int fxid = GetParticleSystemIndex( ARMORED_LEAP_UPGRADE_REGEN_IMPACT_FX )
+	StartParticleEffectInWorldForRealms( fxid, origin, <0,0,0>, owner )
+
+	float radiusSqr = file.impactRadius * file.impactRadius
+	foreach ( entity ally in GetPlayerArrayOfTeam_AliveNotBleedingOut( owner.GetTeam() ) )
+	{
+		if ( !ally.DoesShareRealms( owner ) )
+			continue
+
+		if ( DistanceSqr( origin, ally.GetOrigin() ) > radiusSqr )
+			continue
+
+		thread ArmoredLeap_ImpactShieldRegen_Thread( ally )
+	}
+}
+
+void function ArmoredLeap_ImpactShieldRegen_Thread( entity player )
+{
+	Signal( player, ARMORED_LEAP_IMPACT_REGEN_END )
+	EndSignal( player, ARMORED_LEAP_IMPACT_REGEN_END )
+	EndSignal( player, "OnDeath" )
+	EndSignal( player, "OnDestroy" )
+	EndSignal( player, "BleedOut_OnStartDying" )
+
+	float duration = ArmoredLeap_GetUpgradeRegenDuration()
+	int statusHandle = StatusEffect_AddTimed( player, eStatusEffect.newcastle_ult_shield_regen, 1.0, duration, 0.0 )
+	RecoveryHealingFXRequest fxRequest = Player3pHealFXAddRequest( player, eHealingRequestType.ShieldRegen )
+	EmitSoundOnEntityOnlyToPlayer( player, player, ARMORED_LEAP_UPGRADE_SHIELDS_CHARGE_1P )
+	EmitSoundOnEntityExceptToPlayer( player, player, ARMORED_LEAP_UPGRADE_SHIELDS_CHARGE_3P )
+
+	OnThreadEnd(
+		function() : ( player, statusHandle, fxRequest )
+		{
+			if ( !IsValid( player ) )
+				return
+
+			StatusEffect_Stop( player, statusHandle )
+			Player3pHealFXRemoveRequest( player, fxRequest )
+			StopSoundOnEntity( player, ARMORED_LEAP_UPGRADE_SHIELDS_CHARGE_1P )
+			StopSoundOnEntity( player, ARMORED_LEAP_UPGRADE_SHIELDS_CHARGE_3P )
+		}
+	)
+
+	float regenPerSec = ArmoredLeap_GetUpgradeRegenHPPerSec()
+	int regenLeft = ArmoredLeap_GetUpgradeShieldRegenMax()
+	float endTime = Time() + duration
+	float lastTime = Time()
+	float pending = 0.0
+	while ( Time() < endTime && regenLeft > 0 )
+	{
+		WaitFrame()
+
+		float now = Time()
+		float dt = now - lastTime
+		lastTime = now
+
+		if ( now - player.GetLastTimeDamaged() < ARMORED_LEAP_UPGRADE_SHIELD_REGEN_DAMAGE_DELAY )
+		{
+			pending = 0.0
+			continue
+		}
+
+		int shield = player.GetShieldHealth()
+		int shieldMax = player.GetShieldHealthMax()
+		if ( shield >= shieldMax )
+		{
+			pending = 0.0
+			continue
+		}
+
+		pending += regenPerSec * dt
+		int add = minint( minint( int( pending ), regenLeft ), shieldMax - shield )
+		if ( add <= 0 )
+			continue
+
+		pending -= float( add )
+		regenLeft -= add
+		player.SetShieldHealth( shield + add )
+		if ( shield + add >= shieldMax )
+			EmitSoundOnEntityOnlyToPlayer( player, player, ARMORED_LEAP_UPGRADE_SHIELDS_CHARGE_FULL_1P )
+	}
 }
 #endif //SERVER
 
@@ -3972,7 +4020,7 @@ void function ArmoredLeap_ApplyKnockbackForce( entity owner, vector origin, floa
 
 	//Shockwave VFX//
 	int fxid = GetParticleSystemIndex( ARMORED_LEAP_IMPACT_FX )
-	StartParticleEffectInWorld( fxid, origin, <0,0,0> )
+	StartParticleEffectInWorldForRealms( fxid, origin, <0,0,0>, owner )
 
 }
 #endif //SERVER
@@ -4474,7 +4522,7 @@ ArmoredLeapTargetInfo function GetBetterAirPos( entity player, ArmoredLeapTarget
 			DebugDrawText( info.finalPos, "info.finalPos", true, 0.1 )
 			DebugDrawText( traceUp.endPos, "traceUp.endPos", true, 0.1 )
 		}
-		#endif //DEV
+		#endif //DEVELOPER
 
 		//start looking along our air pos to find the highest unblocked one that we can.
 		const int findPosIterations = 5
@@ -4506,7 +4554,7 @@ ArmoredLeapTargetInfo function GetBetterAirPos( entity player, ArmoredLeapTarget
 					DebugDrawLineRGB( playerPos, traceTarget, int(COLOR_CYAN.x), int(COLOR_CYAN.y), int(COLOR_CYAN.z), true, 0.1 )
 					DebugDrawText( iterationTrace.endPos, "fraction: " + iterationTrace.fraction, true, 0.1 )
 				}
-				#endif //DEV
+				#endif //DEVELOPER
 
 				if ( !foundGoodAirPos )
 				{
@@ -4665,7 +4713,7 @@ ArmoredLeapTargetInfo function GetBetterAirPos( entity player, ArmoredLeapTarget
 				//DebugDrawMark( goodAirPos, 25, COLOR_CYAN, true, drawTime )
 				DebugDrawText( player.GetWorldSpaceCenter(), "foundGoodAirPos found!", true, 0.1 )
 			}
-			#endif //DEV
+			#endif //DEVELOPER
 		}
 		else
 		{
@@ -4674,7 +4722,7 @@ ArmoredLeapTargetInfo function GetBetterAirPos( entity player, ArmoredLeapTarget
 			{
 				DebugDrawText( player.GetWorldSpaceCenter(), "foundGoodAirPos NOT found!", true, 0.1 )
 			}
-			#endif //DEV
+			#endif //DEVELOPER
 		}
 	}
 
@@ -4707,7 +4755,7 @@ FindOffsetPosStruct function GetBetterAirPos_FindOffsetPos( entity player, array
 				DebugDrawLineRGB( offsetTraceTarget, destinationTrace.endPos, int(COLOR_GREEN.x), int(COLOR_GREEN.y), int(COLOR_GREEN.z), true, 0.1 )
 				DebugDrawText( offsetTraceTarget, "goodAirPos! fraction: " + destinationTrace.fraction, true, 0.1 )
 			}
-			#endif //DEV
+			#endif //DEVELOPER
 
 			results.success = true
 			results.position = offsetTraceTarget
@@ -4722,7 +4770,7 @@ FindOffsetPosStruct function GetBetterAirPos_FindOffsetPos( entity player, array
 				DebugDrawLineRGB( offsetTraceTarget, destinationTrace.endPos, int(COLOR_RED.x), int(COLOR_RED.y), int(COLOR_RED.z), true, 0.1 )
 				DebugDrawText( offsetTraceTarget, "fraction: " + destinationTrace.fraction, true, 0.1 )
 			}
-			#endif //DEV
+			#endif //DEVELOPER
 		}
 	}
 
@@ -5075,6 +5123,16 @@ bool function ArmoredLeap_IsValidPosition( entity player, vector position, entit
 			if ( ! file.allowEndOnMovers )
 				return false
 
+			#if DEVELOPER
+				if ( DEBUG_DRAW_PUSHER_MOVEMENT )
+				{
+					vector pusherVelAtPoint = pusher.GetAbsVelocityAtPoint(position)
+					DebugDrawScreenText( 0.1,0.6, "Pusher " + pusher + ", speed is " + Length(pusherVelAtPoint) + " , vel is " + pusherVelAtPoint )
+				}
+			#endif
+
+			if ( LengthSqr(pusher.GetAbsVelocityAtPoint(position)) > file.maxEndingMoverSpeedSqr )	// Needs to be a bit above 0 since gondolas don't report velocity well on the client
+				return false
 		}
 	}
 
@@ -5096,6 +5154,9 @@ bool function ArmoredLeap_IsValidPosition( entity player, vector position, entit
 		player.GetRealms(), TRACE_MASK_PLAYERSOLID,
 		player.GetPlayerMins(), player.GetPlayerMaxs() ) )
 	{
+		if ( trigger.GetParent() && trigger.GetParent().GetScriptName() == PHASE_DOOR_ROOT_ENT_SCRIPTNAME )
+			continue
+
 		return false
 	}
 
@@ -5108,6 +5169,12 @@ bool function ArmoredLeap_IsInDashRange( entity player, vector endPoint, entity 
 		return false
 
 	entity pusher = GetPusherEnt( hitEnt )
+	if ( pusher )
+	{
+		if ( LengthSqr(pusher.GetAbsVelocityAtPoint(endPoint)) > file.maxEndingMoverSpeedSqr )	// Needs to be a bit above 0 since gondolas don't report velocity well on the client
+			return false
+	}
+
 	float dist = Distance2D( player.EyePosition(), endPoint )
 	float distZ = fabs( player.GetOrigin().z - endPoint.z )
 	array<entity> ignoreArray = ArmoredLeapIgnoreArray()
@@ -5232,7 +5299,7 @@ array<entity> function GetAllyPlayerArray( entity owner )
 	//Determine Allies ( Friendly Teams or Alliances )
 	foreach ( entity player in playerArray )
 	{
-		if ( player == owner )
+		if ( player == owner || !player.DoesShareRealms( owner ) )
 			continue
 
 		if ( player.IsPhaseShifted() )
@@ -6304,7 +6371,7 @@ void function CastleWall_CheckForCastleOverlapAndCleanup( entity castle, entity 
 	array<entity> shieldAnchor = GetEntArrayByScriptName( ARMORED_LEAP_SHIELD_ANCHOR_SCRIPTNAME ) //CAstle Anchor
 	foreach ( shieldWall in shieldAnchor )
 	{
-		if( !IsValid(shieldWall) )
+		if( !IsValid(shieldWall) || !shieldWall.DoesShareRealms( wall ) )
 			continue
 
 		if( wall == shieldWall )
@@ -6324,7 +6391,7 @@ void function CastleWall_CheckForCastleOverlapAndCleanup( entity castle, entity 
 	array<entity> destructibleArray =  GetAllDestructibleEntsArray( team ) //Other Entities
 	foreach ( ent in destructibleArray )
 	{
-		if( !IsValid(ent) )
+		if( !IsValid(ent) || !ent.DoesShareRealms( wall ) )
 			continue
 
 		//int entTeam = ent.GetTeam()
@@ -6411,7 +6478,8 @@ void function CastleWall_CheckForCastleOverlapAndCleanup( entity castle, entity 
 
 			if ( entName == DIRTY_BOMB_TARGETNAME )
 			{
-
+				DirtyBomb_Destruction ( ent )
+				RemoveCausticDirtyBomb ( ent )
 			}
 
 			if( IsValid( ent ) && entTargetName == SPIKE_STRIP_CORE_SPIKE_NAME )
@@ -6537,6 +6605,12 @@ void function CastleWall_CheckForGeoIntersection( entity wallProxy )
 					entity pusher = GetPusherEnt( hitEnt )
 					entity wallParent = wallProxy.GetParent()
 
+					if ( pusher && pusher != wallParent )
+					{
+						if ( LengthSqr(pusher.GetAbsVelocityAtPoint(results.endPos)) < file.maxEndingMoverSpeedSqr )	// Needs to be a bit above 0 since gondolas don't report velocity well on the client
+							canDamage = false
+					}
+
 					if( EntIsHoverVehicle(hitEnt) )
 						canDamage = true
 
@@ -6570,7 +6644,7 @@ void function CastleWall_CheckForGeoIntersection( entity wallProxy )
                     
 int function GetUpgradedCastleWallExtraHealth()
 {
-	return GetCurrentPlaylistVarInt( "ultimate_armored_leap_upgrade_extra_health", 200 )
+	return GetCurrentPlaylistVarInt( "ultimate_armored_leap_upgrade_extra_health", 500 )
 }
 
 float function GetUpgradedCastleWallBarrierExtraDuration()
@@ -6581,6 +6655,97 @@ float function GetUpgradedCastleWallBarrierExtraDuration()
 float function GetUpgradedArmoredLeapDistance()
 {
 	return GetCurrentPlaylistVarFloat( "ultimate_armored_leap_upgrade_range_multiplier", 1.2 )
+}
+
+void function ArmoredLeap_DelayedSet3PCameraState_Thread( entity player )
+{
+	wait 1.0
+
+	if ( IsValid( player ) && player in file.isIn3PLeapCamera )
+		delete file.isIn3PLeapCamera[player]
+}
+
+bool function IsNewcastleIn3PLeapCamera( entity player )
+{
+	if ( !IsValid( player ) || !PlayerHasPassive( player, ePassives.PAS_AXIOM ) )
+		return false
+
+	return player in file.isIn3PLeapCamera && file.isIn3PLeapCamera[player]
+}
+
+#if CLIENT
+void function Upgrade_ArmoredLeapRegenStatus_Enabled( entity player, int statusEffect, bool actuallyChanged )
+{
+	if ( player != GetLocalViewPlayer() )
+		return
+
+	thread ApplyClientRegenFX_Thread( player )
+}
+
+void function Upgrade_ArmoredLeapRegenStatus_Disabled( entity player, int statusEffect, bool actuallyChanged )
+{
+	if ( player != GetLocalViewPlayer() )
+		return
+
+	Signal( player, "ArmoredLeap_RegenFxEnd" )
+}
+
+void function ApplyClientRegenFX_Thread( entity player )
+{
+	Signal( player, "ArmoredLeap_RegenFxEnd" )
+	EndSignal( player, "OnDeath" )
+	EndSignal( player, "OnDestroy" )
+	EndSignal( player, "ArmoredLeap_RegenFxEnd" )
+
+	entity cockpit = player.GetCockpit()
+	if ( !IsValid( cockpit ) )
+		return
+
+	int fxID = GetParticleSystemIndex( ARMORED_LEAP_UPGRADE_REGEN_FX_1P )
+	array<int> fx = [ -1 ]
+
+	OnThreadEnd(
+		function() : ( fx )
+		{
+			if ( EffectDoesExist( fx[0] ) )
+				EffectStop( fx[0], false, true )
+		}
+	)
+
+	float endTime = Time() + ArmoredLeap_GetUpgradeRegenDuration()
+	while ( Time() < endTime )
+	{
+		int armorTier = UpgradeCore_GetPlayerArmorTier( player )
+		bool wantFx = armorTier > 0 && player.GetShieldHealth() < player.GetShieldHealthMax()
+		bool hasFx = EffectDoesExist( fx[0] )
+		if ( wantFx && !hasFx )
+		{
+			fx[0] = StartParticleEffectOnEntity( cockpit, fxID, FX_PATTACH_ABSORIGIN_FOLLOW, ATTACHMENTID_INVALID )
+			EffectSetControlPointVector( fx[0], 1, GetFXRarityColorForTier( armorTier ) )
+		}
+		else if ( !wantFx && hasFx )
+		{
+			EffectStop( fx[0], false, true )
+		}
+
+		WaitFrame()
+	}
+}
+#endif //CLIENT
+
+int function ArmoredLeap_GetUpgradeShieldRegenMax()
+{
+	return GetCurrentPlaylistVarInt( "ultimate_armored_leap_upgrade_shield_regen_max", ARMORED_LEAP_UPGRADE_SHIELD_REGEN_AMOUNT )
+}
+
+float function ArmoredLeap_GetUpgradeRegenDuration()
+{
+	return GetCurrentPlaylistVarFloat( "ultimate_armored_leap_upgrade_regen_duration", ARMORED_LEAP_UPGRADE_SHIELD_REGEN_DURATION )
+}
+
+float function ArmoredLeap_GetUpgradeRegenHPPerSec()
+{
+	return GetCurrentPlaylistVarFloat( "ultimate_armored_leap_upgrade_regen_hp_per_sec", ARMORED_LEAP_UPGRADE_SHIELD_REGEN_HP_PER_SEC )
 }
       
 
@@ -6684,7 +6849,7 @@ entity function CreateCastlePhysicalShield( entity mover, entity owner, vector o
 
 	shield.AllowMantle()
 
-
+	shield.SetScriptPropFlags( SPF_BLOCKS_AI_NAVIGATION | SPF_OBJECT_PLACEMENT_SPECIAL_IGNORE )
 	if ( shield.GetTargetName() != ARMORED_LEAP_SHIELD_ANCHOR_SCRIPTNAME )
 	{
 		shield.EnableAttackableByAI( AI_PRIORITY_NO_THREAT, 0, AI_AP_FLAG_NONE )
@@ -6709,7 +6874,7 @@ entity function CreateCastlePhysicalShield( entity mover, entity owner, vector o
 	shield.SetUsablePriority( USABLE_PRIORITY_LOW )
 	shield.AddUsableValue( USABLE_CUSTOM_HINTS | USABLE_BY_OWNER ) //Update hint text every server frame so that we can keep unique client texts up to date.
 	SetCallback_CanUseEntityCallback( shield, CastleWall_CanUse )
-
+	shield.SetNeverCrush( true )
 
 	//shield.kv.contents = int( shield.kv.contents)  | TRACE_MASK_OPAQUE | TRACE_MASK_BLOCKLOS
 
@@ -6926,7 +7091,7 @@ void function CastleWall_DestroyWallEnt( entity shield, var damageInfo )
 			destroySFX 	= CASTLE_WALL_SHIELD_ANCHOR_DESTROY_SOUND
 		}
 
-		StartParticleEffectInWorld( effectID, shield.GetOrigin(), shield.GetAngles() )
+		StartParticleEffectInWorldForRealms( effectID, shield.GetOrigin(), shield.GetAngles(), shield )
 		EmitSoundAtPosition( TEAM_UNASSIGNED, shield.GetOrigin(), destroySFX, shield )
 
 		entity castle = shield.GetOwner()
@@ -7201,7 +7366,7 @@ void function CastleWall_CreateTriggerVolume( entity shieldWall, entity castle, 
 
 void function CastleWall_OnTriggerEnter( entity trigger, entity player )
 {
-	if ( !IsValid( player) )
+	if ( !IsValid( player) || !player.DoesShareRealms( trigger ) )
 		return
 
 	//Firing range, dummies/friendly fire team mates when killed will become invalidated and get picked up by OnTriggerEnter() callback, so early out. R5DEV-290145
@@ -8048,7 +8213,7 @@ void function CastleWall_PlayPickupAnimAndDissolveAfter( entity castleWall )
 		{
 			if( castleParent.GetScriptName() == ARMORED_LEAP_SHIELD_ANCHOR_SCRIPTNAME )
 			{
-				castleParent.Dissolve( ENTITY_DISSOLVE_CORE, ZERO_VECTOR, 500 )
+				castleParent.Dissolve( ENTITY_DISSOLVE_CORE )
 				castleParent.Signal( "CastleWall_PickedUp" )
 			}
 
@@ -8056,7 +8221,7 @@ void function CastleWall_PlayPickupAnimAndDissolveAfter( entity castleWall )
 
 		EmitSoundAtPosition( TEAM_UNASSIGNED, castleWall.GetOrigin(), CASTLE_WALL_BARRIER_DISSOLVE_SOUND, castleWall )
 		castleWall.NotSolid()
-		castleWall.Dissolve( ENTITY_DISSOLVE_CORE, ZERO_VECTOR, 500 )
+		castleWall.Dissolve( ENTITY_DISSOLVE_CORE )
 	}
 	castleWall.Signal( "CastleWall_PickedUp" )
 	wait 3
@@ -8429,7 +8594,7 @@ void function DoCastleWallThreatIndicatorAndSound_Thread( entity player, int shi
 			//DebugDrawMark( closestPositionEnt.GetOrigin(), 20, COLOR_RED, true, 0.1 )
 			//DebugDrawMark( farthestPositionEnt.GetOrigin(), 10, COLOR_BLUE, true, 0.1 )
 		}
-		#endif //DEV
+		#endif //DEVELOPER
 
 		WaitFrame()
 	}
@@ -8527,7 +8692,7 @@ array<CastleWallThreatIndicatorLine> function BuildThreatLines( entity startingA
 			{
 				 //DebugDrawArrow( line.startPos, line.endPos, 10, COLOR_GREEN, true, 0.1 )
 			}
-			#endif //DEV
+			#endif //DEVELOPER
 		}
 	}
 
@@ -8544,13 +8709,7 @@ bool function GetArmoredLeapUseReducedEntCount()
 //Use code based ultimate movement instead of script.
 bool function GetArmoredLeapUseCode()
 {
-	// S3 dedi has no StartArmoredLeap* / IsArmoredLeapActive -- always script path.
-	// S21 client keeps playlist/code path.
-	#if SERVER
-		return false
-	#else
-		return GetCurrentPlaylistVarBool( "newcastle_ult_code", true )
-	#endif
+	return GetCurrentPlaylistVarBool( "newcastle_ult_code", true )
 }
 
 //Do additional checks for airpos.  This only runs on server when we go to launch the ability, will result in less cases of NC getting "stuck" as original script checks can choose paths that fail the block checks in code.
@@ -8558,4 +8717,3 @@ bool function DoAdditionalAirPosChecks()
 {
 	return GetCurrentPlaylistVarBool( "newcastle_ult_additional_air_pos_checks", true )
 }
-

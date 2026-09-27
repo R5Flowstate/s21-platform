@@ -30,6 +30,7 @@ const table<string, bool> GAMEMODE_INSTALLED_MAPS = {
 	mp_rr_arena_phase_runner = true,
 	mp_rr_boneyard = true,
 	mp_rr_canyonlands_hu = true,
+	mp_rr_canyonlands_staging = true,
 	mp_rr_canyonlands_staging_mu1 = true,
 	mp_rr_crashsite = true,
 	mp_rr_desertlands_hu = true,

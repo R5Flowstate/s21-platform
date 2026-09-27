@@ -1764,6 +1764,9 @@ void function PromptFlourish( entity player, float flourishTime )
 	OnThreadEnd(
 		function() : ( player, flourishTime )
 		{
+			if ( !IsValid( player ) )
+				return
+
 			RemoveButtonPressedPlayerInputCallback( player, IN_EMOTE_FLOURISH, PerformFlourish )
 
 			//Only re-register if we haven't already ended the emote
@@ -1799,7 +1802,7 @@ void function HACK_ForceEmoteNoLoop( entity player, float animTime, ItemFlavor f
 	OnThreadEnd(
 		function() : ( player, e, flavor, startTime )
 		{
-			if ( ! e["completed"] )
+			if ( ! e["completed"] && IsValid( player ) )
 				PIN_EmoteUse( player, ItemFlavor_GetHumanReadableRefForPIN_Slow( flavor ), player.GetOrigin(), EMOTE_PIN_ACTION_INTERRUPT, Time() - startTime )
 		}
 	)
@@ -2048,6 +2051,17 @@ void function SpawnedProp_Behavior_Sit_Thread( entity player, entity spawnedProp
 	EndSignal( player, "OnDeath" )
 	EndSignal( player, "OnDestroy" )
 
+	// A prop that never reaches the world budget below would otherwise stay forever.
+	table< string, bool > e
+	e["tracked"] <- false
+
+	OnThreadEnd(
+		function() : ( spawnedProp, e )
+		{
+			if ( !e["tracked"] )
+				SpawnedProp_Despawn( spawnedProp )
+		}
+	)
 
 	TraceResults result = TraceLine( spawnedProp.GetOrigin() + <0,0,30>, spawnedProp.GetOrigin() - <0,0,30>, spawnedProp, TRACE_MASK_SHOT_BRUSHONLY, TRACE_COLLISION_GROUP_NONE  )
 
@@ -2062,11 +2076,11 @@ void function SpawnedProp_Behavior_Sit_Thread( entity player, entity spawnedProp
 		spawnedProp.SetAbsOrigin( result.endPos )
 
 		SpawnedProp_Tracking_Add( player, spawnedProp )
+		e["tracked"] = true
 	}
 	else
 	{
 		WaitSignal( player, SIGNAL_END_EMOTE_ENDED )
-		SpawnedProp_Despawn( spawnedProp )
 	}
 }
 
@@ -2336,7 +2350,7 @@ void function DestroySpray( entity prop )
 	StopSoundOnEntity( prop, SFX_WRAITH_INSIGNIA_LOOP )
 	EmitSoundAtPosition( TEAM_ANY, prop.GetOrigin(), SFX_WRAITH_INSIGNIA_OUTRO, prop )
 
-	StartParticleEffectInWorld( GetParticleSystemIndex( VFX_WRAITH_INSIGNIA_OUTRO ), prop.GetOrigin(), prop.GetAngles() )
+	StartParticleEffectInWorldForRealms( GetParticleSystemIndex( VFX_WRAITH_INSIGNIA_OUTRO ), prop.GetOrigin(), prop.GetAngles(), prop )
 	prop.Destroy()
 }
 

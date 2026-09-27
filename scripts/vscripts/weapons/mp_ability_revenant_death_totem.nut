@@ -642,7 +642,12 @@ void function DeathTotem_OnTotemPostDamaged( entity totemProxy, var damageInfo )
 		}
 		else if ( !IsAlive( owner ) )
 		{
-			array <entity> totemTeammates = GetPlayerArrayOfTeam_Alive( trapTeam )
+			array <entity> totemTeammates
+			foreach ( entity teammate in GetPlayerArrayOfTeam_Alive( trapTeam ) )
+			{
+				if ( teammate.DoesShareRealms( totemProxy ) )
+					totemTeammates.append( teammate )
+			}
 			if ( totemTeammates.len() > 0 )
 			{
 				totemTeammates.randomize()
@@ -848,6 +853,7 @@ void function CreateShadowToRecallLocation( entity player, vector startPosition,
 	mover.SetOrigin( startPosition )
 	mover.RemoveFromAllRealms()
 	mover.AddToOtherEntitysRealms( player )
+	mover.EndSignal( "OnDestroy" )
 
 	entity fx = StartParticleEffectOnEntity_ReturnEntity( mover, GetParticleSystemIndex( DEATH_TOTEM_SHADOW_RECALL_FX ), FX_PATTACH_POINT_FOLLOW, mover.LookupAttachment( "REF" ) )
 	EmitSoundOnEntityExceptToPlayer( mover, player, "DeathProtection_ReturnToTotem_Travel_3p" )

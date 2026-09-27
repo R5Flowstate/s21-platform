@@ -86,6 +86,9 @@ bool function DamageHealthBar_IsSupportedVictim( entity victim )
 		if ( st != e1v1State.IN_MATCH && st != e1v1State.SEQUENCE )
 			return false
 
+		if ( FS_IsScenarios() )
+			return victim.GetTeam() != localPlayer.GetTeam()
+
 		entity enemy = localPlayer.GetPlayerNetEnt( "FSDM_1v1_Enemy" )
 		if ( victim != enemy )
 			return false

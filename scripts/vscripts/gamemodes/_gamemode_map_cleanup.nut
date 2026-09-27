@@ -32,6 +32,7 @@ void function Gamemodes_Map_Cleanup()
 
 
 
+		if ( !IsArenaMode() )
 		{
 			BlockMapEntityParseCreationOf( "script_ref", "", "info_arenas_defensive_end_location" )
 			BlockMapEntityParseCreationOf( "script_ref", "", "info_arenas_airdrop_location" )
@@ -276,6 +277,11 @@ void function SetupMapCleanUpFromDatatable()
 				break
 
 		}
+
+		// This build's table disables the arenas map entities outright (retail S21 has no
+		// arenas); the arenas playlist needs its spawn and airdrop points.
+		if ( IsArenaMode() && editorClassName.find( "info_arenas_" ) == 0 )
+			continue
 
 		switch ( mapCleanUpType )
 		{

@@ -46,7 +46,7 @@ struct
 
 // Readable names for maps the bridge actually ships / targets.
 global table<string, string> CreateMapNames = {
-	[ "mp_rr_canyonlands_staging" ] = "Firing Range",
+	[ "mp_rr_canyonlands_staging" ] = "Firing Range (Classic)",
 	[ "mp_rr_canyonlands_64k_x_64k" ] = "King's Canyon S1",
 	[ "mp_rr_canyonlands_mu1" ] = "King's Canyon S2",
 	[ "mp_rr_canyonlands_mu1_night" ] = "King's Canyon After Dark",

@@ -20,6 +20,8 @@ struct
 	bool listsBuilt = false
 	bool applyingValues = false
 	bool infiniteAbilities = false
+	bool mapTriggers = true
+	bool devAlerts = false
 
 	array<string> legendRefs
 	array<string> bodyModelIds
@@ -59,7 +61,8 @@ void function LabPlayer_BindRows()
 		"SwitchGodMode", "SwitchNoClip", "SwitchInfiniteAmmo", "SwitchInfiniteAbilities",
 		"SwitchAutoRespawn", "ButtonRecharge", "ButtonRespawnMe", "ButtonKillSelf",
 		"SwitchThirdPerson", "SwitchHud", "SwitchSkyboxView",
-		"SwitchLegendGroup", "SwitchLegend", "SwitchBodyModel", "ButtonAlterLoadout"
+		"SwitchLegendGroup", "SwitchLegend", "SwitchBodyModel", "ButtonAlterLoadout",
+		"SwitchMapTriggers", "SwitchDevAlerts", "ButtonSkydive"
 	]
 
 	foreach ( string name in names )
@@ -94,6 +97,12 @@ void function LabPlayer_BindRows()
 		"#LAB_PLAYER_BODYMODEL_DESC", true )
 	Lab_SetupRow( LabPlayer_Row( "ButtonAlterLoadout" ), "#LAB_PLAYER_LOADOUT",
 		"#LAB_PLAYER_LOADOUT_DESC" )
+	Lab_SetupRow( LabPlayer_Row( "SwitchMapTriggers" ), "#LAB_MATCH_MAPTRIGGERS",
+		"#LAB_MATCH_MAPTRIGGERS_DESC", true )
+	Lab_SetupRow( LabPlayer_Row( "SwitchDevAlerts" ), "#LAB_MATCH_DEVALERTS",
+		"#LAB_MATCH_DEVALERTS_DESC", true )
+	Lab_SetupRow( LabPlayer_Row( "ButtonSkydive" ), "#LAB_MATCH_SKYDIVE",
+		"#LAB_MATCH_SKYDIVE_DESC", true )
 	Hud_Hide( LabPlayer_Row( "ButtonAlterLoadout" ) )
 	Hud_SetEnabled( LabPlayer_Row( "ButtonAlterLoadout" ), false )
 
@@ -113,6 +122,39 @@ void function LabPlayer_BindRows()
 	AddButtonEventHandler( LabPlayer_Row( "ButtonRespawnMe" ), UIE_CLICK, LabPlayer_OnRespawnMe )
 	AddButtonEventHandler( LabPlayer_Row( "ButtonKillSelf" ), UIE_CLICK, LabPlayer_OnKillSelf )
 	AddButtonEventHandler( LabPlayer_Row( "ButtonAlterLoadout" ), UIE_CLICK, LabPlayer_OnAlterLoadout )
+
+	AddButtonEventHandler( LabPlayer_Row( "SwitchMapTriggers" ), UIE_CHANGE, LabPlayer_OnMapTriggers )
+	AddButtonEventHandler( LabPlayer_Row( "SwitchDevAlerts" ), UIE_CHANGE, LabPlayer_OnDevAlerts )
+	AddButtonEventHandler( LabPlayer_Row( "ButtonSkydive" ), UIE_CLICK, LabPlayer_OnSkydive )
+}
+
+bool function LabPlayer_HostBlocked()
+{
+	return !Lab_GetCheats() || !Lab_IsHostSeat()
+}
+
+void function LabPlayer_OnMapTriggers( var button )
+{
+	if ( file.applyingValues || LabPlayer_HostBlocked() )
+		return
+	file.mapTriggers = !file.mapTriggers
+	ClientCommand( "toggle_map_triggers" )
+}
+
+void function LabPlayer_OnDevAlerts( var button )
+{
+	if ( file.applyingValues || LabPlayer_HostBlocked() )
+		return
+	file.devAlerts = !file.devAlerts
+	ClientCommand( "toggle_dev_alerts" )
+}
+
+void function LabPlayer_OnSkydive( var button )
+{
+	if ( LabPlayer_HostBlocked() )
+		return
+	ClientCommand( "dev_aimtrainer skydive" )
+	CloseAllMenus()
 }
 
 void function OnLabPlayerPanel_Show( var panel )
@@ -128,6 +170,8 @@ void function OnLabPlayerPanel_Show( var panel )
 	file.applyingValues = true
 	Hud_SetDialogListSelectionValue( LabPlayer_Row( "SwitchHud" ), DevHud_IsHidden() ? "0" : "1" )
 	Hud_SetDialogListSelectionValue( LabPlayer_Row( "SwitchInfiniteAbilities" ), file.infiniteAbilities ? "1" : "0" )
+	Hud_SetDialogListSelectionValue( LabPlayer_Row( "SwitchMapTriggers" ), file.mapTriggers ? "1" : "0" )
+	Hud_SetDialogListSelectionValue( LabPlayer_Row( "SwitchDevAlerts" ), file.devAlerts ? "1" : "0" )
 	file.applyingValues = false
 
 	ScrollPanel_SetActive( file.contentPanelParent, true )
@@ -268,6 +312,9 @@ void function LabPlayer_ApplyGates()
 
 	foreach ( string name, var button in file.rows )
 		Lab_SetRowState( button )
+
+	foreach ( string name in [ "SwitchMapTriggers", "SwitchDevAlerts", "ButtonSkydive" ] )
+		Lab_SetRowState( LabPlayer_Row( name ), true )
 }
 
 bool function LabPlayer_Ignore()

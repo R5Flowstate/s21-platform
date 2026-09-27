@@ -145,9 +145,19 @@ void function Perk_WeaponInfusion_Active_Thread( entity player )
 	playerHarvesterWPTables[ player ] <- []
 
 	OnThreadEnd(
-		function() : ( )
+		function() : ( player, playerHarvesterWPTables )
 		{
+			if ( !( player in playerHarvesterWPTables ) )
+				return
 
+			foreach ( harvesterTable in playerHarvesterWPTables[ player ] )
+			{
+				foreach ( harvester, wp in harvesterTable )
+				{
+					if ( IsValid( wp ) )
+						wp.Destroy()
+				}
+			}
 		}
 	)
 
@@ -468,11 +478,18 @@ void function Explode_InfusedWeapon( entity player, entity drop, string ref )
 		//Explosion FX//
 		vector origin = drop.GetOrigin()
 		int fxid = GetParticleSystemIndex( PERK_WEAPON_INFUSION_DESTROY_WPN_FX )
-		StartParticleEffectInWorld( fxid, origin, <0,0,0> )
+		StartParticleEffectInWorldForRealms( fxid, origin, <0,0,0>, player )
 		EmitSoundAtPosition( TEAM_UNASSIGNED, origin, PERK_WEAPON_INFUSION_DESTROY_WPN_SFX, drop )
 
 
 		//Destroy Gold Weapon & Leave behind old weapon and attachments if dropped
+		// The weapon was already returned (death/deactivate cleanup); only the dropped gold copy remains.
+		if( !( player in file.savedWeaponData ) )
+		{
+			drop.Destroy()
+			return
+		}
+
 		SavedWeaponInfo savedWeaponData = file.savedWeaponData[player]
 		array<string> lootTags 		= savedWeaponData.lootTags
 		array<string> attachments	= savedWeaponData.attachments
@@ -843,17 +860,17 @@ void function AttemptUse_UnstableHarvester( entity player )
 #if SERVER
 void function ClientCallback_AttemptUse_UnstableHarvester( entity player, entity harvester )
 {
-	if( !IsValid( player ) )
+	if( !IsValid( player ) || !IsAlive( player ) || !Perks_DoesPlayerHavePerk( player, ePerkIndex.WEAPON_INFUSION ) )
 		return
-	//Check to see if the Harvester CAN be used, then Infuse the Weapon.
+
 	if( !( player in file.playerUsedHarvesters ) )
 		file.playerUsedHarvesters[player] <- []
-	else
-	{
-		bool isHarvesterUsable = IsUnstableHarvesterUsable( player, harvester )
-		if( !isHarvesterUsable )
-			return
-	}
+
+	// The harvester comes from the client: it must be a live harvester this player has not used, within reach.
+	if( !IsUnstableHarvesterUsable( player, harvester ) )
+		return
+	if( Distance( player.GetOrigin(), harvester.GetOrigin() ) > UNSTABLE_HARVESTER_DISTANCE_TO_INTERACT * 2.0 )
+		return
 
 	entity activeWeapon = SURVIVAL_GetLastActiveWeapon( player ) //player.GetActiveWeapon( eActiveInventorySlot.mainHand )
 	if( IsValid( activeWeapon ) )

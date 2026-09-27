@@ -55,3 +55,8 @@ updraft
 wallhang
 zipline_vertical
 grenade_cryo
+medic_assign
+halo_held_assign
+halo_held_recall
+glide_stow
+high_fall_speed_activation

@@ -237,6 +237,7 @@ bool function DamageIgnoresFriendlyFire( var damageInfo )
 		case eDamageSourceId.damagedef_creeping_bombardment_detcord_explosion: //Creeping Bombardements/Det Cords are team agnostic when it comes to their shellshock effect. Preventing FF damage in callback.
 
 		case eDamageSourceId.mp_weapon_tesla_trap: // Tesla Traps are team agnostic when it comes to its emp effect. Preventing FF damage in callback.
+		case eDamageSourceId.mp_weapon_bow_ult_missile:
                          
                                                                                                                                                         
       

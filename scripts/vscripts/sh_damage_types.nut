@@ -320,6 +320,11 @@ mp_weapon_pdw_crate
                
 	mp_ability_conduit_shield_mines
 	mp_ability_overdrive_tac_slide_gate
+	mp_weapon_sonar_dart
+	mp_weapon_charge_gauntlet
+	mp_weapon_bow_ult_missile
+	mp_weapon_bow_ult_splash_damage
+	mp_ability_sonar_dart_trap_damage
        
              
                  
@@ -984,6 +989,11 @@ void function DamageTypes_Init()
 		               
 			[ eDamageSourceId.mp_ability_conduit_shield_mines ] = "#ABL_CONDUIT_ULTIMATE",
 			[ eDamageSourceId.mp_ability_overdrive_tac_slide_gate ] = "#ABL_TAC_SLIDE_GATE",
+			[ eDamageSourceId.mp_weapon_sonar_dart ] = "#WPN_ARTEMIS_TACTICAL",
+			[ eDamageSourceId.mp_weapon_charge_gauntlet ] = "#WPN_ARTEMIS_ULTIMATE",
+			[ eDamageSourceId.mp_weapon_bow_ult_missile ] = "#WPN_ARTEMIS_ULTIMATE",
+			[ eDamageSourceId.mp_weapon_bow_ult_splash_damage ] = "#WPN_ARTEMIS_ULTIMATE",
+			[ eDamageSourceId.mp_ability_sonar_dart_trap_damage ] = "#WPN_ARTEMIS_TACTICAL",
         
 
                   

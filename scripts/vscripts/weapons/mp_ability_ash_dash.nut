@@ -17,6 +17,7 @@ const string KILL_DASH_FX_SIGNAL = "ash_dash_fx"
 const bool ASH_DASH_HOLSTER_WEAPONS = false
 const bool ASH_DASH_BREAKS_CLOAK = true
 const bool ASH_DASH_FLIP_LEFT_RIGHT_VFX = true
+const float ASH_DASH_FX_POWER_DROP = 10.0
 
 const string ASH_DASH_MOD = "ash_dash"
 const string ASH_DASH_UPGRADE_MOD = "ash_dash_upgrade"
@@ -32,10 +33,10 @@ bool function AshDashEnabled()
 	return GetCurrentPlaylistVarBool( "ash_passive_dash_enabled", true )
 }
 
-array<string> function AshDash_GetMods()
+array<string> function AshDash_GetMods( entity player )
 {
 	array<string> mods = [ ASH_DASH_MOD ]
-	if ( GetCurrentPlaylistVarBool( "ash_dash_two_charges", false ) )
+	if ( PlayerHasPassive( player, ePassives.PAS_PAS_UPGRADE_TWO ) )
 		mods.append( ASH_DASH_UPGRADE_MOD )
 	return mods
 }
@@ -63,6 +64,7 @@ void function MpAbilityAshDash_Init()
 
 #if SERVER
 	AddCallback_OnPassiveChanged( ePassives.PAS_ASH, AshDash_OnPassiveChanged )
+	AddCallback_OnPassiveChanged( ePassives.PAS_PAS_UPGRADE_TWO, AshDash_OnServerUpgradeChanged )
 	AddCallback_OnPlayerRespawned( AshDash_OnPlayerRespawned )
 #endif
 }
@@ -101,7 +103,7 @@ void function AshDash_OnPassiveChanged( entity player, int passive, bool didHave
 	{
 		array<string> mods = player.GetPlayerSettingsMods()
 		array<string> take
-		foreach ( string mod in AshDash_GetMods() )
+		foreach ( string mod in [ ASH_DASH_MOD, ASH_DASH_UPGRADE_MOD ] )
 		{
 			if ( mods.contains( mod ) )
 				take.append( mod )
@@ -114,6 +116,18 @@ void function AshDash_OnPassiveChanged( entity player, int passive, bool didHave
 		if ( HasPlayerMovementEventCallback( player, ePlayerMovementEvents.TOUCH_GROUND, AshDash_OnPlayerLanded ) )
 			RemovePlayerMovementEventCallback( player, ePlayerMovementEvents.TOUCH_GROUND, AshDash_OnPlayerLanded )
 	}
+}
+
+void function AshDash_OnServerUpgradeChanged( entity player, int passive, bool didHave, bool nowHas )
+{
+	if ( !IsValid( player ) || !PlayerHasPassive( player, ePassives.PAS_ASH ) )
+		return
+
+	bool hasMod = player.GetPlayerSettingsMods().contains( ASH_DASH_UPGRADE_MOD )
+	if ( nowHas && !hasMod )
+		GivePlayerSettingsMods( player, [ ASH_DASH_UPGRADE_MOD ] )
+	else if ( !nowHas && hasMod )
+		TakePlayerSettingsMods( player, [ ASH_DASH_UPGRADE_MOD ] )
 }
 
 void function AshDash_OnPlayerRespawned( entity player )
@@ -131,7 +145,7 @@ void function AshDash_ApplyForPlayer( entity player )
 {
 	array<string> mods = player.GetPlayerSettingsMods()
 	array<string> give
-	foreach ( string mod in AshDash_GetMods() )
+	foreach ( string mod in AshDash_GetMods( player ) )
 	{
 		if ( !mods.contains( mod ) )
 			give.append( mod )
@@ -153,12 +167,14 @@ void function AshDash_OnPlayerDodge( entity player )
 	if ( !IsValid( player ) )
 		return
 
-	Remote_CallFunction_Replay( player, "ServerToClient_Ash_OnPlayerDash" )
+	if ( ASH_DASH_BREAKS_CLOAK && player.IsCloaked( true ) )
+		DisableCloak( player )
 
+	// The owner starts this effect locally when its predicted dash drains suit power.
 	foreach ( entity spectator in GetPlayerArrayOfTeam( TEAM_SPECTATOR ) )
 	{
 		if ( IsValid( spectator ) && spectator.GetObserverTarget() == player )
-			Remote_CallFunction_Replay( spectator, "ServerToClient_Ash_OnPlayerDash" )
+			Remote_CallFunction_Replay( spectator, "ServerToSpectator_Ash_OnPlayerDash" )
 	}
 }
 
@@ -312,8 +328,8 @@ void function AshDash_CreatePassiveRui( entity player )
 		RuiTrackFloat( file.dashPassiveRui, "bleedoutEndTime", player, RUI_TRACK_SCRIPT_NETWORK_VAR, GetNetworkedVariableIndex( "bleedoutEndTime" ) )
 		RuiTrackFloat( file.dashPassiveRui, "reviveEndTime", player, RUI_TRACK_SCRIPT_NETWORK_VAR, GetNetworkedVariableIndex( "reviveEndTime" ) )
 		RuiSetBool( file.dashPassiveRui, "hasUnlimitedDash", false )
-		RuiSetFloat( file.dashPassiveRui, "forceOffsetLeftRight", 0.0 )
-		RuiSetBool( file.dashPassiveRui, "hasAltCooldownSourceForShowHide", false )
+		RuiSetFloat( file.dashPassiveRui, "forceOffsetLeftRight", PlayerHasPassive( player, ePassives.PAS_SPARROW ) ? 0.7 : 0.0 )
+		RuiSetBool( file.dashPassiveRui, "hasAltCooldownSourceForShowHide", PlayerHasPassive( player, ePassives.PAS_SPARROW ) )
 	}
 
 	bool twoDashes = PlayerHasPassive( player, ePassives.PAS_PAS_UPGRADE_TWO )
@@ -338,10 +354,16 @@ void function AshDash_DisplayCounter( entity player )
 {
 	player.EndSignal( "OnDeath", "OnDestroy" )
 
+	float lastPower = player.GetSuitPower()
 	while ( file.dashPassiveRui != null && IsValid( player ) )
 	{
+		float power = player.GetSuitPower()
 		RuiSetInt( file.dashPassiveRui, "numDashSegments", file.numberOfDashCharges )
-		RuiSetFloat( file.dashPassiveRui, "dashFrac", player.GetSuitPower() / 100.0 )
+		RuiSetFloat( file.dashPassiveRui, "dashFrac", power / 100.0 )
+
+		if ( power < lastPower - ASH_DASH_FX_POWER_DROP && player == GetLocalClientPlayer() )
+			thread AshDash_ScreenFx_Thread( player )
+		lastPower = power
 
 		WaitFrame()
 	}

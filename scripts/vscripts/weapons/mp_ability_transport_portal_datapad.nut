@@ -40,7 +40,7 @@ const string TRANSPORT_PORTAL_START_CHANNEL_TRANSLOCATOR_SOUND_3P = "Alter_Ult_B
 const bool TRANSPORT_PORTAL_DATAPAD_DEBUG = true
 
 struct{
-	float warpDelayAfterUse = 2.0
+	float warpDelayAfterUse = 3.0
 	float warpDelayAfterUseAdditionalWhenKnocked = 1.0
 
 	bool canCancel = true
@@ -263,7 +263,7 @@ void function OnHoldUseSuccessDatapad_Thread( entity rootEnt, entity player )
 {
 	Assert ( IsNewThread(), "Must be started as new thread" )
 
-	if ( !IsValid( player ) )
+	if ( !IsValid( player ) || !IsValid( rootEnt ) )
 		return
 
 	player.EndSignal( "OnDeath", "OnDestroy", TRANSPORT_PORTAL_CANCEL_CHANNEL_SIGNAL )

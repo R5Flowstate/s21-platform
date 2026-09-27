@@ -758,6 +758,7 @@ void function RespawnBeaconStartUse_Mobile( entity ent, entity player, ExtendedU
 	// Start Countdown Pulse FX
 	int pulseFxId  = GetParticleSystemIndex( MOBILE_RESPAWN_BEACON_COUNTDOWN_PULSE_FX )
 	file.countdownPulseFX[ ent ] <- StartParticleEffectInWorld_ReturnEntity( pulseFxId, ent.GetOrigin(), <-90,0,0> )
+	CopyRealmsFromTo( ent, file.countdownPulseFX[ ent ] )
 	EmitSoundOnEntity( ent, MOBILE_RESPAWN_INTERACT_PULSATE_SOUND )
 }
 #endif // SERVER

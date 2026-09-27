@@ -1001,7 +1001,7 @@ void function VoidRingActiveThread( entity projectile, int team, float duration 
 			 else
 			 {
 				 projectile.Signal("VoidRingShutdown")
-				 thread VoidRing_PlayDestroyedFX( projectile.GetOrigin() )
+				 thread VoidRing_PlayDestroyedFX( projectile.GetOrigin(), projectile.GetRealms() )
 				 delete file.playerInVoidRing[projectile]
 				 delete file.voidRingHP[projectile]
 				 delete file.voidRingEndTime[projectile]
@@ -1404,10 +1404,11 @@ void function VoidRing_CleanUp_ObjectStatusEffects()
 	}
 
 }
-void function VoidRing_PlayDestroyedFX( vector emitPos )
+void function VoidRing_PlayDestroyedFX( vector emitPos, array<int> realms )
 {
 	int damageFXID       = GetParticleSystemIndex( VOID_RING_DESTROY_FX )
 	entity idleFX = StartParticleEffectInWorld_ReturnEntity ( damageFXID, emitPos, <0,0,0> )
+	SetRealms( idleFX, realms )
 	EmitSoundOnEntity( idleFX, VOID_RING_SOUND_DESTROY )
 
 	OnThreadEnd(
@@ -1483,6 +1484,9 @@ entity function CreateVoidRing_TriggerArea( entity projectile, int vRadius, int 
 }
 void function DomeTriggerEnter( entity trigger, entity ent )
 {
+	if ( !ent.DoesShareRealms( trigger ) )
+		return
+
 	if ( ent.IsPlayer() )
 	{
 

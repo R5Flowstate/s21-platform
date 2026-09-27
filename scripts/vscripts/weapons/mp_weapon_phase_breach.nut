@@ -82,7 +82,7 @@ const bool DEBUG_DRAW_ENDING_SCORES    = false
 const bool DEBUG_DRAW_PUSHER_MOVEMENT  = false
 
 bool DEV_DO_VALIDATION = true
-const bool LOG_VALIDATION_DATA = true
+const bool LOG_VALIDATION_DATA = false
 const bool DEBUG_DRAW_VALIDATION = false
 
 const asset BREACH_TARGET_FX = $"P_ar_ping_squad_CP_altZ"
@@ -92,7 +92,7 @@ const asset BREACH_AIM_FX = $"P_wrp_trl_end"
 
 const asset BREACH_FX_AR_DIR = $"P_ar_ping_wall_dir_CP"
 const asset BREACH_FX_AR_INVALID = $"P_mm_breach_arc_end_fail"
-const asset BREACH_RANGE_FX = $"P_ar_zipline_range"
+const asset BREACH_RANGE_FX = $"P_ash_breach_range"
 
 const string FUNC_BREACH_FAILED = "ServerToClient_PhaseBreachPortalCancelled"
 const string PLACEMENT_FAILED_HINT = "#PHASE_BREACH_CANT_PLACE"
@@ -383,7 +383,7 @@ void function MoveEntAndCreateTunnel( entity player, PhaseTunnelPathData data, v
 
 	thread DestroyAfterDelay( threatIndicator, THREAT_INDIATOR_DURATION )
 
-	entity traceBlocker = CreateTraceBlockerVolume( endpoint + BREACH_OFFSET, 24.0, false, CONTENTS_BLOCK_PING, player.GetTeam(), PHASE_BREACH_BLOCKER_SCRIPTNAME )
+	entity traceBlocker = CreateTraceBlockerVolume( endpoint + BREACH_OFFSET, 24.0, false, CONTENTS_BLOCK_PING, player.GetTeam(), PHASE_BREACH_BLOCKER_SCRIPTNAME, player )
 	traceBlocker.RemoveFromAllRealms()
 	traceBlocker.AddToOtherEntitysRealms( player )
 	traceBlocker.SetTouchTriggers( true )
@@ -599,7 +599,7 @@ void function PhaseTunnel_CreateTriggerArea( entity tunnelEnt, PhaseTunnelPortal
 	portalMarker.RemoveFromAllRealms()
 	portalMarker.AddToOtherEntitysRealms( tunnelEnt )
 
-	entity traceBlocker = CreateTraceBlockerVolume( origin, 24.0, false, CONTENTS_BLOCK_PING, tunnelEnt.GetTeam(), PHASE_BREACH_BLOCKER_SCRIPTNAME )
+	entity traceBlocker = CreateTraceBlockerVolume( origin, 24.0, false, CONTENTS_BLOCK_PING, tunnelEnt.GetTeam(), PHASE_BREACH_BLOCKER_SCRIPTNAME, tunnelEnt )
 	traceBlocker.RemoveFromAllRealms()
 	traceBlocker.AddToOtherEntitysRealms( tunnelEnt )
 	traceBlocker.SetTouchTriggers( true )
@@ -725,11 +725,6 @@ PhaseBreachTargetInfo function GetPhaseBreachTargetInfo( entity player )
 	vector eyeAngles = player.EyeAngles()
 	vector mins = player.GetPlayerMins()
 	vector maxs = player.GetPlayerMaxs()
-#if DEVELOPER
-	s_desiredStep = GetConVarInt( "gwut_debug_step" )
-	s_desiredSubstep = GetConVarInt( "gwut_debug_substep" )
-	s_currentSubstep = -1
-#endif
 	return GetPhaseBreachTargetInfoFromPos( player, playerPos, eyePos, eyeDir, eyeAngles, mins, maxs )
 }
 

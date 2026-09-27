@@ -301,7 +301,7 @@ void function OnResinDamaged( entity resin, var damageInfo )
 
 	if( damage >= resin.GetHealth() )
 	{
-		StartParticleEffectInWorld( GetParticleSystemIndex( $"P_debris_blast_vert" ), pos, ZERO_VECTOR )
+		StartParticleEffectInWorldForRealms( GetParticleSystemIndex( $"P_debris_blast_vert" ), pos, ZERO_VECTOR, resin )
 		EmitSoundOnEntity( resin, RESIN_CRUMBLE_3P_SOUND )
 	}
 }

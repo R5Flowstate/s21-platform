@@ -231,8 +231,9 @@ void function Bleedout_StartPlayerBleedout( entity player, entity attacker, var 
 	player.Signal( "BleedOut_OnStartDying" )
 
 	entity weapon = DamageInfo_GetWeapon( damageInfo )
-	//if( IsValid( weapon ) )
-	//	player.OnStartBleedout( weapon ) // TODO(s3): OnStartBleedout missing on S3
+	if( IsValid( weapon ) )
+		player.OnStartBleedout( weapon )
+
 	//thread BloodTrail( player )
 	thread PlayerDying( player, attacker, damageInfo )
 	thread EnablePlayerRes( player )
@@ -249,7 +250,8 @@ void function Bleedout_StartPlayerBleedout( entity player, entity attacker, var 
 	if ( Bleedout_GetDeathOnTeamBleedout( player ) )
 		CheckForTeamBleedout( player.GetTeam() )
 
-	//GameRules_OnPlayerGotDowned( player, attacker ) // TODO(s3): GameRules_OnPlayerGotDowned missing on S3
+	GameRules_OnPlayerGotDowned( player, attacker )
+
 	// Do the callbacks after we put player into bleedout state so the callback functions have bleedout info
 	foreach ( callbackFunc in file.Callbacks_OnPlayerStartBleedout )
 	{
@@ -307,6 +309,8 @@ void function PlayerDying( entity player, entity attacker, var damageInfo )
 	int forceCrouchHandle = player.PushForcedStance( FORCE_STANCE_CROUCH )
 	player.SetOneHandedWeaponUsageOn()
 
+	player.OverrideTargetingCapacity( 1 )
+
 	int lastActiveSlot = WEAPON_INVENTORY_SLOT_PRIMARY_2
 	LootData basicShield = SURVIVAL_Loot_GetLootDataByRef( KNOCKDOWN_SHIELD_BASIC )
 	string equipSlot = GetLootTypeData( basicShield.lootType ).equipmentSlot
@@ -345,7 +349,7 @@ void function PlayerDying( entity player, entity attacker, var damageInfo )
 		
 		player.SetActiveWeaponBySlot( eActiveInventorySlot.mainHand, KNOCKDOWN_SHIELD_SLOT )
 
-		LockWeaponsAndMelee( player )
+		LockWeaponsAndMelee( player, "bleedout" )
 		player.DisableWeaponTypes( BLEEDOUT_DISABLED_WEAPON_TYPES )
 	}
 
@@ -367,7 +371,7 @@ void function PlayerDying( entity player, entity attacker, var damageInfo )
 				EnableMantle(player)
 				//Remote_CallFunction_NonReplay( player, "ServerCallback_BLEEDOUT_PlayerRevivedDOF" )
 
-				// player.ClearTargetingCapacityOverride()
+				player.ClearTargetingCapacityOverride()
 
 				if ( IsValid( file.playerBleedoutWaypoint[ player ] ) )
 					file.playerBleedoutWaypoint[ player ].Destroy()
@@ -812,8 +816,8 @@ void function ReviveThread_Target( table resultTable, entity reviver, entity tar
 					if ( IsAlive( target ) )
 						LiveAPI_SendTwoPlayerEvent( eLiveAPI_EventTypes.playerRevive, reviver, target )
 
-					// if ( autoRevive )
-						// StatsHook_MedicDeployableDrone_OnAllyRevive( reviver )
+					if ( autoRevive )
+						StatsHook_MedicDeployableDrone_OnAllyRevive( reviver )
 				}
 				else
 				{
@@ -1366,7 +1370,7 @@ void function Bleedout_PlayerAttemptRes( entity reviver, entity target )
 
 							PlayBattleChatterLineToSpeakerAndTeam( target, "bc_reviveSelf" )
 
-							// StatsHook_OnPlayerSelfRevived( target )
+							StatsHook_OnPlayerSelfRevived( target )
 						}
 					}
 				}
@@ -1448,7 +1452,8 @@ void function Bleedout_PlayerAttemptRes( entity reviver, entity target )
 	if ( GamemodeUtility_ShouldOverrideHealingOnRevived() )
 		GamemodeUtility_HealPlayerHealthAndShieldsByPercentage( target, GamemodeUtility_GetPercentToSetHealthToOnRevived(), GamemodeUtility_GetPercentToSetShieldToOnRevived(), GamemodeUtility_ShouldOverrideHealingOnRevivedAllowHealthLoss(), true )
 
-	//GameRules_OnPlayerGotRevived( target, reviver ) // TODO(s3): GameRules_OnPlayerGotRevived missing on S3
+	GameRules_OnPlayerGotRevived( target, reviver )
+
 	Bleedout_SetPlayerBleedoutType( target, minint( Bleedout_GetPlayerBleedoutTypeCount() - 1, Bleedout_GetPlayerBleedoutType( target ) + 1 ) )
 
 	target.Signal( "BleedOut_OnRevive" )
@@ -1942,7 +1947,7 @@ void function Bleedout_TrackContinuousUse( entity player, entity useTarget, floa
 
 				if ( IsValid( player ) )
 				{
-					//player.Player_FinishDragRevive( useTarget ) // TODO(s3): Player_FinishDragRevive missing on S3
+					player.Player_FinishDragRevive( useTarget )
 				}
 				
 				if ( IsValid( useTarget ) && useTarget.IsPlayer() )
@@ -1956,7 +1961,7 @@ void function Bleedout_TrackContinuousUse( entity player, entity useTarget, floa
 
 		if ( PlayerHasPassive( player, ePassives.PAS_AXIOM ) )
 		{
-			//player.Player_StartDragRevive( outroAnimTime, useTarget ) // TODO(s3): Player_StartDragRevive missing on S3
+			player.Player_StartDragRevive( outroAnimTime, useTarget )
 			if ( useTarget.IsPlayer() )
 				SetBodyGroupVisibilityForDragRevive( useTarget, false )
 		}

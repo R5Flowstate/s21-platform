@@ -263,11 +263,19 @@ entity function DEV_SpawnTrainingDummieAtCrosshair( entity player, int shieldLev
 		return null
 	}
 
-	vector origin = GetPlayerCrosshairOrigin( player )
+	AimTrainerSpawnSpot spot = AimTrainer_FindSpawnSpot( player, AimTrainer_ViewSpot( player, AIMTRAINER_CROSSHAIR_RANGE, false ), true )
+	if ( !spot.ok )
+	{
+		printt( format( "[AimTrainer] no room for a dummy where %s is looking", player.GetPlayerName() ) )
+		return null
+	}
+	vector origin = spot.origin
 	vector eyeAngles = player.EyeAngles()
 	vector angles = <0.0, (eyeAngles.y + 180.0), 0.0>
 
 	entity npc = SpawnNPCTrainingDummy( origin, angles, shieldLevel )
+	if ( IsValid( npc ) && !TrySetOriginInWorld( npc, origin ) )
+		npc.Destroy()
 	if ( !IsValid( npc ) )
 	{
 		printt( "[AimTrainer] Training dummy spawn failed" )
@@ -293,11 +301,19 @@ entity function DEV_SpawnImmortalDummieAtCrosshair( entity player, int shieldLev
 		return null
 	}
 
-	vector origin = GetPlayerCrosshairOrigin( player )
+	AimTrainerSpawnSpot spot = AimTrainer_FindSpawnSpot( player, AimTrainer_ViewSpot( player, AIMTRAINER_CROSSHAIR_RANGE, false ), true )
+	if ( !spot.ok )
+	{
+		printt( format( "[AimTrainer] no room for a dummy where %s is looking", player.GetPlayerName() ) )
+		return null
+	}
+	vector origin = spot.origin
 	vector eyeAngles = player.EyeAngles()
 	vector angles = <0.0, (eyeAngles.y + 180.0), 0.0>
 
 	entity npc = SpawnNPCTrainingDummy( origin, angles, shieldLevel )
+	if ( IsValid( npc ) && !TrySetOriginInWorld( npc, origin ) )
+		npc.Destroy()
 	if ( !IsValid( npc ) )
 	{
 		printt( "[AimTrainer] Sand Bag dummy spawn failed" )
@@ -721,13 +737,11 @@ void function PushNPCDownToGroundThread( entity npc, vector spawnLoc )
 		if ( npc.IsOnGround() && ( cur.z <= plantZ + 8.0 ) )
 			return
 
-		vector start = < cur.x, cur.y, cur.z + 32.0 >
-		vector end   = < cur.x, cur.y, cur.z - 512.0 >
-		if ( !IsLegalWorldOrigin( start ) || !IsLegalWorldOrigin( end ) )
+		if ( !IsLegalWorldOrigin( cur + <0, 0, 32> ) || !IsLegalWorldOrigin( cur - <0, 0, 512> ) )
 			return
 
-		TraceResults tr = GetGroundPosition( start, end, [ npc ] )
-		if ( tr.fraction >= 1.0 )
+		TraceResults tr = AimTrainer_TraceFloor( cur, 32.0, 512.0, [ npc ] )
+		if ( tr.startSolid || tr.fraction >= 1.0 )
 			return
 		if ( !TrySetOriginInWorld( npc, tr.endPos ) )
 			return

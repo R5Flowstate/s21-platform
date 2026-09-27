@@ -206,6 +206,10 @@ void function DestroyOverlimitObjectsThread( OneLegendsLimitedObjects thisLegend
 		{
 			entToDelete.Destroy()
 		}
+		else
+		{
+			thisLegendsObjects[scriptName].objects.pop()
+		}
 		loops++
 		if ( loops > 30 )
 		{
@@ -224,6 +228,10 @@ void function DestroyOverlimitObjectsThread( OneLegendsLimitedObjects thisLegend
 bool function RemoveLimitedLegendObject( entity player, entity object )
 {
 	bool ret = false
+	// Reached from OnThreadEnd closures after the owner left or the object is gone.
+	if ( !( player in file.allLegendsLimitedObjects ) || !IsValid( object ) )
+		return ret
+
 	Assert( ( player in file.allLegendsLimitedObjects ), "LimitedLegendObject: Player " + player + " hasnt added any Limited Objects. Must call 'AddNewLimitedLegendObject' first.")
 
 	OneLegendsLimitedObjects thisLegendsObjects = file.allLegendsLimitedObjects[player]
@@ -1719,9 +1727,11 @@ entity function CreateAirShakeNoRumble( vector org, float amplitude = 16, float 
 //-------------------------------------
 // CreatePhysExplosion - physExplosion...small, medium or large
 //--------------------------------------
-void function CreatePhysExplosion( vector org, float radius, int magnitude = 1, int flags = 1, bool dealsDamage = true )
+void function CreatePhysExplosion( vector org, float radius, int magnitude = 1, int flags = 1, bool dealsDamage = true, entity realmSource = null )
 {
 	entity env_physexplosion = CreateEntity( "env_physexplosion" )
+	if ( IsValid( realmSource ) )
+		CopyRealmsFromTo( realmSource, env_physexplosion )
 	env_physexplosion.kv.spawnflags = flags // default 1 = No Damage - Only Force
 	env_physexplosion.kv.magnitude = magnitude
 	env_physexplosion.kv.radius = string( radius )
@@ -5893,6 +5903,12 @@ entity function CreateTraceBlockerVolume( vector fxOrigin, float radius, bool b0
 
 	DispatchSpawn( traceBlockerVol )
 	SetTeam( traceBlockerVol, team )
+
+	if ( IsValid( ownerEnt ) )
+	{
+		traceBlockerVol.RemoveFromAllRealms()
+		traceBlockerVol.AddToOtherEntitysRealms( ownerEnt )
+	}
 
 	return traceBlockerVol
 }

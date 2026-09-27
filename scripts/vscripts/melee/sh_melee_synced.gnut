@@ -203,7 +203,42 @@ bool function IsValidSyncedMeleeTarget( entity attacker, entity meleeInputWeapon
 	if ( !PlayerMelee_IsExecutionReachable( attacker, target, 0.3 ) )
 		return false
 
+	if ( !SyncedMelee_TargetHasVictimAnim( attacker, target ) )
+		return false
+
 	return true
+}
+
+// A victim clip plays only if the victim model's rig lists it; offer no finisher otherwise.
+bool function SyncedMelee_TargetHasVictimAnim( entity attacker, entity target )
+{
+	if ( !attacker.IsPlayer() )
+		return true
+
+	ItemFlavor attackerCharacter = LoadoutSlot_GetItemFlavor( ToEHI( attacker ), Loadout_Character() )
+	ItemFlavor attackerExecution = LoadoutSlot_GetItemFlavor( ToEHI( attacker ), Loadout_CharacterExecution( attackerCharacter ) )
+
+	string victimAnim
+	if ( target.IsNPC() )
+	{
+		victimAnim = string( CharacterExecution_GetVictimAnimSeq( attackerExecution, null, "mediumNPC" ) )
+	}
+	else if ( target.IsPlayer() )
+	{
+		ItemFlavor victimCharacter = LoadoutSlot_GetItemFlavor( ToEHI( target ), Loadout_Character() )
+		ItemFlavor ornull executionOverride = CharacterExecution_GetVictimOverrideExecution( attackerCharacter, victimCharacter )
+		if ( executionOverride != null )
+			attackerExecution = expect ItemFlavor( executionOverride )
+
+		string rigWeight = GetGlobalSettingsString( CharacterClass_GetSetFile( victimCharacter ), "bodyModelRigWeight" )
+		victimAnim = string( CharacterExecution_GetVictimAnimSeq( attackerExecution, victimCharacter, rigWeight ) )
+	}
+	else
+	{
+		return true
+	}
+
+	return victimAnim == "" || target.LookupSequence( victimAnim ) != -1
 }
 #endif
 
@@ -580,7 +615,8 @@ void function DoSyncedMelee_Thread( entity attacker, entity target )
 
 			target.PlayerMelee_ExecutionEndTarget()
 
-			if( target.IsPlayer() )
+			// The attacker may have disconnected mid-finisher.
+			if( target.IsPlayer() && IsValid( attacker ) )
 			{
 				PutTargetInSafeSpotAfterExecution( target, attacker, distanceFromAttackerToTarget )
 			}
@@ -883,7 +919,8 @@ void function SyncKillTarget( entity target, entity attacker )
 		damageType = DMG_MELEE_EXECUTION,
 		damageSourceId = eDamageSourceId.human_execution } )
 
-	Survival_PlayerDealtDamage( attacker, target, null, targetHealth, 0, 0, DMG_MELEE_EXECUTION )
+	if ( IsValid( attacker ) )
+		Survival_PlayerDealtDamage( attacker, target, null, targetHealth, 0, 0, DMG_MELEE_EXECUTION )
 }
 #endif
 
@@ -986,7 +1023,7 @@ void function OnSuccessfulSyncedMelee( entity victim, entity attacker, var damag
 	if ( PlayerHasPassive( attacker, ePassives.PAS_EXEC_BONUS_HEALTH ) )
 	{
 		string healthPickup = SURVIVAL_GetWeightedItemFromGroup( "Health_Low" )
-		SURVIVAL_ThrowLootFromPoint( throwOrigin, fwd, healthPickup, 1 )
+		SURVIVAL_ThrowLootFromPoint( throwOrigin, fwd, healthPickup, 1, null, null, attacker )
 	}
 
 	/*%if HAS_ARTEMIS
@@ -1043,11 +1080,11 @@ void function OnSuccessfulSyncedMelee( entity victim, entity attacker, var damag
 		int random = RandomInt( 2 )
 
 		if ( random == 0 )
-			SURVIVAL_ThrowLootFromPoint( throwOrigin, fwd, HIGHCAL_AMMO, 1 )
+			SURVIVAL_ThrowLootFromPoint( throwOrigin, fwd, HIGHCAL_AMMO, 1, null, null, attacker )
 		else if ( random == 1 )
-			SURVIVAL_ThrowLootFromPoint( throwOrigin, fwd, SHOTGUN_AMMO, 1 )
+			SURVIVAL_ThrowLootFromPoint( throwOrigin, fwd, SHOTGUN_AMMO, 1, null, null, attacker )
 		else
-			SURVIVAL_ThrowLootFromPoint( throwOrigin, fwd, BULLET_AMMO, 1 )
+			SURVIVAL_ThrowLootFromPoint( throwOrigin, fwd, BULLET_AMMO, 1, null, null, attacker )
 	}
 
 	if ( PlayerHasPassive( attacker, ePassives.PAS_EXEC_BONUS_ULT ) )

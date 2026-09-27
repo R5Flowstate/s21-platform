@@ -170,6 +170,7 @@ global enum eWaypoint
 
 	WATTSON_TROPHY_TIMER,
 	WATTSON_TROPHY_LIFE,
+	SPARROW_TRACKED_ENEMY,
 
                                  
                     
@@ -389,6 +390,10 @@ void function PlayerWaypoint_CreateCallback( entity wp )
 
 		case eWaypoint.BREADCRUMBTRAIL:
 			InstanceWP_BreadcrumbTrail( wp )
+			break
+
+		case eWaypoint.SPARROW_TRACKED_ENEMY:
+			InstanceWp_SparrowTrackedEnemy( wp )
 			break
 
 		case eWaypoint.HUB_AREAOFINTEREST:
@@ -1554,6 +1559,79 @@ entity function CreateWaypoint_BasicArea( vector targetCenter, float areaRadius2
 ///////////////////////////
 // Hub "Area of Interest"
 #if CLIENT
+void function InstanceWp_SparrowTrackedEnemy( entity wp )
+{
+	float hitlistScanTime = SonarDart_GetFullScanDuration()
+	float timeToStartFade = Time() + (hitlistScanTime / 2)
+	float timeToEndFade = timeToStartFade + (hitlistScanTime / 2)
+
+	entity enemy = wp.GetWaypointEntity( 0 )
+	if( !IsValid( enemy ) )
+		return
+
+	var fRui = FullMap_AddEnemyLocation( enemy )
+
+	var mRui = Minimap_AddEnemyToMinimap( enemy )
+	RuiSetGameTime( mRui, "fadeStartTime", timeToStartFade )
+	RuiSetGameTime( mRui, "fadeEndTime", timeToEndFade )
+	RuiSetGameTime( fRui, "fadeOutEndTime", timeToEndFade )
+
+	// Freed with the waypoint.
+	wp.wp.ruiMinimap = mRui
+	wp.wp.ruiFullmap = fRui
+
+	entity player = GetLocalClientPlayer()
+	asset hitlistRui = GetKeyValueAsAsset( { kn = "ui/scan_marker_hitlist.rpak" }, "kn" )
+	var rui = RuiCreate( hitlistRui, clGlobal.topoFullScreen, RUI_DRAW_HUD, RuiCalculateDistanceSortKey( player.EyePosition(), enemy.GetOrigin() ) )
+
+	InitHUDRui( rui )
+
+	RuiTrackFloat3( rui, "pos", enemy, RUI_TRACK_OVERHEAD_FOLLOW)
+	RuiTrackFloat3( rui, "playerAngles", player, RUI_TRACK_CAMANGLES_FOLLOW )
+	RuiKeepSortKeyUpdated( rui, true, "pos" )
+	RuiSetBool( rui, "isVisible", true )
+
+	thread TrackScanHitlistMarkerVisibility( player, enemy, wp, rui )
+}
+
+void function TrackScanHitlistMarkerVisibility( entity player, entity target, entity wp, var rui )
+{
+	EndSignal( target, "OnDeath", "OnDestroy", "StopTrackingClient" )
+	EndSignal( player, "OnDeath", "OnDestroy" )
+
+	OnThreadEnd(
+		function() : ( rui )
+		{
+			RuiDestroyIfAlive( rui )
+		}
+	)
+
+	float startTime = wp.GetWaypointFloat( 0 )
+	float endTime = startTime + SonarDart_GetFullScanDuration()
+	float hideMarkerTime = startTime + 2.0
+
+	while( Time() < endTime )
+	{
+		RuiKeepSortKeyUpdated( rui, true, "pos" )
+
+		RuiSetBool( rui, "isDetectedBySeer", StatusEffect_HasSeverity( target, eStatusEffect.seer_detected ) )
+
+		if ( target.IsPlayer() && target.GetPlayerSettingsMods().contains( "targetinfo_ffa_squad" ) )
+			RuiSetFloat( rui, "yOffset", -40 )
+
+		float timeFrac = ( endTime - Time() ) / SonarDart_GetFullScanDuration()
+		RuiSetFloat( rui, "durationFrac", timeFrac )
+
+		if( Time() > hideMarkerTime || FerroWall_BlockScan( player.EyePosition(), target.GetWorldSpaceCenter() ) )
+			RuiSetBool( rui, "hideMarker", true )
+
+		if( !StatusEffect_HasSeverity( target, eStatusEffect.on_hit_list ) && !target.IsPlayerDecoy() )
+			return
+
+		WaitFrame()
+	}
+}
+
 void function InstanceWP_HubAreaOfInterest( entity wp )
 {
 	var newRui = CreateWaypointRui( $"ui/waypoint_hub_areaofinterest.rpak", 200 )

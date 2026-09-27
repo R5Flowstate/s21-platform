@@ -1,13 +1,29 @@
 // IBMM input detect (CafeFPS) -- S21 port of Flowstate mp/_input_detector.nut
 // p.input: 0 = MnK, 1 = controller
 
+global function InputDetector_Init
 global function StartInputDetectorForPlayer
 global function FS_1v1_PublishInputState
 
 struct
 {
 	bool signalRegistered = false
+	table<entity, bool> running
 } file
+
+void function InputDetector_Init()
+{
+	AddCallback_OnClientConnected( InputDetector_OnClientConnected )
+}
+
+void function InputDetector_OnClientConnected( entity player )
+{
+	player.p.input = player.IsBot() ? 1 : 0
+	FS_1v1_PublishInputState( player )
+
+	if ( !player.IsBot() )
+		StartInputDetectorForPlayer( player )
+}
 
 void function InputDetector_EnsureSignal()
 {
@@ -29,9 +45,10 @@ void function FS_1v1_PublishInputState( entity player )
 
 void function StartInputDetectorForPlayer( entity player )
 {
-	if ( !IsValid( player ) )
+	if ( !IsValid( player ) || player in file.running )
 		return
 
+	file.running[ player ] <- true
 	InputDetector_EnsureSignal()
 	thread Thread_CheckInput( player )
 
@@ -48,6 +65,14 @@ void function Thread_CheckInput( entity player )
 	bool isCheckerRunning = false
 	bool previousMnkState = false
 	bool mnkStateInitialized = false
+
+	OnThreadEnd(
+		function() : ( player )
+		{
+			if ( player in file.running )
+				delete file.running[ player ]
+		}
+	)
 
 	for ( ; ; )
 	{

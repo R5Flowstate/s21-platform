@@ -47,7 +47,7 @@ void function AutoWhiteRavens_TrackDistance( entity player )
 
 		foreach( otherPlayer in players )
 		{
-			if( otherPlayer.GetTeam() == myTeam )
+			if( otherPlayer.GetTeam() == myTeam || !otherPlayer.DoesShareRealms( player ) )
 				continue
 
 			float distSqr = DistanceSqr( otherPlayer.GetOrigin(), player.GetOrigin() )

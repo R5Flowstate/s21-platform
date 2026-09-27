@@ -529,7 +529,8 @@ void function ShadowForm_Start( entity player, entity weapon )
 		function() : ( player, weapon, fxArray)
 		{
 			#if SERVER
-				player.Signal( "ExitShadowForm" )
+				if ( IsValid( player ) )
+					player.Signal( "ExitShadowForm" )
 
 				if ( IsValid( player ) )
 				{

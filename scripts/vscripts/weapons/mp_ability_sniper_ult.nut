@@ -41,6 +41,9 @@ global  const float SNIPERULT_HEALINGDENIED_DURATION = 15
 const float SNIPERULT_WHIZ_BY_SCAN_DURATION = 1
 const float SNIPERULT_PLAYER_MARKED_DURATION = 10
 const float SNIPERULT_VANTAGE_DMG_SCALE = 2
+const float SNIPERULT_VANTAGE_DMG_SCALE_BUFFED = 2.5
+const float SNIPERULT_LASER_DURATION = 10.0
+const string SNIPERULT_LASER_STOP = "sniper_ult_laser_stop"
 const float SNIPERULT_TEAM_DMG_SCALE = 1.15
 
 //const float SNIPERULT_BROADCAST_SCAN_INTERVAL = 1.5
@@ -78,6 +81,7 @@ struct
 		float timeLastUltHint = 0
 	#endif
 
+	array<entity> playersThatShouldShowSniperLaser
 } file
 
 const bool SNIPERULT_DEBUG_DRAW = false
@@ -89,6 +93,8 @@ void function SniperUlt_Init()
 	PrecacheParticleSystem( FX_SNIPER_ULT_MARK_WHIZ_BY )
 	PrecacheParticleSystem( FX_SNUPER_ULT_MUZZLE_FLASH_1P )
 	PrecacheParticleSystem( FX_SNUPER_ULT_MUZZLE_FLASH_3P )
+
+	RegisterSignal( SNIPERULT_LASER_STOP )
 
 
 	#if SERVER
@@ -217,7 +223,8 @@ void function OnWeaponStartZoomIn_ability_sniper_ult( entity weapon )
 			StopSoundOnEntity( weapon, SNIPERULT_ZOOM_OUT )
 		}
 		#endif
-		weapon.SetTargetingLaserEnabled( true )
+		if ( !IsVantageBuffsEnabled() || file.playersThatShouldShowSniperLaser.contains( weaponOwner ) )
+			weapon.SetTargetingLaserEnabled( true )
 	}
 }
 
@@ -307,6 +314,14 @@ var function OnWeaponPrimaryAttack_ability_sniper_ult( entity weapon, WeaponPrim
 
 		weapon.PlayWeaponEffect( FX_SNUPER_ULT_MUZZLE_FLASH_1P, FX_SNUPER_ULT_MUZZLE_FLASH_3P, "muzzle_flash" )
 	}
+	if ( IsVantageBuffsEnabled() )
+	{
+		if ( weapon.IsWeaponInAds() )
+			weapon.SetTargetingLaserEnabled( true )
+
+		thread SniperUlt_TargetingLaserUpdateThread( weapon, weapon.GetOwner() )
+	}
+
 	#if SERVER
 	entity player  = weapon.GetOwner()
 	TrackingVision_CreatePOI( eTrackingVisionNetworkedPOITypes.PLAYER_ABILITY_VANTAGE_ULTIMATE_FIRED, player, player.GetOrigin(), player.GetTeam(), player )
@@ -315,6 +330,38 @@ var function OnWeaponPrimaryAttack_ability_sniper_ult( entity weapon, WeaponPrim
 	return ammoUsed
 }
 
+
+// After a shot the laser stays on while zoomed for a while, then goes dark until the next shot.
+void function SniperUlt_TargetingLaserUpdateThread( entity weapon, entity player )
+{
+	if ( !IsValid( weapon ) || !IsValid( player ) )
+		return
+
+	Signal( player, SNIPERULT_LASER_STOP )
+	EndSignal( player, "OnDestroy", "OnDeath", SNIPERULT_LASER_STOP )
+
+	if ( !file.playersThatShouldShowSniperLaser.contains( player ) )
+		file.playersThatShouldShowSniperLaser.append( player )
+
+	OnThreadEnd(
+		function() : ( player )
+		{
+			if ( file.playersThatShouldShowSniperLaser.contains( player ) )
+				file.playersThatShouldShowSniperLaser.fastremovebyvalue( player )
+		}
+	)
+
+	wait SNIPERULT_LASER_DURATION
+
+	bool serverOrPredicted = IsServer() || ( InPrediction() && IsFirstTimePredicted() )
+	if ( serverOrPredicted && IsValid( weapon ) )
+		weapon.SetTargetingLaserEnabled( false )
+}
+
+float function SniperUlt_VantageDamageScaleDefault()
+{
+	return IsVantageBuffsEnabled() ? SNIPERULT_VANTAGE_DMG_SCALE_BUFFED : SNIPERULT_VANTAGE_DMG_SCALE
+}
 
 bool function OnWeaponAttemptOffhandSwitch_ability_sniper_ult( entity weapon )
 {
@@ -355,7 +402,7 @@ void function OnProjectileCollision_sniper_ult( entity projectile, vector pos, v
 
 		foreach ( target in enemies )
 		{
-			if ( target == hitEnt )
+			if ( target == hitEnt || !target.DoesShareRealms( projectile ) )
 				continue
 
 			//if ( target.GetTeam() == projectile.GetTeam() )
@@ -445,7 +492,7 @@ void function SniperUlt_OnDamagedByPlayer_DiamondScan( entity hitEnt, var damage
 			{
 				if ( dmgSrcID == eDamageSourceId.mp_ability_sniper_ult )
 				{
-					float damageScale = GetCurrentPlaylistVarFloat( "vantage_sniperult_dmgScale", SNIPERULT_VANTAGE_DMG_SCALE )
+					float damageScale = GetCurrentPlaylistVarFloat( "vantage_sniperult_dmgScale", SniperUlt_VantageDamageScaleDefault() )
 					DamageInfo_ScaleDamage( damageInfo, damageScale )
 					StatsHook_VantageUltimateMarkedHits( attacker )
 				}
@@ -509,7 +556,7 @@ void function SniperUlt_Mark_Dummie( entity hitEnt, var damageInfo )
 		int dmgSrcID = DamageInfo_GetDamageSourceIdentifier( damageInfo )
 		if ( dmgSrcID == eDamageSourceId.mp_ability_sniper_ult )
 		{
-			float damageScale = GetCurrentPlaylistVarFloat( "sniperult_vantage_dmgScale", SNIPERULT_VANTAGE_DMG_SCALE )
+			float damageScale = GetCurrentPlaylistVarFloat( "sniperult_vantage_dmgScale", SniperUlt_VantageDamageScaleDefault() )
 			DamageInfo_ScaleDamage( damageInfo, damageScale )
 		}
 		else

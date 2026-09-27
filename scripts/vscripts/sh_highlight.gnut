@@ -1182,6 +1182,16 @@ HighlightContextResult  function GetHighlightContextForEnt( entity viewPlayer, e
 				result.contextId = GetHighlightId( HIGHLIGHT_ABILITY_REVEAL )
 				return result
 			}
+			else if ( ClusterMissile_EntityShouldBeHighlighted( viewTarget, ent ) )
+			{
+				result.contextId = GetHighlightId( HIGHLIGHT_ABILITY_REVEAL )
+				return result
+			}
+			else if ( PhaseDoor_IsPlayerHighligted( viewTarget, ent ) )
+			{
+				result.contextId = GetHighlightId( HIGHLIGHT_ABILITY_REVEAL )
+				return result
+			}
 			else if ( ShouldAssassinsInstinctHighlight( viewTarget, ent ) )
 			{
 				result.contextId = GetHighlightId( "revenant_assassins_instinct_passive" )

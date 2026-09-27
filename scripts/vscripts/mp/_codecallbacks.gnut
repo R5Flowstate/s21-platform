@@ -964,6 +964,10 @@ void function TellClientPlayerTookDamage( entity player, var damageInfo, entity 
 
 	vector damageOrigin = GetDamageOrigin( damageInfo, player )
 
+	// Ring damage is sourceless on the client even when an in-realm entity dealt it.
+	if ( damageSourceId == eDamageSourceId.deathField )
+		attacker = null
+
 	if( IsValid( attacker ) )
 		Remote_CallFunction_Replay( player, "ServerCallback_PlayerTookDamage", DamageInfo_GetDamage( damageInfo ), damageOrigin, damageType, damageSourceId, attacker )
 	else

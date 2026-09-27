@@ -479,6 +479,7 @@ void function PhaseTunnel_StartAbility( entity player, float duration, entity we
 	player.EndSignal( "OnDestroy" )
 	player.EndSignal( "PhaseTunnel_CancelPlacement" )
 	player.EndSignal( "BleedOut_OnStartDying" )
+	player.EndSignal( "CleanUpPlayerAbilities" )
 	weapon.EndSignal( "OnDestroy" )
 	EndThreadOn_PlayerChangedClass( player )
 
@@ -711,6 +712,7 @@ void function PhaseTunnel_InteruptablePlacementWaitDistance( entity player, floa
 	player.EndSignal( "OnDeath" )
 	player.EndSignal( "PhaseTunnel_EndPlacement" )
 	player.EndSignal( "PhaseTunnel_CancelPlacement" )
+	player.EndSignal( "CleanUpPlayerAbilities" )
 	EndThreadOn_PlayerChangedClass( player )
 
 	entity tunnelWeapon = player.GetOffhandWeapon( OFFHAND_INVENTORY )
@@ -1022,7 +1024,7 @@ void function PhaseTunnel_CreateTriggerArea( entity tunnelEnt, PhaseTunnelPortal
 	portalMarker.RemoveFromAllRealms()
 	portalMarker.AddToOtherEntitysRealms( tunnelEnt )
 
-	entity traceBlocker = CreateTraceBlockerVolume( origin, 24.0, false, CONTENTS_BLOCK_PING, tunnelEnt.GetTeam(), PHASETUNNEL_BLOCKER_SCRIPTNAME )
+	entity traceBlocker = CreateTraceBlockerVolume( origin, 24.0, false, CONTENTS_BLOCK_PING, tunnelEnt.GetTeam(), PHASETUNNEL_BLOCKER_SCRIPTNAME, tunnelEnt )
 	traceBlocker.RemoveFromAllRealms()
 	traceBlocker.AddToOtherEntitysRealms( tunnelEnt )
 	traceBlocker.SetTouchTriggers( true )
@@ -1900,6 +1902,8 @@ void function PhaseTunnel_StartTrackingPositions( entity player, PhaseTunnelPath
 {
 	player.EndSignal( "PhaseTunnel_CancelPlacement" )
 	player.EndSignal( "OnDeath" )
+	player.EndSignal( "OnDestroy" )
+	player.EndSignal( "CleanUpPlayerAbilities" )
 	EndThreadOn_PlayerChangedClass( player )
 
 	//StatusEffect_AddTimed( player, eStatusEffect.placing_phase_tunnel, 1.0, PHASE_TUNNEL_PLACEMENT_DURATION, PHASE_TUNNEL_PLACEMENT_DURATION )
@@ -1972,6 +1976,8 @@ void function PhaseTunnel_StartTrackingPositions_Internal( entity player, PhaseT
 	player.EndSignal( "PhaseTunnel_CancelPlacement" )
 	player.EndSignal( "PhaseTunnel_EndPlacement" )
 	player.EndSignal( "OnDeath" )
+	player.EndSignal( "OnDestroy" )
+	player.EndSignal( "CleanUpPlayerAbilities" )
 
 	vector lastOrigin     = player.GetOriginOutOfTraversal()
 	vector startingOrigin = player.GetOriginOutOfTraversal()
@@ -2079,7 +2085,7 @@ void function PhaseTunnel_StartTrackingPositions_Internal( entity player, PhaseT
 
 					shutdownArray.append( fx )
 
-					entity traceBlocker = CreateTraceBlockerVolume( fxOrigin, 24.0, false, CONTENTS_NOGRAPPLE, player.GetTeam(), PHASETUNNEL_PRE_BLOCKER_SCRIPTNAME )
+					entity traceBlocker = CreateTraceBlockerVolume( fxOrigin, 24.0, false, CONTENTS_NOGRAPPLE, player.GetTeam(), PHASETUNNEL_PRE_BLOCKER_SCRIPTNAME, player )
 					traceBlocker.RemoveFromAllRealms()
 					traceBlocker.AddToOtherEntitysRealms( player )
 					traceBlocker.SetOwner( player )
@@ -2554,6 +2560,7 @@ void function PhaseTunnel_MarkForDelete( entity tunnelEnt )
 		int fxid               = GetParticleSystemIndex( PHASE_TUNNEL_PREPLACE_FX )
 		vector fxOrigin        = origin + (<0, 0, 1> * prePlaceFXOffset)
 		entity fx              = StartParticleEffectInWorld_ReturnEntity( fxid, fxOrigin, angles + <0, 90, 90> )
+		CopyRealmsFromTo( tunnelEnt, fx )
 		data.startPortal.portalFX = fx
 	}
 
@@ -2565,6 +2572,7 @@ void function PhaseTunnel_MarkForDelete( entity tunnelEnt )
 		int fxid               = GetParticleSystemIndex( PHASE_TUNNEL_PREPLACE_FX )
 		vector fxOrigin        = origin + (<0, 0, 1> * prePlaceFXOffset)
 		entity fx              = StartParticleEffectInWorld_ReturnEntity( fxid, fxOrigin, angles + <0, 90, 90> )
+		CopyRealmsFromTo( tunnelEnt, fx )
 		data.endPortal.portalFX = fx
 	}
 }

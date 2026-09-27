@@ -2,6 +2,18 @@ untyped
 
 globalize_all_functions
 
+// Map contents split into player-clip, npc-clip and plain-solid classes, so no
+// single TRACE_MASK_* covers everything a target must stay out of.
+global const int AIMTRAINER_WORLD_MASK = TRACE_MASK_PLAYERSOLID_BRUSHONLY | TRACE_MASK_NPCSOLID_BRUSHONLY | TRACE_MASK_SOLID_BRUSHONLY
+global const int AIMTRAINER_BODY_MASK = TRACE_MASK_PLAYERSOLID | TRACE_MASK_NPCSOLID | TRACE_MASK_SOLID
+global const float AIMTRAINER_CROSSHAIR_RANGE = 8000.0
+
+global struct AimTrainerSpawnSpot
+{
+	vector origin
+	bool ok
+}
+
 void function AiUtility_Init()
 {
 	RegisterSignal( "OnNewOwner" )
@@ -584,6 +596,48 @@ void function FlowstateDummy_SetSpeedMult( entity npc, float mult )
 	npc.ai.flowstateStrafeSpeedMult = mult
 }
 
+void function FlowstateDummy_SetStrafeWait( entity npc, float minSec, float maxSec )
+{
+	if ( !IsValid( npc ) || !npc.IsNPC() )
+		return
+	if ( minSec > maxSec )
+	{
+		float t = minSec
+		minSec = maxSec
+		maxSec = t
+	}
+	npc.ai.flowstateStrafeWaitMin = max( minSec, 0.0 )
+	npc.ai.flowstateStrafeWaitMax = max( maxSec, 0.0 )
+}
+
+const int FLOWSTATE_EASY_CROUCH_PCT = 25
+
+void function FlowstateDummy_SetCrouch( entity npc, int mode )
+{
+	if ( !IsValid( npc ) || !npc.IsNPC() )
+		return
+	npc.ai.flowstateCrouch = maxint( AIMTRAINER_CROUCH_AUTO, minint( AIMTRAINER_CROUCH_ON, mode ) )
+}
+
+// brainPct is the pattern's own chance; On gives the normal brain one as well.
+bool function FlowstateDummy_RollCrouch( entity bot, int brainPct )
+{
+	int mode = bot.ai.flowstateCrouch
+	if ( mode == AIMTRAINER_CROUCH_OFF )
+		return false
+	if ( brainPct <= 0 && mode == AIMTRAINER_CROUCH_ON )
+		brainPct = FLOWSTATE_EASY_CROUCH_PCT
+	return brainPct > 0 && RandomInt( 100 ) < brainPct
+}
+
+// Leg duration: the owner's strafe-time bounds when set, else the brain's own range.
+float function FlowstateDummy_PickStrafeDuration( entity bot, float defMin, float defMax )
+{
+	if ( IsValid( bot ) && bot.IsNPC() && bot.ai.flowstateStrafeWaitMax > 0.0 )
+		return RandomFloatRange( bot.ai.flowstateStrafeWaitMin, bot.ai.flowstateStrafeWaitMax )
+	return RandomFloatRange( defMin, defMax )
+}
+
 // Infinite health for strafing bots: real damage path (client hit callbacks
 // still fire), lethal hits land at 1 HP, idle refills to the spawn-time pool.
 // AddEntityCallback asserts on a duplicate and that shuts the host down.
@@ -596,15 +650,6 @@ void function AimTrainerStrafer_SetGod( entity npc, bool on )
 	if ( !on )
 		return
 
-	if ( npc.ai.flowstateGodMaxHealth < 1 )
-	{
-		npc.ai.flowstateGodMaxHealth = npc.GetMaxHealth()
-		npc.ai.flowstateGodMaxShield = npc.GetShieldHealthMax()
-		if ( npc.ai.flowstateGodMaxHealth < 1 )
-			npc.ai.flowstateGodMaxHealth = npc.GetHealth()
-		if ( npc.ai.flowstateGodMaxHealth < 1 )
-			npc.ai.flowstateGodMaxHealth = 1
-	}
 	npc.e.lastDamagedTime = 0.0
 
 	if ( !npc.e.entDamageCallbacks.contains( AimTrainerStrafer_OnDamaged ) )
@@ -622,23 +667,25 @@ void function AimTrainerStrafer_OnDamaged( entity npc, var damageInfo )
 	if ( !npc.ai.flowstateInfiniteHealth )
 		return
 
+	AimTrainerStrafer_AbsorbLethal( npc, damageInfo )
+}
+
+// Runs before the hit lands. A lethal hit refills the target and is then capped
+// to leave 1 HP, so damage numbers stay real for nearly every hit.
+void function AimTrainerStrafer_AbsorbLethal( entity ent, var damageInfo )
+{
 	float damage = DamageInfo_GetDamage( damageInfo )
 	if ( damage <= 0 )
 		return
-
-	int health = npc.GetHealth()
-	int shield = npc.GetShieldHealth()
-	float bodyDamage = max( 0.0, damage - float( shield ) )
-	if ( bodyDamage < float( health ) )
+	int pool = ent.GetHealth() + ent.GetShieldHealth()
+	if ( damage < float( pool ) )
 		return
 
-	int needed = int( bodyDamage ) + 1
-	if ( needed < 1 )
-		needed = 1
-	if ( needed > 100000 )
-		needed = 100000
-	if ( health < needed )
-		npc.SetHealth( needed )
+	ent.SetHealth( ent.GetMaxHealth() )
+	ent.SetShieldHealth( ent.GetShieldHealthMax() )
+	pool = ent.GetHealth() + ent.GetShieldHealth()
+	if ( damage >= float( pool ) )
+		DamageInfo_SetDamage( damageInfo, float( maxint( pool - 1, 0 ) ) )
 }
 
 void function AimTrainerStrafer_OnPostDamaged( entity npc, var damageInfo )
@@ -679,8 +726,8 @@ void function AimTrainerStrafer_RegenThink( entity npc )
 			continue
 		}
 
-		int wantHealth = npc.ai.flowstateGodMaxHealth
-		int wantShield = npc.ai.flowstateGodMaxShield
+		int wantHealth = npc.GetMaxHealth()
+		int wantShield = npc.GetShieldHealthMax()
 		if ( npc.GetHealth() >= wantHealth && npc.GetShieldHealth() >= wantShield )
 		{
 			wait 0.1
@@ -721,6 +768,8 @@ void function FlowstateDummy_ApplyOwnerPrefs( entity player, entity npc )
 	{
 		mult = player.p.aimTrainerStrafeSpeedMult
 		god = player.p.aimTrainerStraferInfiniteHealth
+		FlowstateDummy_SetStrafeWait( npc, FRDummie_StrafeDurationIndexToSeconds( player.p.aimTrainerStrafeTimeMin ), FRDummie_StrafeDurationIndexToSeconds( player.p.aimTrainerStrafeTimeMax ) )
+		FlowstateDummy_SetCrouch( npc, player.p.aimTrainerStraferCrouch )
 	}
 	FlowstateDummy_SetSpeedMult( npc, mult )
 	if ( god )
@@ -754,6 +803,155 @@ void function FlowstateDummy_FaceTargetYawOnly( entity bot, entity target )
 	bot.SetAngles( <0.0, wantYaw, 0.0> )
 }
 
+// ---- Aim trainer spawn spots ------------------------------------------------
+// Covers both the training dummy and the player hull.
+const vector AIMTRAINER_HULL_MINS = <-18, -18, 0>
+const vector AIMTRAINER_HULL_MAXS = <18, 18, 72>
+const float AIMTRAINER_SPOT_PROBE_UP = 48.0
+const float AIMTRAINER_SPOT_PROBE_DOWN = 320.0
+const float AIMTRAINER_SPOT_MIN_WALKABLE = 0.7
+const float AIMTRAINER_SPOT_OWNER_CLEAR = 72.0
+const float AIMTRAINER_SPOT_VIEW_BACKOFF = 40.0
+const float AIMTRAINER_SPOT_CHEST = 48.0
+
+// Floor under pos. The probe starts under the first ceiling above pos, never
+// inside it: a trace that starts in solid ends where it started.
+TraceResults function AimTrainer_TraceFloor( vector pos, float up, float down, array<entity> ignore )
+{
+	TraceResults ceiling = TraceLine( pos + <0, 0, 1>, pos + <0, 0, up>, ignore, AIMTRAINER_WORLD_MASK, TRACE_COLLISION_GROUP_NONE )
+	vector start = pos + <0, 0, 1>
+	if ( !ceiling.startSolid )
+		start = ceiling.endPos - <0, 0, 1>
+	return TraceHull( start, pos - <0, 0, down>, <-2, -2, 0>, <2, 2, 1>, ignore, AIMTRAINER_WORLD_MASK, TRACE_COLLISION_GROUP_NONE )
+}
+
+// A standing hull rests on walkable floor at pos, the owner can see its chest,
+// and it is clear of the owner. Collision meshes are hollow, so a hull can fit
+// inside a rock; only the sight line proves the spot is on the owner's side.
+AimTrainerSpawnSpot function AimTrainer_CheckSpawnSpot( entity owner, vector pos, bool needSight )
+{
+	AimTrainerSpawnSpot spot
+	spot.ok = false
+	if ( !IsLegalWorldOrigin( pos ) )
+		return spot
+
+	array<entity> ignore = []
+	TraceResults floor = TraceHull( pos + <0, 0, AIMTRAINER_SPOT_PROBE_UP>, pos - <0, 0, AIMTRAINER_SPOT_PROBE_DOWN>,
+		AIMTRAINER_HULL_MINS, <AIMTRAINER_HULL_MAXS.x, AIMTRAINER_HULL_MAXS.y, 1.0>, ignore, AIMTRAINER_WORLD_MASK, TRACE_COLLISION_GROUP_NONE )
+	if ( floor.startSolid || floor.fraction >= 1.0 )
+		return spot
+	if ( floor.surfaceNormal.z < AIMTRAINER_SPOT_MIN_WALKABLE )
+		return spot
+
+	vector ground = floor.endPos
+	TraceResults body = TraceHull( ground + <0, 0, 2>, ground + <0, 0, 3>, AIMTRAINER_HULL_MINS, AIMTRAINER_HULL_MAXS, ignore, AIMTRAINER_BODY_MASK, TRACE_COLLISION_GROUP_NONE )
+	if ( body.startSolid || body.fraction < 1.0 )
+		return spot
+
+	if ( IsValid( owner ) )
+	{
+		if ( Distance2D( ground, owner.GetOrigin() ) < AIMTRAINER_SPOT_OWNER_CLEAR && fabs( ground.z - owner.GetOrigin().z ) < AIMTRAINER_HULL_MAXS.z )
+			return spot
+		if ( needSight )
+		{
+			TraceResults sight = TraceLine( owner.EyePosition(), ground + <0, 0, AIMTRAINER_SPOT_CHEST>, [ owner ], AIMTRAINER_WORLD_MASK, TRACE_COLLISION_GROUP_NONE )
+			if ( sight.fraction < 1.0 )
+				return spot
+		}
+	}
+
+	spot.origin = ground
+	spot.ok = true
+	return spot
+}
+
+// The wanted point first, then rings around it, nearest first, each ring
+// starting on the side facing the owner.
+AimTrainerSpawnSpot function AimTrainer_FindSpawnSpot( entity owner, vector want, bool needSight = true )
+{
+	AimTrainerSpawnSpot spot = AimTrainer_CheckSpawnSpot( owner, want, needSight )
+	if ( spot.ok )
+		return spot
+
+	float baseYaw = 0.0
+	if ( IsValid( owner ) )
+		baseYaw = VectorToAngles( owner.GetOrigin() - want ).y
+
+	array<float> radii = [ 40.0, 80.0, 128.0, 192.0, 256.0 ]
+	foreach ( float radius in radii )
+	{
+		for ( int i = 0; i < 8; i++ )
+		{
+			// 0, +45, -45, +90, ... so the owner side is tried before the far side.
+			int step = ( i + 1 ) / 2
+			float yaw = baseYaw + ( ( i % 2 ) == 1 ? 45.0 : -45.0 ) * float( step )
+			spot = AimTrainer_CheckSpawnSpot( owner, want + AnglesToForward( <0, yaw, 0> ) * radius, needSight )
+			if ( spot.ok )
+				return spot
+		}
+	}
+	return spot
+}
+
+// Airborne targets: the hull sweeps from `from` to `to` without touching the world.
+bool function AimTrainer_HullPathClear( vector from, vector to )
+{
+	if ( !IsLegalWorldOrigin( to ) )
+		return false
+	TraceResults path = TraceHull( from, to, AIMTRAINER_HULL_MINS, AIMTRAINER_HULL_MAXS, [], AIMTRAINER_WORLD_MASK, TRACE_COLLISION_GROUP_NONE )
+	return !path.startSolid && path.fraction >= 1.0
+}
+
+// Clear standing spot where the owner is looking, or null. For scripts that
+// compile before this file and cannot name AimTrainerSpawnSpot.
+vector ornull function AimTrainer_FindViewSpawnOrigin( entity owner )
+{
+	AimTrainerSpawnSpot spot = AimTrainer_FindSpawnSpot( owner, AimTrainer_ViewSpot( owner, AIMTRAINER_CROSSHAIR_RANGE, false ), true )
+	if ( !spot.ok )
+		return null
+	return spot.origin
+}
+
+// Point along the owner's view (flat = yaw only), pulled back off whatever the
+// view hits so the search starts on the owner's side of it.
+vector function AimTrainer_ViewSpot( entity owner, float maxDist, bool flat )
+{
+	vector eye = owner.EyePosition()
+	vector angles = owner.EyeAngles()
+	if ( flat )
+		angles = <0, angles.y, 0>
+	vector fwd = AnglesToForward( angles )
+	TraceResults view = TraceLine( eye, eye + fwd * maxDist, [ owner ], AIMTRAINER_WORLD_MASK, TRACE_COLLISION_GROUP_NONE )
+	vector spot = view.endPos
+	if ( view.fraction < 1.0 )
+		spot = eye + fwd * max( view.fraction * maxDist - AIMTRAINER_SPOT_VIEW_BACKOFF, 0.0 )
+	TraceResults floor = AimTrainer_TraceFloor( spot, 16.0, AIMTRAINER_SPOT_PROBE_DOWN, [ owner ] )
+	if ( !floor.startSolid && floor.fraction < 1.0 )
+		return floor.endPos
+	return spot
+}
+
+// Strafing switched off by the owner: targets hold still and keep facing them.
+bool function AimTrainer_TargetsStatic( entity owner )
+{
+	return IsValid( owner ) && owner.IsPlayer() && !owner.p.aimTrainerStrafing
+}
+
+bool function FlowstateDummy_IsStatic( entity bot )
+{
+	if ( !IsValid( bot ) || !bot.IsNPC() )
+		return false
+	return AimTrainer_TargetsStatic( bot.ai.aimTrainerOwner )
+}
+
+// One idle beat facing the target, planted; strafe brains loop on it while static.
+void function FlowstateDummy_HoldStill( entity bot, entity target )
+{
+	if ( IsValid( target ) )
+		FlowstateDummy_FaceTargetYawOnly( bot, target )
+	FlowstateDummy_PlayStrafeAct( bot, "ACT_STAND", 0.25, 1.0, false )
+}
+
 // ---- Ground plant (Z only) --------------------------------------------------
 // Scripted activities drive lateral root-motion with no gravity. Conform feet to
 // the floor under the CURRENT XY each slice -- never rewrite X/Y so anim locomotion
@@ -776,8 +974,8 @@ bool function FlowstateDummy_ConformToGround( entity bot )
 		return false
 
 	vector pos = bot.GetOrigin()
-	TraceResults tr = GetGroundPosition( pos + <0, 0, FLOWSTATE_GROUND_TRACE_UP>, pos + <0, 0, -FLOWSTATE_GROUND_TRACE_DOWN>, [ bot ] )
-	if ( tr.fraction >= 1.0 )
+	TraceResults tr = AimTrainer_TraceFloor( pos, FLOWSTATE_GROUND_TRACE_UP, FLOWSTATE_GROUND_TRACE_DOWN, [ bot ] )
+	if ( tr.startSolid || tr.fraction >= 1.0 )
 		return false
 
 	float groundZ = tr.endPos.z
@@ -985,12 +1183,12 @@ int function FlowstateHard_CommitSide( entity bot, int preferredSide, entity tar
 	return side
 }
 
-float function FlowstateHard_PickStrafeDuration()
+float function FlowstateHard_PickStrafeDuration( entity bot )
 {
 	// Mostly short laterals; occasional longer hold so aim re-settles
 	if ( RandomInt( 100 ) < 18 )
-		return RandomFloatRange( FLOWSTATE_HARD_LONG_WAIT_MIN, FLOWSTATE_HARD_LONG_WAIT_MAX )
-	return RandomFloatRange( FLOWSTATE_STRAFE_HARD_WAIT_MIN, FLOWSTATE_STRAFE_HARD_WAIT_MAX )
+		return FlowstateDummy_PickStrafeDuration( bot, FLOWSTATE_HARD_LONG_WAIT_MIN, FLOWSTATE_HARD_LONG_WAIT_MAX )
+	return FlowstateDummy_PickStrafeDuration( bot, FLOWSTATE_STRAFE_HARD_WAIT_MIN, FLOWSTATE_STRAFE_HARD_WAIT_MAX )
 }
 
 float function FlowstateHard_PickPlaybackRate( entity bot )
@@ -1046,6 +1244,12 @@ void function BotStrafeMovementPatternThread( entity bot, float forwardMove, ent
 		if ( hasTarget && IsValid( target ) )
 			FlowstateDummy_FaceTargetYawOnly( bot, target )
 
+		if ( FlowstateDummy_IsStatic( bot ) )
+		{
+			FlowstateDummy_HoldStill( bot, target )
+			continue
+		}
+
 		// No ground entity: soft-fall plant (Z only). ACT_FALL is cosmetic while dropping.
 		if ( !IsValid( bot.GetGroundEntity() ) )
 		{
@@ -1058,7 +1262,7 @@ void function BotStrafeMovementPatternThread( entity bot, float forwardMove, ent
 		}
 
 		side = FlowstateDummy_PickOpenSide( bot, side )
-		bool ok = FlowstateDummy_PlayStrafeAct( bot, FlowstateHard_SideAct( side, false ), RandomFloatRange( waitMin, waitMax ), FLOWSTATE_STRAFE_SPEED * FlowstateDummy_GetSpeedMult( bot ), true )
+		bool ok = FlowstateDummy_PlayStrafeAct( bot, FlowstateHard_SideAct( side, FlowstateDummy_RollCrouch( bot, 0 ) ), FlowstateDummy_PickStrafeDuration( bot, waitMin, waitMax ), FLOWSTATE_STRAFE_SPEED * FlowstateDummy_GetSpeedMult( bot ), true )
 		if ( !IsValid( bot ) )
 			break
 
@@ -1099,6 +1303,12 @@ void function BotHardStrafeMovementPatternThread( entity bot, entity target )
 	{
 		if ( hasTarget && IsValid( target ) )
 			FlowstateDummy_FaceTargetYawOnly( bot, target )
+
+		if ( FlowstateDummy_IsStatic( bot ) )
+		{
+			FlowstateDummy_HoldStill( bot, target )
+			continue
+		}
 
 		// No ground entity: soft-fall plant (Z only). ACT_FALL is cosmetic while dropping.
 		if ( !IsValid( bot.GetGroundEntity() ) )
@@ -1188,7 +1398,7 @@ void function BotHardStrafeMovementPatternThread( entity bot, entity target )
 			// Rare ADAD: only longer flicks (short L/R restarts look like low FPS)
 			int side = FlowstateDummy_PickOpenSide( bot, lastSide )
 			int other = FlowstateDummy_PickOpenSide( bot, ( side == 0 ) ? 1 : 0 )
-			bool crouch = ( RandomInt( 100 ) < 20 )
+			bool crouch = FlowstateDummy_RollCrouch( bot, 20 )
 			ok = FlowstateDummy_PlayStrafeAct( bot, FlowstateHard_SideAct( side, crouch ), RandomFloatRange( 0.28, 0.45 ), rate, true )
 			if ( !ok && IsValid( bot ) )
 			{
@@ -1218,7 +1428,7 @@ void function BotHardStrafeMovementPatternThread( entity bot, entity target )
 			}
 			if ( !IsValid( bot ) )
 				break
-			ok = FlowstateDummy_PlayStrafeAct( bot, FlowstateHard_SideAct( side, crouch ), FlowstateHard_PickStrafeDuration(), rate, true )
+			ok = FlowstateDummy_PlayStrafeAct( bot, FlowstateHard_SideAct( side, crouch ), FlowstateHard_PickStrafeDuration( bot ), rate, true )
 			if ( !ok && IsValid( bot ) )
 			{
 				lastSide = FlowstateDummy_UnstuckReverse( bot, side, target )
@@ -1237,8 +1447,8 @@ void function BotHardStrafeMovementPatternThread( entity bot, entity target )
 			// Double same side -- human holds a direction instead of perfect alternate
 			int side = ( RandomInt( 100 ) < 65 ) ? lastSide : RandomInt( 2 )
 			side = FlowstateDummy_PickOpenSide( bot, side )
-			bool crouch = ( RandomInt( 100 ) < 30 )
-			ok = FlowstateDummy_PlayStrafeAct( bot, FlowstateHard_SideAct( side, crouch ), FlowstateHard_PickStrafeDuration(), rate, true )
+			bool crouch = FlowstateDummy_RollCrouch( bot, 30 )
+			ok = FlowstateDummy_PlayStrafeAct( bot, FlowstateHard_SideAct( side, crouch ), FlowstateHard_PickStrafeDuration( bot ), rate, true )
 			if ( !ok && IsValid( bot ) )
 			{
 				unstuckStreak++
@@ -1262,7 +1472,7 @@ void function BotHardStrafeMovementPatternThread( entity bot, entity target )
 			if ( hasTarget && IsValid( target ) )
 				FlowstateDummy_FaceTargetYawOnly( bot, target )
 			side = FlowstateDummy_PickOpenSide( bot, side )
-			ok = FlowstateDummy_PlayStrafeAct( bot, FlowstateHard_SideAct( side, crouch ), FlowstateHard_PickStrafeDuration(), FlowstateHard_PickPlaybackRate( bot ), true )
+			ok = FlowstateDummy_PlayStrafeAct( bot, FlowstateHard_SideAct( side, crouch ), FlowstateHard_PickStrafeDuration( bot ), FlowstateHard_PickPlaybackRate( bot ), true )
 			if ( !ok && IsValid( bot ) )
 			{
 				lastSide = FlowstateDummy_UnstuckReverse( bot, side, target )
@@ -1283,7 +1493,7 @@ void function BotHardStrafeMovementPatternThread( entity bot, entity target )
 		{
 			// Crouch lateral only (height change + lateral)
 			int side = FlowstateDummy_PickOpenSide( bot, ( lastSide == 0 ) ? 1 : 0 )
-			ok = FlowstateDummy_PlayStrafeAct( bot, FlowstateHard_SideAct( side, true ), FlowstateHard_PickStrafeDuration(), rate, true )
+			ok = FlowstateDummy_PlayStrafeAct( bot, FlowstateHard_SideAct( side, bot.ai.flowstateCrouch != AIMTRAINER_CROUCH_OFF ), FlowstateHard_PickStrafeDuration( bot ), rate, true )
 			if ( !ok && IsValid( bot ) )
 			{
 				lastSide = FlowstateDummy_UnstuckReverse( bot, side, target )
@@ -1307,8 +1517,8 @@ void function BotHardStrafeMovementPatternThread( entity bot, entity target )
 			if ( RandomInt( 100 ) < 28 )
 				preferred = ( lastSide == 0 ) ? 1 : 0
 			int side = FlowstateDummy_PickOpenSide( bot, preferred )
-			bool crouch = ( RandomInt( 100 ) < 12 )
-			float dur = FlowstateHard_PickStrafeDuration()
+			bool crouch = FlowstateDummy_RollCrouch( bot, 12 )
+			float dur = FlowstateHard_PickStrafeDuration( bot )
 
 			ok = FlowstateDummy_PlayStrafeAct( bot, FlowstateHard_SideAct( side, crouch ), dur, rate, true )
 			if ( !ok && IsValid( bot ) )
@@ -1367,7 +1577,7 @@ entity function DEV_SpawnFlowstateDummyAtCrosshair( entity player, int shieldLev
 	if ( shieldLevel < 0 )
 		shieldLevel = AimTrainer_ResolveDummyShieldLevel( player )
 
-	vector origin = GetPlayerCrosshairOrigin( player )
+	vector origin = AimTrainer_ViewSpot( player, AIMTRAINER_CROSSHAIR_RANGE, false )
 	vector eyeAngles = player.EyeAngles()
 	vector angles = <0.0, ( eyeAngles.y + 180.0 ), 0.0>
 
@@ -1391,7 +1601,7 @@ entity function DEV_SpawnFlowstateHardDummyAtCrosshair( entity player, int shiel
 	if ( shieldLevel < 0 )
 		shieldLevel = AimTrainer_ResolveDummyShieldLevel( player )
 
-	vector origin = GetPlayerCrosshairOrigin( player )
+	vector origin = AimTrainer_ViewSpot( player, AIMTRAINER_CROSSHAIR_RANGE, false )
 	vector eyeAngles = player.EyeAngles()
 	vector angles = <0.0, ( eyeAngles.y + 180.0 ), 0.0>
 
@@ -1403,40 +1613,25 @@ entity function DEV_SpawnFlowstateHardDummyAtCrosshair( entity player, int shiel
 	return npc
 }
 
-// Legacy names -> freeroam Autospawn challenges (front-of-player, timed session).
-void function DEV_SpawnFlowstateAutospawnDummyAtCrosshair( entity player, int shieldLevel = 3 )
+// needSight=false only for a spot the owner already proved visible when saving it.
+entity function FlowstateDummy_SpawnAt( entity player, vector origin, vector angles, int shieldLevel, float waitMin = FLOWSTATE_STRAFE_WAIT_MIN, float waitMax = FLOWSTATE_STRAFE_WAIT_MAX, bool smartHard = false, bool needSight = true )
 {
-	DEV_AimFreeroam_Autospawn( player )
-}
+	AimTrainerSpawnSpot spot = AimTrainer_FindSpawnSpot( player, origin, needSight )
+	if ( !spot.ok )
+	{
+		printt( format( "[FlowstateDummy] no room for a target near %s, spawn skipped", string( origin ) ) )
+		return null
+	}
 
-void function DEV_SpawnFlowstateHardAutospawnDummyAtCrosshair( entity player, int shieldLevel = 3 )
-{
-	DEV_AimFreeroam_AutospawnHard( player )
-}
-
-// Static dummies = red (skin 1). Strafers = random from working skins.
-// Skins: 1 red, 3 blue, 4 black, 6 purple
-void function Dummy_SetStraferSkin( entity npc )
-{
-	if ( !IsValid( npc ) )
-		return
-
-	array<int> skins = [ 1, 3, 4, 6 ]
-	npc.SetSkin( skins[ RandomInt( skins.len() ) ] )
-}
-
-entity function FlowstateDummy_SpawnAt( entity player, vector origin, vector angles, int shieldLevel, float waitMin = FLOWSTATE_STRAFE_WAIT_MIN, float waitMax = FLOWSTATE_STRAFE_WAIT_MAX, bool smartHard = false )
-{
-	entity npc = SpawnNPCTrainingDummy( origin, angles, shieldLevel )
+	entity npc = SpawnNPCTrainingDummy( spot.origin, angles, shieldLevel )
 	if ( !IsValid( npc ) )
 	{
 		printt( "[FlowstateDummy] FlowstateDummy_SpawnAt: spawn failed" )
 		return null
 	}
 
-	// Plant feet immediately (training spawn has a small Z lift + delayed ground thread).
-	vector groundPos = GetGroundPosition( npc.GetOrigin() + <0, 0, 32>, npc.GetOrigin() + <0, 0, -256>, [ npc ] ).endPos
-	if ( !TrySetOriginInWorld( npc, groundPos ) )
+	// Stand on the proven spot, not the spawn's small lift.
+	if ( !TrySetOriginInWorld( npc, spot.origin ) )
 	{
 		npc.Destroy()
 		return null
@@ -1456,13 +1651,12 @@ entity function FlowstateDummy_SpawnAt( entity player, vector origin, vector ang
 	npc.EnableNPCFlag( NPC_IGNORE_ALL | NPC_DISABLE_SENSING | NPC_NO_WEAPON_DROP )
 	npc.SetTitle( "" )
 	npc.SetAimAssistAllowed( true )
-	Dummy_SetStraferSkin( npc )
 	FlowstateDummy_ApplyOwnerPrefs( player, npc )
 	StartBotStrafeMovementPattern( npc, 0.0, player, waitMin, waitMax, smartHard )
 	return npc
 }
 
-// Fixed-origin loop kept for any external callers; freeroam Autospawn uses AimFreeroam_AutospawnLoop.
+// Fixed-origin respawn loop; Lab strafers use their slot threads instead.
 void function FlowstateAutospawnDummyLoop( entity player, vector origin, vector angles, int shieldLevel, float waitMin, float waitMax, bool smartHard = false )
 {
 	if ( IsValid( player ) )
@@ -1486,105 +1680,22 @@ void function FlowstateAutospawnDummyLoop( entity player, vector origin, vector 
 	}
 }
 
-// Autospawn freeroam: one strafer in front of the player; respawn after kill (safe plant each time).
-const float AIM_FREEROAM_AUTOSPAWN_DIST = 400.0
-
-// asChallenge: timed run with the aim-trainer clock and results. Otherwise the
-// strafer just keeps respawning until the player clears it.
-void function DEV_AimFreeroam_Autospawn( entity player, bool asChallenge = false )
+// A Lab strafer slot's target. The owner's brain pick decides the pattern.
+entity function FlowstateDummy_SpawnStrafer( entity player, vector origin, vector angles, int shieldLevel, bool hard, bool needSight )
 {
-	if ( !IsValid( player ) )
-		return
-
-	AimTrainer_StopPlayerSession( player )
-	player.p.aimTrainerFreeroamMode = AIMTRAINER_FREEROAM_AUTOSPAWN
-	if ( asChallenge )
-		AimTrainer_BeginTimedChallenge( player, true )
-	else
-		AimTrainer_EnterMode( player )
-	AimFreeroam_StartAutospawnLoop( player, false )
-	printt( format( "[AimFreeroam] Autospawn started for %s challenge=%s", player.GetPlayerName(), string( asChallenge ) ) )
+	float waitMin = hard ? FLOWSTATE_STRAFE_HARD_WAIT_MIN : FLOWSTATE_STRAFE_WAIT_MIN
+	float waitMax = hard ? FLOWSTATE_STRAFE_HARD_WAIT_MAX : FLOWSTATE_STRAFE_WAIT_MAX
+	return FlowstateDummy_SpawnAt( player, origin, angles, shieldLevel, waitMin, waitMax, hard, needSight )
 }
 
-void function DEV_AimFreeroam_AutospawnHard( entity player, bool asChallenge = false )
+// Swaps a live strafer's brain; the pattern restart is clean (StopBotStrafe first).
+void function FlowstateDummy_SetHard( entity npc, entity owner, bool hard )
 {
-	if ( !IsValid( player ) )
+	if ( !IsValid( npc ) || !npc.IsNPC() || !IsAlive( npc ) )
 		return
-
-	AimTrainer_StopPlayerSession( player )
-	player.p.aimTrainerFreeroamMode = AIMTRAINER_FREEROAM_AUTOSPAWN_HARD
-	if ( asChallenge )
-		AimTrainer_BeginTimedChallenge( player, true )
-	else
-		AimTrainer_EnterMode( player )
-	AimFreeroam_StartAutospawnLoop( player, true )
-	printt( format( "[AimFreeroam] Autospawn Hard started for %s challenge=%s", player.GetPlayerName(), string( asChallenge ) ) )
-}
-
-// Legend body pref owns the autospawn shape: fake-player strafers instead of NPC dummies.
-void function AimFreeroam_StartAutospawnLoop( entity player, bool smartHard )
-{
-	if ( !IsValid( player ) )
-		return
-	bool legendBody = false
-	try
-	{
-		legendBody = LegendBot_GetBodyIsLegend( player )
-	}
-	catch ( eBody )
-	{
-		legendBody = false
-	}
-	if ( legendBody )
-		thread LegendBot_AutospawnLoop( player, smartHard )
-	else
-		thread AimFreeroam_AutospawnLoop( player, smartHard )
-}
-
-void function AimFreeroam_AutospawnLoop( entity player, bool smartHard )
-{
-	player.EndSignal( "OnDestroy" )
-	player.EndSignal( "OnDeath" )
-	player.EndSignal( "AimFreeroam_Stop" )
-
-	OnThreadEnd(
-		function() : ()
-		{
-			printt( "[AimFreeroam] Autospawn ended" )
-		}
-	)
-
-	// Hold spawns until the pre-start description window is over.
-	AimTrainer_WaitForIntro( player )
-
-	float waitMin = smartHard ? FLOWSTATE_STRAFE_HARD_WAIT_MIN : FLOWSTATE_STRAFE_WAIT_MIN
-	float waitMax = smartHard ? FLOWSTATE_STRAFE_HARD_WAIT_MAX : FLOWSTATE_STRAFE_WAIT_MAX
-
-	while ( IsValid( player ) )
-	{
-		if ( AimTrainer_GetBudgetRemaining() <= 0 )
-		{
-			wait 0.5
-			continue
-		}
-
-		vector origin = player.GetOrigin() + AnglesToForward( player.GetAngles() ) * AIM_FREEROAM_AUTOSPAWN_DIST
-		vector groundPos = GetGroundPosition( origin + <0, 0, 32>, origin + <0, 0, -512>, [ player ] ).endPos
-		if ( player.p.aimTrainerFixedSpawn )
-			groundPos = player.p.aimTrainerFixedSpawnPos
-		vector angles = <0.0, VectorToAngles( player.GetOrigin() - groundPos ).y, 0.0>
-
-		entity npc = FlowstateDummy_SpawnAt( player, groundPos, angles, AimTrainer_ResolveDummyShieldLevel( player ), waitMin, waitMax, smartHard )
-		if ( !IsValid( npc ) )
-		{
-			wait 0.5
-			continue
-		}
-
-		printt( format( "[AimFreeroam] Autospawn dummy live hard=%s @ %s", string( smartHard ), string( groundPos ) ) )
-		WaitSignal( npc, "OnDeath", "OnDestroy" )
-		wait 0.2
-	}
+	float waitMin = hard ? FLOWSTATE_STRAFE_HARD_WAIT_MIN : FLOWSTATE_STRAFE_WAIT_MIN
+	float waitMax = hard ? FLOWSTATE_STRAFE_HARD_WAIT_MAX : FLOWSTATE_STRAFE_WAIT_MAX
+	StartBotStrafeMovementPattern( npc, 0.0, owner, waitMin, waitMax, hard )
 }
 
 // -----------------------------------------------------------------------------
@@ -1770,13 +1881,13 @@ void function AimFreeroam_RestartScenario( entity player )
 	}
 	else if ( mode == AIMTRAINER_FREEROAM_AUTOSPAWN )
 	{
-		AimFreeroam_StartAutospawnLoop( player, false )
-		printt( format( "[AimFreeroam] Restart Autospawn for %s", player.GetPlayerName() ) )
+		// Slot threads respawn their own targets; a fresh run still needs one.
+		AimTrainer_EnsureStraferSlots( player, 1 )
+		printt( format( "[AimFreeroam] Restart Strafer for %s", player.GetPlayerName() ) )
 	}
-	else if ( mode == AIMTRAINER_FREEROAM_AUTOSPAWN_HARD )
+	else if ( mode == AIMTRAINER_FREEROAM_MANUAL )
 	{
-		AimFreeroam_StartAutospawnLoop( player, true )
-		printt( format( "[AimFreeroam] Restart Autospawn Hard for %s", player.GetPlayerName() ) )
+		printt( format( "[AimFreeroam] Restart Manual for %s", player.GetPlayerName() ) )
 	}
 	else
 	{
@@ -1821,7 +1932,10 @@ void function AimFreeroam_TargetSwitchLoop( entity player )
 			if ( AimTrainer_GetBudgetRemaining() <= 0 )
 				break
 
-			vector pos = AimFreeroam_PickTargetSwitchFovPos( player, live )
+			AimTrainerSpawnSpot spot = AimFreeroam_PickTargetSwitchFovPos( player, live )
+			if ( !spot.ok )
+				break
+			vector pos = spot.origin
 			vector angles = <0.0, VectorToAngles( player.GetOrigin() - pos ).y, 0.0>
 			// Shield tier follows the FR shield setting in FR, else the player's Lab armor pref.
 			// SetNPCShieldLevel inside the spawn owns skin + pool + grade together.
@@ -1829,15 +1943,7 @@ void function AimFreeroam_TargetSwitchLoop( entity player )
 			if ( !IsValid( npc ) )
 				break
 
-			vector groundPos = GetGroundPosition( npc.GetOrigin() + <0, 0, 32>, npc.GetOrigin() + <0, 0, -256>, [ npc ] ).endPos
-			// Reject if ground snap left FOV (cliff/edge) -- try next slot next frame.
-			if ( !PlayerCanSeePos( player, groundPos + <0, 0, 48>, false, AIM_FREEROAM_TS_FOV_HALF_DEG ) )
-			{
-				npc.Destroy()
-				break
-			}
-
-			if ( !TrySetOriginInWorld( npc, groundPos ) )
+			if ( !TrySetOriginInWorld( npc, pos ) )
 			{
 				npc.Destroy()
 				break
@@ -1865,11 +1971,11 @@ void function AimFreeroam_TargetSwitchLoop( entity player )
 
 // Ground points inside the player's view cone (same primitives as Smoothbot / PlayerCanSeePos).
 // Spreads across FOV sectors by live count so the pack is not clustered on one side.
-vector function AimFreeroam_PickTargetSwitchFovPos( entity player, array<entity> live )
+AimTrainerSpawnSpot function AimFreeroam_PickTargetSwitchFovPos( entity player, array<entity> live )
 {
 	vector playerPos = player.GetOrigin()
 	float viewYaw = player.EyeAngles().y
-	array<entity> ignoreNone = []
+	AimTrainerSpawnSpot spot
 
 	// Slot 0..MAX-1 maps to even yaw lanes across +/- FOV half.
 	int slot = live.len()
@@ -1906,7 +2012,10 @@ vector function AimFreeroam_PickTargetSwitchFovPos( entity player, array<entity>
 			radius = AIM_FREEROAM_TS_RADIUS_MAX
 
 		vector raw = playerPos + AnglesToForward( <0.0, viewYaw + yawOff, 0.0> ) * radius
-		vector ground = GetGroundPosition( raw + <0, 0, 128>, raw + <0, 0, -1024>, ignoreNone ).endPos
+		spot = AimTrainer_CheckSpawnSpot( player, raw, true )
+		if ( !spot.ok )
+			continue
+		vector ground = spot.origin
 
 		if ( fabs( ground.z - playerPos.z ) > AIM_FREEROAM_TS_MAX_Z_DELTA )
 			continue
@@ -1927,18 +2036,12 @@ vector function AimFreeroam_PickTargetSwitchFovPos( entity player, array<entity>
 		if ( crowded )
 			continue
 
-		vector mins = <-18, -18, 0>
-		vector maxs = <18, 18, 72>
-		TraceResults hull = TraceHull( ground + <0, 0, 4>, ground + <0, 0, 8>, mins, maxs, ignoreNone, TRACE_MASK_NPCSOLID, TRACE_COLLISION_GROUP_NONE )
-		if ( hull.startSolid || hull.fraction < 1.0 )
-			continue
-
-		return ground
+		return spot
 	}
 
-	// Fallback: that slot's sector center at mid radius (still spread, still forward).
-	vector fallback = playerPos + AnglesToForward( <0.0, viewYaw + sectorCenter, 0.0> ) * radiusMid
-	return GetGroundPosition( fallback + <0, 0, 128>, fallback + <0, 0, -1024>, ignoreNone ).endPos
+	// No free slot this frame; the loop retries next frame.
+	spot.ok = false
+	return spot
 }
 
 void function AimFreeroam_TargetSwitchWatcher( entity ai, entity player, array<entity> live )
@@ -1968,6 +2071,12 @@ void function AimFreeroam_TargetSwitchWatcher( entity ai, entity player, array<e
 		{
 			ai.Destroy()
 			break
+		}
+
+		if ( FlowstateDummy_IsStatic( ai ) )
+		{
+			FlowstateDummy_HoldStill( ai, player )
+			continue
 		}
 
 		// checkStuck false -- stuck slices + 1.0 playrate read as slow-mo on these acts
@@ -2036,17 +2145,20 @@ void function AimFreeroam_PopcornLoop( entity player )
 }
 
 // Prefer clear ring slots around the player (sep from live, flat ground, free hull).
-vector function AimFreeroam_PickPopcornOpenPos( entity player, array<entity> live )
+AimTrainerSpawnSpot function AimFreeroam_PickPopcornOpenPos( entity player, array<entity> live )
 {
 	vector playerPos = player.GetOrigin()
-	array<entity> ignoreNone = []
+	AimTrainerSpawnSpot spot
 
 	for ( int attempt = 0; attempt < AIM_FREEROAM_POPCORN_SPAWN_TRIES; attempt++ )
 	{
 		float radius = RandomFloatRange( AIM_FREEROAM_POPCORN_RADIUS * 0.7, AIM_FREEROAM_POPCORN_RADIUS * 1.35 )
 		float ang = RandomFloat( 1.0 ) * 2.0 * PI
 		vector raw = playerPos + radius * <sin( ang ), cos( ang ), 0.0>
-		vector ground = GetGroundPosition( raw + <0, 0, 128>, raw + <0, 0, -1024>, ignoreNone ).endPos
+		spot = AimTrainer_CheckSpawnSpot( player, raw, true )
+		if ( !spot.ok )
+			continue
+		vector ground = spot.origin
 
 		if ( fabs( ground.z - playerPos.z ) > AIM_FREEROAM_POPCORN_MAX_Z_DELTA )
 			continue
@@ -2063,25 +2175,19 @@ vector function AimFreeroam_PickPopcornOpenPos( entity player, array<entity> liv
 		if ( crowded )
 			continue
 
-		// Hull freeness at stand height (reject solid pockets that pin hop velocity)
-		vector mins = <-18, -18, 0>
-		vector maxs = <18, 18, 72>
-		TraceResults hull = TraceHull( ground + <0, 0, 4>, ground + <0, 0, 8>, mins, maxs, ignoreNone, TRACE_MASK_NPCSOLID, TRACE_COLLISION_GROUP_NONE )
-		if ( hull.startSolid || hull.fraction < 1.0 )
-			continue
-
-		return ground
+		return spot
 	}
 
-	// Fallback: random ring, ground snap only
-	float r = RandomFloat( 1.0 ) * 2.0 * PI
-	vector fallback = playerPos + AIM_FREEROAM_POPCORN_RADIUS * <sin( r ), cos( r ), 0.0>
-	return GetGroundPosition( fallback + <0, 0, 128>, fallback + <0, 0, -1024>, ignoreNone ).endPos
+	spot.ok = false
+	return spot
 }
 
 entity function AimFreeroam_SpawnPopcornDummy( entity player, array<entity> live )
 {
-	vector groundPos = AimFreeroam_PickPopcornOpenPos( player, live )
+	AimTrainerSpawnSpot spot = AimFreeroam_PickPopcornOpenPos( player, live )
+	if ( !spot.ok )
+		return null
+	vector groundPos = spot.origin
 	vector angles = <0.0, VectorToAngles( player.GetOrigin() - groundPos ).y, 0.0>
 
 	// autoPlantGround=false -- plant thread SetOrigin fights native hop velocity.
@@ -2101,7 +2207,6 @@ entity function AimFreeroam_SpawnPopcornDummy( entity player, array<entity> live
 	npc.SetAimAssistAllowed( true )
 	npc.EnableNPCFlag( NPC_IGNORE_ALL | NPC_DISABLE_SENSING | NPC_NO_WEAPON_DROP )
 	npc.SetTitle( "" )
-	Dummy_SetStraferSkin( npc )
 
 	if ( !AimTrainer_RegisterDummy( player, npc ) )
 	{
@@ -2143,7 +2248,7 @@ void function AimFreeroam_PopcornBounceThink( entity ai, entity player )
 		if ( Distance( ai.GetOrigin(), player.GetOrigin() ) > AIM_FREEROAM_MAX_DIST )
 			break
 
-		vector ground = GetGroundPosition( ai.GetOrigin() + <0, 0, 128>, ai.GetOrigin() + <0, 0, -1024>, [ ai ] ).endPos
+		vector ground = AimTrainer_TraceFloor( ai.GetOrigin(), 128.0, 1024.0, [ ai ] ).endPos
 		float heightAbove = ai.GetOrigin().z - ground.z
 
 		// Airborne hop success -- clear stuck streak
@@ -2339,23 +2444,24 @@ void function AimFreeroam_FloatingTargetLoop( entity player )
 
 entity function AimFreeroam_SpawnFloatingDummy( entity player )
 {
-	vector origin = player.GetOrigin() + AnglesToForward( player.GetAngles() ) * AIM_FREEROAM_FLOATING_DIST
-	vector angles = <0.0, VectorToAngles( player.GetOrigin() - origin ).y, 0.0>
+	AimTrainerSpawnSpot spot = AimTrainer_FindSpawnSpot( player, AimTrainer_ViewSpot( player, AIM_FREEROAM_FLOATING_DIST, true ), true )
+	if ( !spot.ok )
+		return null
+	vector groundPos = spot.origin
+	vector angles = <0.0, VectorToAngles( player.GetOrigin() - groundPos ).y, 0.0>
 
 	// autoPlantGround=false -- velocity kicks must not fight plant SetOrigin.
-	entity npc = SpawnNPCTrainingDummy( origin, angles, AimTrainer_ResolveDummyShieldLevel( player ), false, false )
+	entity npc = SpawnNPCTrainingDummy( groundPos, angles, AimTrainer_ResolveDummyShieldLevel( player ), false, false )
 	if ( !IsValid( npc ) )
 		return null
 
 	AimFreeroam_StopGroundPlant( npc )
-	vector groundPos = GetGroundPosition( origin + <0, 0, 32>, origin + <0, 0, -256>, [ npc ] ).endPos
 	if ( !TrySetOriginInWorld( npc, groundPos + <0, 0, 8> ) )
 	{
 		npc.Destroy()
 		return null
 	}
 	npc.SetAngles( angles )
-	Dummy_SetStraferSkin( npc )
 
 	if ( !AimFreeroam_RegisterOwnedDummy( player, npc ) )
 		return null
@@ -2454,6 +2560,10 @@ entity function AimFreeroam_SpawnSkydivingDummy( entity player )
 	vector highPos = player.GetOrigin() + <0, 0, AIM_FREEROAM_SKY_HEIGHT> + AIM_FREEROAM_SKY_HIGH_RADIUS * <sin( r ), cos( r ), 0.0>
 	vector angles = <0.0, VectorToAngles( player.GetOrigin() - highPos ).y, 0.0>
 
+	// Open sky only: indoors or under an overhang the diver would start inside geometry.
+	if ( !AimTrainer_HullPathClear( player.EyePosition(), highPos ) )
+		return null
+
 	entity npc = SpawnNPCTrainingDummy( highPos, angles, AimTrainer_ResolveDummyShieldLevel( player ), false, false )
 	if ( !IsValid( npc ) )
 		return null
@@ -2465,7 +2575,6 @@ entity function AimFreeroam_SpawnSkydivingDummy( entity player )
 		return null
 	}
 	npc.SetAngles( angles )
-	Dummy_SetStraferSkin( npc )
 
 	if ( !AimFreeroam_RegisterOwnedDummy( player, npc ) )
 		return null
@@ -2490,8 +2599,15 @@ void function AimFreeroam_SkydivingDive( entity dummy, entity player, array<enti
 	{
 		float r = float( i ) / float( AIM_FREEROAM_SKY_RING_PTS ) * 2.0 * PI
 		vector p = player.GetOrigin() + AIM_FREEROAM_SKY_GROUND_RADIUS * <sin( r ), cos( r ), 0.0>
-		vector ground = GetGroundPosition( p + <0, 0, 128>, p + <0, 0, -2048>, [] ).endPos
-		groundRing.append( ground )
+		AimTrainerSpawnSpot spot = AimTrainer_CheckSpawnSpot( player, p, true )
+		if ( spot.ok && AimTrainer_HullPathClear( dummy.GetOrigin(), spot.origin + <0, 0, 2> ) )
+			groundRing.append( spot.origin )
+	}
+	if ( groundRing.len() == 0 )
+	{
+		printt( "[AimFreeroam] Skydiving: no clear landing, diver removed" )
+		dummy.Destroy()
+		return
 	}
 
 	int locationindex = RandomInt( groundRing.len() )
@@ -2707,6 +2823,9 @@ entity function AimFreeroam_SpawnSmoothbotDummy( entity player )
 	vector origin = AimFreeroam_SmoothbotLocalToWorld( player.EyePosition(), ang.y, ang.x, localPos )
 	vector angles = <0.0, VectorToAngles( player.GetOrigin() - origin ).y, 0.0>
 
+	if ( !AimTrainer_HullPathClear( player.EyePosition(), origin ) )
+		return null
+
 	entity npc = SpawnNPCTrainingDummy( origin, angles, AimTrainer_ResolveDummyShieldLevel( player ), false, false )
 	if ( !IsValid( npc ) )
 		return null
@@ -2720,7 +2839,6 @@ entity function AimFreeroam_SpawnSmoothbotDummy( entity player )
 	npc.SetAngles( angles )
 	npc.SetMaxHealth( 5000 )
 	npc.SetHealth( 5000 )
-	Dummy_SetStraferSkin( npc )
 
 	if ( !AimFreeroam_RegisterOwnedDummy( player, npc ) )
 		return null

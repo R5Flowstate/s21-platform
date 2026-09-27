@@ -1,45 +1,59 @@
-// Map editor server: prop registry, budgets, and client-command surface.
+// Map editor server: placement registry, budgets, saved layouts, and the client-command surface.
 
 global function MapEditor_ServerInit
 global function MapEditor_GetPropCount
 global function MapEditor_GetPlayerPropCount
-global function MapEditor_RegisterSpawned
 global function MapEdit_Report
 global function MapEdit_Reject
 global function MapEdit_IsFiniteCoord
 global function MapEdit_NormalizeAngle360
 global function MapEditor_IsFrozenFor
+global function MapEdit_ParsePlacementArgs
+global function MapEdit_TryPlaceFromClient
 global function MapEdit_SV_PackReady
+global function MapEdit_SV_RequestModel
 global function MapEdit_PackFromConsole
+global function MapEdit_IsIntToken
+global function MapEdit_IsFloatToken
 
 // Server-side freeze flag; read only via MapEditor_IsFrozenFor outside this file.
 global bool g_MapEditFrozen = false
 
-struct MapEditorProp
+struct MapEditGroup
 {
-	entity ent
-	int    catalogId
-	entity owner
-	string ownerId
-	float  placeTime
-}
-
-// Undo removes the entity; redo re-spawns from this description.
-struct MapEditorUndoDesc
-{
-	int    catalogId
-	vector origin
-	vector angles
+	MapEditPlacement desc
+	array< entity >  ents
+	entity           owner
+	string           ownerId
+	float            placeTime
 }
 
 struct
 {
-	array< MapEditorProp > props
-	table< entity, int > propIndexByEnt
+	table< int, MapEditGroup > groups
+	table< entity, int > groupByEnt
+	int nextGroupId = 1
+	int entityCount = 0
+
 	table< entity, array< float > > placeTimes
-	table< entity, array< entity > > undoStack
-	table< entity, array< MapEditorUndoDesc > > redoStack
+	table< entity, array< int > > undoStack
+	table< entity, array< MapEditPlacement > > redoStack
+	table< entity, bool > buildOn
+
+	table< entity, bool > saveDirty
+	table< entity, bool > restoring
+	table< entity, bool > restoreChecked
+	table< entity, float > lastSaveCmd
+	// Saved lines this map cannot spawn (model not loaded); written back so a save never loses them.
+	table< entity, array< string > > carryLines
+
 	table< int, bool > precachedIds
+	int lazyPrecached = 0
+	bool lazyBudgetWarned = false
+	// platform uid -> lazy precaches that player caused this map
+	table< string, int > lazyPrecachedBy
+	// player -> recent model request times, for the rate cap
+	table< entity, array< float > > modelRequests
 	int activePackMask = 0
 	bool netRegistered = false
 } file
@@ -52,6 +66,8 @@ void function MapEditor_ServerInit()
 	if ( !MapEditor_IsEnabled() )
 		return
 
+	PrecacheWeapon( MAPEDIT_TOOL_WEAPON )
+	Bleedout_AddCallback_CleanupUtilitySlot( MapEdit_CleanupUtilitySlot )
 	MapEditorCatalog_Init()
 
 	string mapName = GetMapName()
@@ -60,6 +76,8 @@ void function MapEditor_ServerInit()
 	int attempted = 0
 	int verified = 0
 	file.precachedIds = {}
+	file.lazyPrecached = 0
+	file.lazyPrecachedBy = {}
 	file.activePackMask = 0
 	MapEditorCatalog_SetActivePackMask( 0 )
 
@@ -78,6 +96,12 @@ void function MapEditor_ServerInit()
 		}
 	}
 
+	// Sizes and collision come from studio data, so every model the browser lists gets them.
+	array< int > infoIds
+	foreach ( MapEditorCatalogEntry entry in available )
+		infoIds.append( entry.id )
+	MapEditInfo_Add( infoIds )
+
 	printt( format( "[MAPEDIT] server precache map=%s available=%d attempted=%d verified=%d cap=%d",
 		mapName, availableCount, attempted, verified, MAPEDIT_PRECACHE_MAX ) )
 	if ( attempted > 0 && verified * 2 < attempted )
@@ -91,6 +115,10 @@ void function MapEditor_ServerInit()
 	AddClientCommandCallback( "mapedit_status", ClientCommand_MapEdit_Status )
 	AddClientCommandCallback( "mapedit_whois", ClientCommand_MapEdit_Whois )
 	AddClientCommandCallback( "mapedit_clear_mine", ClientCommand_MapEdit_ClearMine )
+	AddClientCommandCallback( "mapedit_build", ClientCommand_MapEdit_Build )
+	AddClientCommandCallback( "mapedit_save", ClientCommand_MapEdit_Save )
+	AddClientCommandCallback( "mapedit_load", ClientCommand_MapEdit_Load )
+	AddClientCommandCallback( "mapedit_slots", ClientCommand_MapEdit_Slots )
 	// Admin-gated powers (same IsAdmin gate as the rest of this tree).
 	AddClientCommandCallback( "mapedit_freeze", ClientCommand_MapEdit_Freeze )
 	AddClientCommandCallback( "mapedit_clear_player", ClientCommand_MapEdit_ClearPlayer )
@@ -100,8 +128,10 @@ void function MapEditor_ServerInit()
 	AddClientCommandCallback( "mapedit_pack", ClientCommand_MapEdit_Pack )
 
 	AddCallback_OnClientDisconnected( MapEditor_OnClientDisconnected )
+	AddCallback_OnPlayerRespawned( MapEdit_OnPlayerRespawned )
 
 	MapEditor_Palette_ServerInit()
+	MapEditPrefs_ServerInit()
 
 	printt( format( "[MAPEDIT] server init, catalog=%d entries, cap=%d/%d",
 		MapEditorCatalog_Count(), MAPEDIT_PROP_CAP_GLOBAL, MAPEDIT_PROP_CAP_PLAYER ) )
@@ -115,15 +145,13 @@ array< MapEditorCatalogEntry > function MapEdit_CollectMapAvailableOrdered( stri
 
 	foreach ( string category in MapEditorCatalog_GetCategoriesByTier( "build" ) )
 	{
-		array< MapEditorCatalogEntry > entries = MapEditorCatalog_GetAvailableCategoryEntries( category, mapName )
-		foreach ( MapEditorCatalogEntry entry in entries )
+		foreach ( MapEditorCatalogEntry entry in MapEditorCatalog_GetAvailableCategoryEntries( category, mapName ) )
 			buildList.append( entry )
 	}
 
 	foreach ( string category in MapEditorCatalog_GetCategoriesByTier( "extra" ) )
 	{
-		array< MapEditorCatalogEntry > entries = MapEditorCatalog_GetAvailableCategoryEntries( category, mapName )
-		foreach ( MapEditorCatalogEntry entry in entries )
+		foreach ( MapEditorCatalogEntry entry in MapEditorCatalog_GetAvailableCategoryEntries( category, mapName ) )
 			extraList.append( entry )
 	}
 
@@ -150,7 +178,7 @@ int function MapEdit_CompareCatalogId( MapEditorCatalogEntry a, MapEditorCatalog
 
 int function MapEditor_GetPropCount()
 {
-	return file.props.len()
+	return file.entityCount
 }
 
 int function MapEditor_GetPlayerPropCount( entity player )
@@ -158,33 +186,43 @@ int function MapEditor_GetPlayerPropCount( entity player )
 	if ( !IsValid( player ) )
 		return 0
 
-	string uid = player.GetPlatformUID()
 	int n = 0
-	foreach ( MapEditorProp prop in file.props )
+	foreach ( int groupId, MapEditGroup group in file.groups )
 	{
-		if ( prop.ownerId != "" )
-		{
-			if ( prop.ownerId == uid )
-				n++
-		}
-		else if ( IsValid( prop.owner ) && prop.owner == player )
-		{
-			n++
-		}
+		if ( MapEdit_IsOwner( group, player ) )
+			n += group.ents.len()
 	}
 	return n
 }
 
 void function MapEditor_OnClientDisconnected( entity player )
 {
+	if ( player in file.modelRequests )
+		delete file.modelRequests[player]
+	// The only hook guaranteed to run for a leaving player.
+	if ( player in file.saveDirty && file.saveDirty[player] )
+		MapEdit_WriteSlot( player, "auto" )
+
+	if ( player in file.buildOn )
+		delete file.buildOn[player]
 	if ( player in file.placeTimes )
 		delete file.placeTimes[player]
-
 	if ( player in file.undoStack )
 		delete file.undoStack[player]
-
 	if ( player in file.redoStack )
 		delete file.redoStack[player]
+	if ( player in file.saveDirty )
+		delete file.saveDirty[player]
+	if ( player in file.restoring )
+		delete file.restoring[player]
+	if ( player in file.restoreChecked )
+		delete file.restoreChecked[player]
+	if ( player in file.lastSaveCmd )
+		delete file.lastSaveCmd[player]
+	if ( player in file.carryLines )
+		delete file.carryLines[player]
+	MapEditPrefs_OnDisconnect( player )
+	MapEditInfo_OnDisconnect( player )
 }
 
 // ---------------------------------------------------------------------------
@@ -207,8 +245,50 @@ void function MapEdit_Reject( entity player, string reason )
 }
 
 // ---------------------------------------------------------------------------
-// Helpers
+// Numeric parsing -- validate before converting; tointeger/tofloat throw on garbage.
 // ---------------------------------------------------------------------------
+
+bool function MapEdit_IsIntToken( string s )
+{
+	int n = s.len()
+	int start = ( n > 0 && s[0] == '-' ) ? 1 : 0
+	if ( n - start < 1 || n - start > 9 )
+		return false
+	for ( int i = start; i < n; i++ )
+	{
+		if ( s[i] < '0' || s[i] > '9' )
+			return false
+	}
+	return true
+}
+
+bool function MapEdit_IsFloatToken( string s )
+{
+	int n = s.len()
+	if ( n < 1 || n > 24 )
+		return false
+	int start = ( s[0] == '-' ) ? 1 : 0
+	bool dot = false
+	int digits = 0
+	for ( int i = start; i < n; i++ )
+	{
+		if ( s[i] == '.' )
+		{
+			if ( dot )
+				return false
+			dot = true
+		}
+		else if ( s[i] >= '0' && s[i] <= '9' )
+		{
+			digits++
+		}
+		else
+		{
+			return false
+		}
+	}
+	return digits > 0
+}
 
 bool function MapEdit_IsFiniteCoord( float v )
 {
@@ -222,23 +302,52 @@ bool function MapEdit_IsFiniteCoord( float v )
 
 float function MapEdit_NormalizeAngle360( float a )
 {
-	// Fold into [0, 360).
-	while ( a < 0.0 )
+	if ( a != a || fabs( a ) > MAPEDIT_ANGLE_LIMIT )
+		return 0.0
+	a = a % 360.0
+	if ( a < 0.0 )
 		a += 360.0
-	while ( a >= 360.0 )
-		a -= 360.0
 	return a
 }
 
-bool function MapEdit_IsOwner( MapEditorProp prop, entity player )
+// Reads <id> <x> <y> <z> [<pitch> <yaw> <roll>] starting at args[first].
+bool function MapEdit_ReadIdTransform( array< string > args, int first, MapEditPlacement desc )
 {
-	if ( IsValid( prop.owner ) )
-		return prop.owner == player
+	if ( args.len() != first + 7 )
+		return false
+	if ( !MapEdit_IsIntToken( args[first] ) )
+		return false
+	for ( int i = first + 1; i < first + 7; i++ )
+	{
+		if ( !MapEdit_IsFloatToken( args[i] ) )
+			return false
+	}
 
-	if ( prop.ownerId != "" && IsValid( player ) )
-		return prop.ownerId == player.GetPlatformUID()
+	desc.id = args[first].tointeger()
+	desc.origin = < args[first + 1].tofloat(), args[first + 2].tofloat(), args[first + 3].tofloat() >
+	desc.angles = < MapEdit_NormalizeAngle360( args[first + 4].tofloat() ),
+		MapEdit_NormalizeAngle360( args[first + 5].tofloat() ),
+		MapEdit_NormalizeAngle360( args[first + 6].tofloat() ) >
+	return true
+}
 
-	return false
+bool function MapEdit_ParsePlacementArgs( entity player, array< string > args, MapEditPlacement desc )
+{
+	if ( !MapEdit_ReadIdTransform( args, 0, desc ) )
+	{
+		MapEdit_Reject( player, "place needs <id> <x> <y> <z> <pitch> <yaw> <roll>" )
+		return false
+	}
+	return true
+}
+
+bool function MapEdit_IsOwner( MapEditGroup group, entity player )
+{
+	if ( !IsValid( player ) )
+		return false
+	if ( IsValid( group.owner ) )
+		return group.owner == player
+	return group.ownerId != "" && group.ownerId == player.GetPlatformUID()
 }
 
 bool function MapEditor_IsFrozenFor( entity player )
@@ -250,45 +359,159 @@ bool function MapEditor_IsFrozenFor( entity player )
 	return true
 }
 
-void function MapEdit_PushUndo( entity player, entity ent )
+// ---------------------------------------------------------------------------
+// Placement validation + spawn. Every path -- client place, redo, restore --
+// goes through MapEdit_ValidatePlacement and MapEdit_SpawnGroup.
+// ---------------------------------------------------------------------------
+
+// Returns "" when valid. Says nothing about the caller's reach or rate.
+string function MapEdit_ValidatePlacement( MapEditPlacement desc, entity requester = null )
+{
+	if ( !MapEdit_IsFiniteCoord( desc.origin.x ) || !MapEdit_IsFiniteCoord( desc.origin.y ) || !MapEdit_IsFiniteCoord( desc.origin.z ) )
+		return "origin not finite or out of world limit"
+
+	if ( desc.kind == eMapEditKind.PROP )
+	{
+		MapEditorCatalogEntry ornull entryOrNull = MapEditorCatalog_GetEntry( desc.id )
+		if ( entryOrNull == null )
+			return "unknown catalog id " + string( desc.id )
+		MapEditorCatalogEntry entry = expect MapEditorCatalogEntry( entryOrNull )
+		if ( !MapEdit_EnsureModelPrecached( entry, requester ) )
+			return format( "model not loaded for catalog id %d", desc.id )
+		return ""
+	}
+
+	if ( desc.kind == eMapEditKind.SPECIAL )
+	{
+		if ( desc.id < 1 || desc.id > 5 )
+			return "unknown recipe " + string( desc.id )
+		return ""
+	}
+
+	if ( desc.kind == eMapEditKind.ZIPLINE )
+	{
+		if ( !MapEdit_IsFiniteCoord( desc.endOrigin.x ) || !MapEdit_IsFiniteCoord( desc.endOrigin.y ) || !MapEdit_IsFiniteCoord( desc.endOrigin.z ) )
+			return "zipline end not finite"
+		float dist = Distance( desc.origin, desc.endOrigin )
+		if ( dist < 64.0 || dist > MAPEDIT_ZIPLINE_MAX_DIST )
+			return "zipline length out of range"
+		return ""
+	}
+
+	return "unknown placement kind"
+}
+
+string function MapEdit_CheckBudget( entity player )
+{
+	if ( file.entityCount >= MAPEDIT_PROP_CAP_GLOBAL )
+		return format( "global prop cap %d reached", MAPEDIT_PROP_CAP_GLOBAL )
+	if ( MapEditor_GetPlayerPropCount( player ) >= MAPEDIT_PROP_CAP_PLAYER )
+		return format( "player prop cap %d reached", MAPEDIT_PROP_CAP_PLAYER )
+	return ""
+}
+
+// Spawns and registers one placement. Returns the group id, or -1 with *err set.
+int function MapEdit_SpawnGroup( entity player, MapEditPlacement desc, array< string > err )
+{
+	string budget = MapEdit_CheckBudget( player )
+	if ( budget != "" )
+	{
+		err.append( budget )
+		return -1
+	}
+
+	array< entity > ents
+	bool ok = false
+	if ( desc.kind == eMapEditKind.PROP )
+	{
+		MapEditorCatalogEntry entry = expect MapEditorCatalogEntry( MapEditorCatalog_GetEntry( desc.id ) )
+		entity prop = CreatePropDynamic( entry.model, desc.origin, desc.angles, SOLID_VPHYSICS, -1.0 )
+		if ( IsValid( prop ) )
+		{
+			prop.SetScriptName( "mapedit_prop" )
+			prop.AllowMantle()
+			ents.append( prop )
+			ok = true
+		}
+	}
+	else if ( desc.kind == eMapEditKind.SPECIAL )
+	{
+		ok = MapEditPalette_SpawnSpecial( desc.id, desc.origin, desc.angles, ents )
+	}
+	else if ( desc.kind == eMapEditKind.ZIPLINE )
+	{
+		ok = MapEditPalette_SpawnZipline( desc.origin, desc.endOrigin, ents )
+	}
+
+	if ( !ok || ents.len() == 0 )
+	{
+		foreach ( entity e in ents )
+		{
+			if ( IsValid( e ) )
+				e.Destroy()
+		}
+		err.append( "spawn failed" )
+		return -1
+	}
+
+	MapEditGroup group
+	group.desc.kind = desc.kind
+	group.desc.id = desc.id
+	group.desc.origin = desc.origin
+	group.desc.angles = desc.angles
+	group.desc.endOrigin = desc.endOrigin
+	group.ents = ents
+	group.owner = player
+	group.ownerId = player.GetPlatformUID()
+	group.placeTime = Time()
+
+	int groupId = file.nextGroupId++
+	file.groups[groupId] <- group
+	foreach ( entity e in ents )
+		file.groupByEnt[e] <- groupId
+	file.entityCount += ents.len()
+
+	return groupId
+}
+
+void function MapEdit_DestroyGroup( int groupId )
+{
+	if ( !( groupId in file.groups ) )
+		return
+
+	MapEditGroup group = file.groups[groupId]
+	delete file.groups[groupId]
+
+	foreach ( entity e in group.ents )
+	{
+		if ( e in file.groupByEnt )
+			delete file.groupByEnt[e]
+		if ( IsValid( e ) )
+			e.Destroy()
+	}
+	file.entityCount -= group.ents.len()
+	if ( file.entityCount < 0 )
+		file.entityCount = 0
+}
+
+void function MapEdit_PushUndo( entity player, int groupId )
 {
 	if ( !( player in file.undoStack ) )
 		file.undoStack[player] <- []
 
-	array< entity > stack = file.undoStack[player]
-	stack.append( ent )
-
+	array< int > stack = file.undoStack[player]
+	stack.append( groupId )
 	while ( stack.len() > MAPEDIT_UNDO_DEPTH )
 		stack.remove( 0 )
 }
 
-void function MapEdit_PurgeUndoEnt( entity player, entity ent )
-{
-	if ( !( player in file.undoStack ) )
-		return
-
-	array< entity > stack = file.undoStack[player]
-	for ( int i = stack.len() - 1; i >= 0; i-- )
-	{
-		if ( stack[i] == ent )
-			stack.remove( i )
-	}
-}
-
-void function MapEdit_ClearRedo( entity player )
-{
-	if ( player in file.redoStack )
-		file.redoStack[player].clear()
-}
-
-void function MapEdit_PushRedo( entity player, MapEditorUndoDesc desc )
+void function MapEdit_PushRedo( entity player, MapEditPlacement desc )
 {
 	if ( !( player in file.redoStack ) )
 		file.redoStack[player] <- []
 
-	array< MapEditorUndoDesc > stack = file.redoStack[player]
+	array< MapEditPlacement > stack = file.redoStack[player]
 	stack.append( desc )
-
 	while ( stack.len() > MAPEDIT_UNDO_DEPTH )
 		stack.remove( 0 )
 }
@@ -297,108 +520,80 @@ void function MapEdit_ClearPlayerStacks( entity player )
 {
 	if ( player in file.undoStack )
 		file.undoStack[player].clear()
-
 	if ( player in file.redoStack )
 		file.redoStack[player].clear()
 }
 
-void function MapEdit_RemoveAtIndex( int idx )
+// Sliding-window rate limit; stamp only after a successful spawn.
+bool function MapEdit_RateAllows( entity player )
 {
-	if ( idx < 0 || idx >= file.props.len() )
-		return
+	float now = Time()
+	if ( !( player in file.placeTimes ) )
+		file.placeTimes[player] <- []
 
-	entity ent = file.props[idx].ent
-	if ( ent in file.propIndexByEnt )
-		delete file.propIndexByEnt[ent]
+	array< float > window = file.placeTimes[player]
+	while ( window.len() > 0 && ( now - window[0] ) > MAPEDIT_PLACE_RATE_WINDOW )
+		window.remove( 0 )
 
-	int last = file.props.len() - 1
-	if ( idx != last )
-	{
-		file.props[idx] = file.props[last]
-		entity moved = file.props[idx].ent
-		if ( IsValid( moved ) )
-			file.propIndexByEnt[moved] <- idx
-	}
-	file.props.remove( last )
+	return window.len() < MAPEDIT_PLACE_RATE_MAX
 }
 
-void function MapEdit_DestroyRegistered( entity ent, entity ownerForUndo )
+void function MapEdit_RateStamp( entity player )
 {
-	if ( !( ent in file.propIndexByEnt ) )
-		return
-
-	int idx = file.propIndexByEnt[ent]
-
-	if ( IsValid( ownerForUndo ) )
-		MapEdit_PurgeUndoEnt( ownerForUndo, ent )
-
-	MapEdit_RemoveAtIndex( idx )
-
-	if ( IsValid( ent ) )
-		ent.Destroy()
+	if ( player in file.placeTimes )
+		file.placeTimes[player].append( Time() )
 }
 
-// Collect first, then destroy -- never walk file.props while RemoveAtIndex swaps.
-void function MapEdit_DestroyMany( array< entity > ents )
+// Client-driven placement: reach, rate, freeze, validation, budget.
+bool function MapEdit_TryPlaceFromClient( entity player, MapEditPlacement desc, bool clearRedo = true )
 {
-	foreach ( entity ent in ents )
+	if ( MapEditor_IsFrozenFor( player ) )
 	{
-		if ( !IsValid( ent ) )
-			continue
-		if ( !( ent in file.propIndexByEnt ) )
-			continue
-
-		int idx = file.propIndexByEnt[ent]
-		MapEditorProp rec = file.props[idx]
-		entity owner = rec.owner
-		MapEdit_DestroyRegistered( ent, owner )
-	}
-}
-
-// Registry seam used by place + palette recipes. Budget/freeze refuse; caller destroys.
-// clearRedo=false for redo restores so multi-level redo is kept.
-bool function MapEditor_RegisterSpawned( entity ent, int catalogId, entity owner, bool clearRedo = true )
-{
-	if ( !IsValid( ent ) )
-		return false
-
-	if ( !IsValid( owner ) || !owner.IsPlayer() )
-		return false
-
-	if ( MapEditor_IsFrozenFor( owner ) )
-	{
-		MapEdit_Reject( owner, "placement frozen by admin" )
+		MapEdit_Reject( player, "placement frozen by admin" )
 		return false
 	}
 
-	if ( file.props.len() >= MAPEDIT_PROP_CAP_GLOBAL )
+	if ( player in file.restoring && file.restoring[player] )
 	{
-		MapEdit_Reject( owner, format( "global prop cap %d reached", MAPEDIT_PROP_CAP_GLOBAL ) )
+		MapEdit_Reject( player, "layout still loading" )
 		return false
 	}
 
-	int playerCount = MapEditor_GetPlayerPropCount( owner )
-	if ( playerCount >= MAPEDIT_PROP_CAP_PLAYER )
+	vector eye = player.EyePosition()
+	if ( Distance( eye, desc.origin ) > MAPEDIT_MAX_PLACE_DIST ||
+		( desc.kind == eMapEditKind.ZIPLINE && Distance( eye, desc.endOrigin ) > MAPEDIT_MAX_PLACE_DIST ) )
 	{
-		MapEdit_Reject( owner, format( "player prop cap %d reached", MAPEDIT_PROP_CAP_PLAYER ) )
+		MapEdit_Reject( player, format( "too far from you (max %.0f)", MAPEDIT_MAX_PLACE_DIST ) )
 		return false
 	}
 
-	MapEditorProp rec
-	rec.ent = ent
-	rec.catalogId = catalogId
-	rec.owner = owner
-	rec.ownerId = owner.GetPlatformUID()
-	rec.placeTime = Time()
+	if ( !MapEdit_RateAllows( player ) )
+	{
+		MapEdit_Reject( player, format( "place rate limit %d / %.1fs", MAPEDIT_PLACE_RATE_MAX, MAPEDIT_PLACE_RATE_WINDOW ) )
+		return false
+	}
 
-	int newIdx = file.props.len()
-	file.props.append( rec )
-	file.propIndexByEnt[ent] <- newIdx
+	// Validation can spend the map's lazy precache budget, so it runs after the reach and rate gates.
+	string invalid = MapEdit_ValidatePlacement( desc, player )
+	if ( invalid != "" )
+	{
+		MapEdit_Reject( player, invalid )
+		return false
+	}
 
-	MapEdit_PushUndo( owner, ent )
-	if ( clearRedo )
-		MapEdit_ClearRedo( owner )
+	array< string > err
+	int groupId = MapEdit_SpawnGroup( player, desc, err )
+	if ( groupId < 0 )
+	{
+		MapEdit_Reject( player, err.len() > 0 ? err[0] : "spawn failed" )
+		return false
+	}
 
+	MapEdit_RateStamp( player )
+	MapEdit_PushUndo( player, groupId )
+	if ( clearRedo && player in file.redoStack )
+		file.redoStack[player].clear()
+	MapEdit_MarkDirty( player )
 	return true
 }
 
@@ -414,133 +609,16 @@ void function ClientCommand_MapEdit_Place( entity player, array<string> args )
 	if ( !IsValid( player ) || !player.IsPlayer() )
 		return
 
-	if ( MapEditor_IsFrozenFor( player ) )
-	{
-		MapEdit_Reject( player, "placement frozen by admin" )
+	MapEditPlacement desc
+	desc.kind = eMapEditKind.PROP
+	if ( !MapEdit_ParsePlacementArgs( player, args, desc ) )
 		return
-	}
 
-	// 1. Arg count before any index.
-	if ( args.len() != 7 )
-	{
-		MapEdit_Reject( player, "place needs 7 args: <id> <x> <y> <z> <pitch> <yaw> <roll>" )
-		return
-	}
-
-	// 2. Catalog id only -- never a model path from the client.
-	if ( !IsStringNumber( args[0] ) )
-	{
-		MapEdit_Reject( player, "catalog id is not a number: " + args[0] )
-		return
-	}
-
-	int catalogId = args[0].tointeger()
-	MapEditorCatalogEntry ornull entryOrNull = MapEditorCatalog_GetEntry( catalogId )
-	if ( entryOrNull == null )
-	{
-		MapEdit_Reject( player, "unknown catalog id " + string( catalogId ) )
-		return
-	}
-	MapEditorCatalogEntry entry = expect MapEditorCatalogEntry( entryOrNull )
-
-	// Catalog id is valid; still refuse models the server has not loaded.
-	if ( !ModelIsPrecached( entry.model ) )
-	{
-		MapEdit_Reject( player, format( "model not precached for catalog id %d (%s)",
-			catalogId, string( entry.model ) ) )
-		return
-	}
-
-	// 3. Numeric sanity for origin and angles.
-	if ( !IsStringNumber( args[1] ) || !IsStringNumber( args[2] ) || !IsStringNumber( args[3] ) ||
-		 !IsStringNumber( args[4] ) || !IsStringNumber( args[5] ) || !IsStringNumber( args[6] ) )
-	{
-		MapEdit_Reject( player, "origin/angles not numeric" )
-		return
-	}
-
-	float x = args[1].tofloat()
-	float y = args[2].tofloat()
-	float z = args[3].tofloat()
-	float pitch = args[4].tofloat()
-	float yaw = args[5].tofloat()
-	float roll = args[6].tofloat()
-
-	if ( !MapEdit_IsFiniteCoord( x ) || !MapEdit_IsFiniteCoord( y ) || !MapEdit_IsFiniteCoord( z ) )
-	{
-		MapEdit_Reject( player, "origin not finite or out of world limit" )
-		return
-	}
-
-	// Angles: NaN/inf only (world limit is for coordinates).
-	if ( pitch != pitch || yaw != yaw || roll != roll )
-	{
-		MapEdit_Reject( player, "angles contain NaN" )
-		return
-	}
-	if ( fabs( pitch ) > MAPEDIT_ANGLE_LIMIT || fabs( yaw ) > MAPEDIT_ANGLE_LIMIT || fabs( roll ) > MAPEDIT_ANGLE_LIMIT )
-	{
-		MapEdit_Reject( player, "angles not finite" )
-		return
-	}
-
-	vector origin = <x, y, z>
-
-	// 4. Proximity to caller eye.
-	vector eye = player.EyePosition()
-	if ( Distance( eye, origin ) > MAPEDIT_MAX_PLACE_DIST )
-	{
-		MapEdit_Reject( player, format( "origin too far from eye (max %.0f)", MAPEDIT_MAX_PLACE_DIST ) )
-		return
-	}
-
-	// 5. Normalise angles server-side.
-	pitch = MapEdit_NormalizeAngle360( pitch )
-	yaw   = MapEdit_NormalizeAngle360( yaw )
-	roll  = MapEdit_NormalizeAngle360( roll )
-	vector angles = <pitch, yaw, roll>
-
-	// 6. Rate limit -- stamp only after a successful spawn+register.
-	float now = Time()
-	if ( !( player in file.placeTimes ) )
-		file.placeTimes[player] <- []
-
-	array< float > placeWindow = file.placeTimes[player]
-	while ( placeWindow.len() > 0 && ( now - placeWindow[0] ) > MAPEDIT_PLACE_RATE_WINDOW )
-		placeWindow.remove( 0 )
-
-	if ( placeWindow.len() >= MAPEDIT_PLACE_RATE_MAX )
-	{
-		MapEdit_Reject( player, format( "place rate limit %d / %.1fs", MAPEDIT_PLACE_RATE_MAX, MAPEDIT_PLACE_RATE_WINDOW ) )
-		return
-	}
-
-	entity prop = CreatePropDynamic( entry.model, origin, angles, SOLID_VPHYSICS, -1.0 )
-	if ( !IsValid( prop ) )
-	{
-		MapEdit_Reject( player, "CreatePropDynamic failed for catalog id " + string( catalogId ) )
-		return
-	}
-
-	// Non-mantleable by default (do not call AllowMantle).
-	prop.SetScriptName( "mapedit_prop" )
-
-	if ( !MapEditor_RegisterSpawned( prop, catalogId, player ) )
-	{
-		prop.Destroy()
-		return
-	}
-
-	placeWindow.append( Time() )
-
-	MapEdit_Report( player, format( "placed id=%d at %.0f %.0f %.0f (global %d, you %d)",
-		catalogId, origin.x, origin.y, origin.z, file.props.len(), MapEditor_GetPlayerPropCount( player ) ) )
-
-	return
+	MapEdit_TryPlaceFromClient( player, desc )
 }
 
 // ---------------------------------------------------------------------------
-// mapedit_delete -- re-trace from eye, registry-authorised remove
+// mapedit_delete -- re-trace from eye, registry-authorised remove of the whole group
 // ---------------------------------------------------------------------------
 
 void function ClientCommand_MapEdit_Delete( entity player, array<string> args )
@@ -558,42 +636,30 @@ void function ClientCommand_MapEdit_Delete( entity player, array<string> args )
 	}
 
 	vector eye = player.EyePosition()
-	vector forward = player.GetViewVector()
-	TraceResults tr = TraceLine( eye, eye + forward * MAPEDIT_MAX_PLACE_DIST, player, TRACE_MASK_SOLID, TRACE_COLLISION_GROUP_NONE )
+	TraceResults tr = TraceLine( eye, eye + player.GetViewVector() * MAPEDIT_MAX_PLACE_DIST, player, TRACE_MASK_SOLID, TRACE_COLLISION_GROUP_NONE )
 
-	if ( !IsValid( tr.hitEnt ) )
-	{
-		MapEdit_Reject( player, "delete: nothing hit" )
-		return
-	}
-
-	entity hit = tr.hitEnt
-
-	// Authorise by registry ownership, never by script name.
-	if ( !( hit in file.propIndexByEnt ) )
+	if ( !IsValid( tr.hitEnt ) || !( tr.hitEnt in file.groupByEnt ) )
 	{
 		MapEdit_Reject( player, "delete: not an editor prop" )
 		return
 	}
 
-	int idx = file.propIndexByEnt[hit]
-	MapEditorProp rec = file.props[idx]
-
-	if ( !MapEdit_IsOwner( rec, player ) )
+	int groupId = file.groupByEnt[tr.hitEnt]
+	MapEditGroup group = file.groups[groupId]
+	if ( !MapEdit_IsOwner( group, player ) )
 	{
 		MapEdit_Reject( player, "delete: you do not own this prop" )
 		return
 	}
 
-	MapEdit_DestroyRegistered( hit, player )
-	MapEdit_Report( player, format( "deleted prop (global %d, you %d)",
-		file.props.len(), MapEditor_GetPlayerPropCount( player ) ) )
-
-	return
+	MapEdit_PushRedo( player, group.desc )
+	MapEdit_DestroyGroup( groupId )
+	MapEdit_MarkDirty( player )
+	MapEdit_Report( player, format( "deleted (you %d/%d)", MapEditor_GetPlayerPropCount( player ), MAPEDIT_PROP_CAP_PLAYER ) )
 }
 
 // ---------------------------------------------------------------------------
-// mapedit_undo -- pop caller's undo stack, push description to redo
+// mapedit_undo / mapedit_redo
 // ---------------------------------------------------------------------------
 
 void function ClientCommand_MapEdit_Undo( entity player, array<string> args )
@@ -610,50 +676,34 @@ void function ClientCommand_MapEdit_Undo( entity player, array<string> args )
 		return
 	}
 
-	if ( !( player in file.undoStack ) || file.undoStack[player].len() == 0 )
+	if ( !( player in file.undoStack ) )
 	{
-		MapEdit_Reject( player, "undo: stack empty" )
+		MapEdit_Reject( player, "undo: nothing to undo" )
 		return
 	}
 
-	array< entity > stack = file.undoStack[player]
-	entity ent = stack[stack.len() - 1]
-	stack.remove( stack.len() - 1 )
-
-	if ( !IsValid( ent ) || !( ent in file.propIndexByEnt ) )
+	// Skip groups already removed by delete / clear.
+	array< int > stack = file.undoStack[player]
+	while ( stack.len() > 0 )
 	{
-		MapEdit_Reject( player, "undo: prop already gone" )
+		int groupId = stack[stack.len() - 1]
+		stack.remove( stack.len() - 1 )
+		if ( !( groupId in file.groups ) )
+			continue
+
+		MapEditGroup group = file.groups[groupId]
+		if ( !MapEdit_IsOwner( group, player ) )
+			continue
+
+		MapEdit_PushRedo( player, group.desc )
+		MapEdit_DestroyGroup( groupId )
+		MapEdit_MarkDirty( player )
+		MapEdit_Report( player, format( "undo (you %d/%d)", MapEditor_GetPlayerPropCount( player ), MAPEDIT_PROP_CAP_PLAYER ) )
 		return
 	}
 
-	int idx = file.propIndexByEnt[ent]
-	MapEditorProp rec = file.props[idx]
-	if ( !MapEdit_IsOwner( rec, player ) )
-	{
-		MapEdit_Reject( player, "undo: not your prop" )
-		return
-	}
-
-	MapEditorUndoDesc desc
-	desc.catalogId = rec.catalogId
-	desc.origin = ent.GetOrigin()
-	desc.angles = ent.GetAngles()
-	MapEdit_PushRedo( player, desc )
-
-	// Already popped undo; destroy without purging again.
-	MapEdit_RemoveAtIndex( idx )
-	if ( IsValid( ent ) )
-		ent.Destroy()
-
-	MapEdit_Report( player, format( "undo ok (global %d, you %d)",
-		file.props.len(), MapEditor_GetPlayerPropCount( player ) ) )
-
-	return
+	MapEdit_Reject( player, "undo: nothing to undo" )
 }
-
-// ---------------------------------------------------------------------------
-// mapedit_redo -- re-spawn from description via place path
-// ---------------------------------------------------------------------------
 
 void function ClientCommand_MapEdit_Redo( entity player, array<string> args )
 {
@@ -663,86 +713,21 @@ void function ClientCommand_MapEdit_Redo( entity player, array<string> args )
 	if ( !IsValid( player ) || !player.IsPlayer() )
 		return
 
-	if ( MapEditor_IsFrozenFor( player ) )
-	{
-		MapEdit_Reject( player, "redo frozen by admin" )
-		return
-	}
-
 	if ( !( player in file.redoStack ) || file.redoStack[player].len() == 0 )
 	{
-		MapEdit_Reject( player, "redo: stack empty" )
+		MapEdit_Reject( player, "redo: nothing to redo" )
 		return
 	}
 
-	array< MapEditorUndoDesc > stack = file.redoStack[player]
-	MapEditorUndoDesc desc = stack[stack.len() - 1]
+	array< MapEditPlacement > stack = file.redoStack[player]
+	MapEditPlacement desc = stack[stack.len() - 1]
 	stack.remove( stack.len() - 1 )
-
-	if ( desc.catalogId <= 0 )
-	{
-		MapEdit_Reject( player, "redo: non-catalog entity cannot be restored" )
-		return
-	}
-
-	MapEditorCatalogEntry ornull entryOrNull = MapEditorCatalog_GetEntry( desc.catalogId )
-	if ( entryOrNull == null )
-	{
-		MapEdit_Reject( player, "redo: unknown catalog id " + string( desc.catalogId ) )
-		return
-	}
-	MapEditorCatalogEntry entry = expect MapEditorCatalogEntry( entryOrNull )
-
-	vector eye = player.EyePosition()
-	if ( Distance( eye, desc.origin ) > MAPEDIT_MAX_PLACE_DIST )
-	{
-		// Put the desc back so a later redo can still try.
+	if ( !MapEdit_TryPlaceFromClient( player, desc, false ) )
 		stack.append( desc )
-		MapEdit_Reject( player, format( "redo: origin too far from eye (max %.0f)", MAPEDIT_MAX_PLACE_DIST ) )
-		return
-	}
-
-	// Rate check without stamp; stamp only after a successful register.
-	float now = Time()
-	if ( !( player in file.placeTimes ) )
-		file.placeTimes[player] <- []
-	array< float > placeWindow = file.placeTimes[player]
-	while ( placeWindow.len() > 0 && ( now - placeWindow[0] ) > MAPEDIT_PLACE_RATE_WINDOW )
-		placeWindow.remove( 0 )
-	if ( placeWindow.len() >= MAPEDIT_PLACE_RATE_MAX )
-	{
-		stack.append( desc )
-		MapEdit_Reject( player, format( "place rate limit %d / %.1fs", MAPEDIT_PLACE_RATE_MAX, MAPEDIT_PLACE_RATE_WINDOW ) )
-		return
-	}
-
-	entity prop = CreatePropDynamic( entry.model, desc.origin, desc.angles, SOLID_VPHYSICS, -1.0 )
-	if ( !IsValid( prop ) )
-	{
-		stack.append( desc )
-		MapEdit_Reject( player, "redo: CreatePropDynamic failed" )
-		return
-	}
-
-	prop.SetScriptName( "mapedit_prop" )
-
-	if ( !MapEditor_RegisterSpawned( prop, desc.catalogId, player, false ) )
-	{
-		prop.Destroy()
-		stack.append( desc )
-		return
-	}
-
-	placeWindow.append( Time() )
-
-	MapEdit_Report( player, format( "redo id=%d (global %d, you %d)",
-		desc.catalogId, file.props.len(), MapEditor_GetPlayerPropCount( player ) ) )
-
-	return
 }
 
 // ---------------------------------------------------------------------------
-// mapedit_whois -- ownership query via eye trace
+// mapedit_whois / mapedit_status
 // ---------------------------------------------------------------------------
 
 void function ClientCommand_MapEdit_Whois( entity player, array<string> args )
@@ -754,59 +739,37 @@ void function ClientCommand_MapEdit_Whois( entity player, array<string> args )
 		return
 
 	vector eye = player.EyePosition()
-	vector forward = player.GetViewVector()
-	TraceResults tr = TraceLine( eye, eye + forward * MAPEDIT_MAX_PLACE_DIST, player, TRACE_MASK_SOLID, TRACE_COLLISION_GROUP_NONE )
+	TraceResults tr = TraceLine( eye, eye + player.GetViewVector() * MAPEDIT_MAX_PLACE_DIST, player, TRACE_MASK_SOLID, TRACE_COLLISION_GROUP_NONE )
 
-	if ( !IsValid( tr.hitEnt ) )
-	{
-		MapEdit_Reject( player, "whois: nothing hit" )
-		return
-	}
-
-	entity hit = tr.hitEnt
-	if ( !( hit in file.propIndexByEnt ) )
+	if ( !IsValid( tr.hitEnt ) || !( tr.hitEnt in file.groupByEnt ) )
 	{
 		MapEdit_Report( player, "whois: not an editor prop" )
 		return
 	}
 
-	int idx = file.propIndexByEnt[hit]
-	MapEditorProp rec = file.props[idx]
-
-	if ( IsValid( rec.owner ) )
+	MapEditGroup group = file.groups[ file.groupByEnt[tr.hitEnt] ]
+	string name = ""
+	if ( IsValid( group.owner ) )
 	{
-		MapEdit_Report( player, format( "whois: owned by %s (uid %s, catalog %d)",
-			rec.owner.GetPlayerName(), rec.ownerId, rec.catalogId ) )
-		return
+		name = group.owner.GetPlayerName()
 	}
-
-	if ( rec.ownerId != "" )
+	else
 	{
-		// Owner left; resolve name from still-connected players with same uid, else say so.
-		string name = ""
 		foreach ( entity p in GetPlayerArray() )
 		{
-			if ( IsValid( p ) && p.GetPlatformUID() == rec.ownerId )
+			if ( IsValid( p ) && p.GetPlatformUID() == group.ownerId )
 			{
 				name = p.GetPlayerName()
 				break
 			}
 		}
-
-		if ( name != "" )
-			MapEdit_Report( player, format( "whois: owned by %s (uid %s, catalog %d)", name, rec.ownerId, rec.catalogId ) )
-		else
-			MapEdit_Report( player, format( "whois: owner left (uid %s, catalog %d)", rec.ownerId, rec.catalogId ) )
-		return
 	}
 
-	MapEdit_Report( player, format( "whois: no owner recorded (catalog %d)", rec.catalogId ) )
-	return
+	if ( name == "" )
+		MapEdit_Report( player, format( "whois: owner left (kind %d, id %d)", group.desc.kind, group.desc.id ) )
+	else
+		MapEdit_Report( player, format( "whois: %s (kind %d, id %d)", name, group.desc.kind, group.desc.id ) )
 }
-
-// ---------------------------------------------------------------------------
-// mapedit_status
-// ---------------------------------------------------------------------------
 
 void function ClientCommand_MapEdit_Status( entity player, array<string> args )
 {
@@ -816,21 +779,37 @@ void function ClientCommand_MapEdit_Status( entity player, array<string> args )
 	if ( !IsValid( player ) || !player.IsPlayer() )
 		return
 
-	int mine = MapEditor_GetPlayerPropCount( player )
-	int globalCount = file.props.len()
 	int undoLen = ( player in file.undoStack ) ? file.undoStack[player].len() : 0
 	int redoLen = ( player in file.redoStack ) ? file.redoStack[player].len() : 0
-	string freezeStr = g_MapEditFrozen ? "1" : "0"
 
-	MapEdit_Report( player, format( "status: you=%d/%d global=%d/%d undo=%d redo=%d freeze=%s catalog=%d packs=%s",
-		mine, MAPEDIT_PROP_CAP_PLAYER, globalCount, MAPEDIT_PROP_CAP_GLOBAL, undoLen, redoLen, freezeStr, MapEditorCatalog_Count(), MapEdit_ActivePackNames() ) )
-
-	return
+	MapEdit_Report( player, format( "status: you=%d/%d global=%d/%d undo=%d redo=%d freeze=%d packs=%s",
+		MapEditor_GetPlayerPropCount( player ), MAPEDIT_PROP_CAP_PLAYER, file.entityCount, MAPEDIT_PROP_CAP_GLOBAL,
+		undoLen, redoLen, g_MapEditFrozen ? 1 : 0, MapEdit_ActivePackNames() ) )
 }
 
 // ---------------------------------------------------------------------------
-// mapedit_clear_mine -- any player, own props only
+// Clears
 // ---------------------------------------------------------------------------
+
+array< int > function MapEdit_GroupsOwnedBy( entity player )
+{
+	array< int > ids
+	foreach ( int groupId, MapEditGroup group in file.groups )
+	{
+		if ( MapEdit_IsOwner( group, player ) )
+			ids.append( groupId )
+	}
+	return ids
+}
+
+int function MapEdit_ClearOwned( entity player )
+{
+	array< int > ids = MapEdit_GroupsOwnedBy( player )
+	foreach ( int groupId in ids )
+		MapEdit_DestroyGroup( groupId )
+	MapEdit_ClearPlayerStacks( player )
+	return ids.len()
+}
 
 void function ClientCommand_MapEdit_ClearMine( entity player, array<string> args )
 {
@@ -840,20 +819,438 @@ void function ClientCommand_MapEdit_ClearMine( entity player, array<string> args
 	if ( !IsValid( player ) || !player.IsPlayer() )
 		return
 
-	// Snapshot entities first so RemoveAtIndex swap never invalidates the walk.
-	array< entity > toRemove
-	foreach ( MapEditorProp prop in file.props )
+	if ( player in file.restoring && file.restoring[player] )
+		return
+
+	int n = MapEdit_ClearOwned( player )
+	MapEdit_MarkDirty( player )
+	MapEdit_Report( player, format( "clear_mine: removed %d (global %d)", n, file.entityCount ) )
+}
+
+// ---------------------------------------------------------------------------
+// Build mode is holding the editor tool, a weapon that never fires. Tactical,
+// ultimate, fists and guns stay one key away, and switching to any of them
+// leaves build mode on the client.
+// ---------------------------------------------------------------------------
+
+void function MapEdit_SetBuildWeapons( entity player, bool on )
+{
+	file.buildOn[player] <- on
+	if ( !IsAlive( player ) )
+		return
+
+	if ( on )
 	{
-		if ( MapEdit_IsOwner( prop, player ) && IsValid( prop.ent ) )
-			toRemove.append( prop.ent )
+		MapEdit_EquipTool( player )
+		return
 	}
 
-	int n = toRemove.len()
-	MapEdit_DestroyMany( toRemove )
+	entity active = player.GetActiveWeapon( eActiveInventorySlot.mainHand )
+	if ( !IsValid( active ) || active.GetWeaponClassName() != MAPEDIT_TOOL_WEAPON )
+		return
+	entity latest = player.GetLatestPrimaryWeapon( eActiveInventorySlot.mainHand )
+	if ( IsValid( latest ) && latest != active )
+	{
+		player.SetActiveWeaponByName( eActiveInventorySlot.mainHand, latest.GetWeaponClassName() )
+		return
+	}
+	foreach ( int slot in [ WEAPON_INVENTORY_SLOT_PRIMARY_0, WEAPON_INVENTORY_SLOT_PRIMARY_1, SLING_WEAPON_SLOT ] )
+	{
+		if ( IsValid( player.GetNormalWeapon( slot ) ) )
+		{
+			player.SetActiveWeaponBySlot( eActiveInventorySlot.mainHand, slot )
+			return
+		}
+	}
+	player.SetActiveWeaponBySlot( eActiveInventorySlot.mainHand, WEAPON_INVENTORY_SLOT_PRIMARY_2 )
+}
+
+// The utility slot also holds the knockdown shield, so the tool never replaces
+// a different weapon there.
+void function MapEdit_EquipTool( entity player )
+{
+	entity tool = player.GetNormalWeapon( MAPEDIT_TOOL_SLOT )
+	if ( !IsValid( tool ) )
+		tool = player.GiveWeapon( MAPEDIT_TOOL_WEAPON, MAPEDIT_TOOL_SLOT, [] )
+	if ( !IsValid( tool ) || tool.GetWeaponClassName() != MAPEDIT_TOOL_WEAPON )
+		return
+	player.SetActiveWeaponBySlot( eActiveInventorySlot.mainHand, MAPEDIT_TOOL_SLOT )
+}
+
+// Bleedout puts the knockdown shield in the utility slot.
+void function MapEdit_CleanupUtilitySlot( entity player )
+{
+	entity tool = player.GetNormalWeapon( MAPEDIT_TOOL_SLOT )
+	if ( IsValid( tool ) && tool.GetWeaponClassName() == MAPEDIT_TOOL_WEAPON )
+		player.TakeWeaponByEntNow( tool )
+}
+
+void function ClientCommand_MapEdit_Build( entity player, array<string> args )
+{
+	if ( !MapEditor_IsEnabled() )
+		return
+
+	if ( !IsValid( player ) || !player.IsPlayer() )
+		return
+
+	if ( args.len() != 1 || ( args[0] != "0" && args[0] != "1" ) )
+		return
+
+	bool on = args[0] == "1"
+	MapEdit_SetBuildWeapons( player, on )
+
+	if ( !on && player in file.saveDirty && file.saveDirty[player] )
+		MapEdit_WriteSlot( player, "auto" )
+}
+
+// A respawn hands out a fresh loadout, so a builder gets the tool back in hand.
+void function MapEdit_OnPlayerRespawned( entity player )
+{
+	if ( !IsValid( player ) )
+		return
+
+	if ( player in file.buildOn && file.buildOn[player] )
+		MapEdit_EquipTool( player )
+
+	if ( !player.IsBot() && !( player in file.restoreChecked ) )
+	{
+		file.restoreChecked[player] <- true
+		if ( MapEdit_GroupsOwnedBy( player ).len() == 0 )
+			thread MapEdit_RestoreThread( player, "auto", false )
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Saved layouts -- per player (identity from the prefs store), per map.
+// Format: "v=1", "map=<name>", then one placement per line:
+//   p <catalogId> x y z pitch yaw roll
+//   s <recipeId>  x y z pitch yaw roll
+//   z x y z ex ey ez
+// ---------------------------------------------------------------------------
+
+bool function MapEdit_IsSlotName( string slot )
+{
+	if ( slot == "auto" )
+		return true
+	if ( !MapEdit_IsIntToken( slot ) || slot[0] == '-' )
+		return false
+	int n = slot.tointeger()
+	return n >= 1 && n <= MAPEDIT_SAVE_SLOTS
+}
+
+// Store keys cap at 32 chars; long map names fold to a hash.
+string function MapEdit_SlotKey( string slot )
+{
+	string mapName = GetMapName()
+	string key = "me_" + mapName + "_" + slot
+	if ( key.len() <= 32 )
+		return key
+
+	int h = 5381
+	for ( int i = 0; i < mapName.len(); i++ )
+		h = ( ( h * 33 ) ^ expect int( mapName[i] ) ) & 0x7FFFFFFF
+	return format( "me_%08x_%s", h, slot )
+}
+
+string function MapEdit_FormatPlacement( MapEditPlacement d )
+{
+	switch ( d.kind )
+	{
+		case eMapEditKind.PROP:
+			return format( "p %d %.2f %.2f %.2f %.2f %.2f %.2f", d.id, d.origin.x, d.origin.y, d.origin.z, d.angles.x, d.angles.y, d.angles.z )
+		case eMapEditKind.SPECIAL:
+			return format( "s %d %.2f %.2f %.2f %.2f %.2f %.2f", d.id, d.origin.x, d.origin.y, d.origin.z, d.angles.x, d.angles.y, d.angles.z )
+		case eMapEditKind.ZIPLINE:
+			return format( "z %.2f %.2f %.2f %.2f %.2f %.2f", d.origin.x, d.origin.y, d.origin.z, d.endOrigin.x, d.endOrigin.y, d.endOrigin.z )
+	}
+	return ""
+}
+
+bool function MapEdit_ParseLine( string line, MapEditPlacement desc )
+{
+	array< string > tok = split( line, " " )
+	if ( tok.len() < 1 )
+		return false
+
+	if ( tok[0] == "p" || tok[0] == "s" )
+	{
+		desc.kind = tok[0] == "p" ? eMapEditKind.PROP : eMapEditKind.SPECIAL
+		return MapEdit_ReadIdTransform( tok, 1, desc )
+	}
+
+	if ( tok[0] == "z" )
+	{
+		if ( tok.len() != 7 )
+			return false
+		for ( int i = 1; i < 7; i++ )
+		{
+			if ( !MapEdit_IsFloatToken( tok[i] ) )
+				return false
+		}
+		desc.kind = eMapEditKind.ZIPLINE
+		desc.origin = < tok[1].tofloat(), tok[2].tofloat(), tok[3].tofloat() >
+		desc.endOrigin = < tok[4].tofloat(), tok[5].tofloat(), tok[6].tofloat() >
+		return true
+	}
+
+	return false
+}
+
+string function MapEdit_Serialize( entity player )
+{
+	string payload = "v=1\nmap=" + GetMapName() + "\n"
+	int lines = 0
+	foreach ( int groupId, MapEditGroup group in file.groups )
+	{
+		if ( lines >= MAPEDIT_PROP_CAP_PLAYER )
+			break
+		if ( !MapEdit_IsOwner( group, player ) )
+			continue
+		payload += MapEdit_FormatPlacement( group.desc ) + "\n"
+		lines++
+	}
+
+	if ( player in file.carryLines )
+	{
+		foreach ( string line in file.carryLines[player] )
+		{
+			if ( lines >= MAPEDIT_PROP_CAP_PLAYER )
+				break
+			payload += line + "\n"
+			lines++
+		}
+	}
+	return payload
+}
+
+bool function MapEdit_WriteSlot( entity player, string slot )
+{
+	if ( !IsValid( player ) || player.IsBot() )
+		return false
+
+	bool ok = player.Cafe_PlayerPrefs_Write( MapEdit_SlotKey( slot ), MapEdit_Serialize( player ) )
+	if ( slot == "auto" )
+		file.saveDirty[player] <- false
+	if ( !ok )
+		printt( format( "[MAPEDIT] save failed for %s slot=%s", player.GetPlayerName(), slot ) )
+	return ok
+}
+
+// Parses a stored layout. Returns false when the blob is missing or not ours.
+bool function MapEdit_ReadSlot( entity player, string slot, array< MapEditPlacement > out, array< string > rawOut )
+{
+	string payload = player.Cafe_PlayerPrefs_Read( MapEdit_SlotKey( slot ) )
+	if ( payload == "" )
+		return false
+
+	array< string > lines = split( payload, "\n" )
+	if ( lines.len() < 2 || strip( lines[0] ) != "v=1" || strip( lines[1] ) != "map=" + GetMapName() )
+		return false
+
+	for ( int i = 2; i < lines.len() && out.len() < MAPEDIT_PROP_CAP_PLAYER; i++ )
+	{
+		string line = strip( lines[i] )
+		if ( line.len() == 0 || line.len() > 160 )
+			continue
+
+		MapEditPlacement desc
+		if ( !MapEdit_ParseLine( line, desc ) )
+			continue
+		out.append( desc )
+		rawOut.append( line )
+	}
+	return true
+}
+
+void function MapEdit_MarkDirty( entity player )
+{
+	if ( !IsValid( player ) || player.IsBot() )
+		return
+
+	bool already = ( player in file.saveDirty ) && file.saveDirty[player]
+	file.saveDirty[player] <- true
+	if ( !already )
+		thread MapEdit_AutosaveThread( player )
+}
+
+void function MapEdit_AutosaveThread( entity player )
+{
+	player.EndSignal( "OnDestroy" )
+	wait MAPEDIT_AUTOSAVE_DELAY
+
+	if ( player in file.saveDirty && file.saveDirty[player] )
+		MapEdit_WriteSlot( player, "auto" )
+}
+
+// Server-origin spawn: validation and budgets apply, reach and rate do not.
+void function MapEdit_RestoreThread( entity player, string slot, bool replace )
+{
+	if ( !IsValid( player ) )
+		return
+	if ( player in file.restoring && file.restoring[player] )
+		return
+
+	array< MapEditPlacement > descs
+	array< string > raw
+	if ( !MapEdit_ReadSlot( player, slot, descs, raw ) )
+	{
+		if ( replace )
+			MapEdit_Reject( player, "load: slot " + slot + " is empty" )
+		return
+	}
+
+	file.restoring[player] <- true
+	player.EndSignal( "OnDestroy" )
+	OnThreadEnd(
+		function() : ( player )
+		{
+			if ( player in file.restoring )
+				file.restoring[player] = false
+		}
+	)
+
+	if ( replace )
+		MapEdit_ClearOwned( player )
+
+	array< string > carry
+	int placed = 0
+	int dropped = 0
+	string lastErr = ""
+	for ( int i = 0; i < descs.len(); i++ )
+	{
+		string invalid = MapEdit_ValidatePlacement( descs[i], player )
+		if ( invalid != "" )
+		{
+			// A model this map has not loaded may load on another map or pack; keep it.
+			if ( descs[i].kind == eMapEditKind.PROP && MapEditorCatalog_GetEntry( descs[i].id ) != null )
+				carry.append( raw[i] )
+			else
+				dropped++
+			continue
+		}
+
+		array< string > err
+		if ( MapEdit_SpawnGroup( player, descs[i], err ) < 0 )
+		{
+			lastErr = err.len() > 0 ? err[0] : ""
+			carry.append( raw[i] )
+			continue
+		}
+
+		placed++
+		if ( placed % MAPEDIT_RESTORE_PER_FRAME == 0 )
+			WaitFrame()
+	}
+
+	file.carryLines[player] <- carry
 	MapEdit_ClearPlayerStacks( player )
 
-	MapEdit_Report( player, format( "clear_mine: removed %d (global %d)", n, file.props.len() ) )
-	return
+	string msg = format( "loaded %s: %d placed", slot, placed )
+	if ( carry.len() > 0 )
+		msg += format( ", %d kept for later", carry.len() )
+	if ( dropped > 0 )
+		msg += format( ", %d invalid", dropped )
+	if ( lastErr != "" )
+		msg += " (" + lastErr + ")"
+	MapEdit_Report( player, msg )
+	int slotIndex = slot == "auto" ? 0 : ( MapEdit_IsIntToken( slot ) ? ClampInt( slot.tointeger(), 1, 5 ) : 0 )
+	Remote_CallFunction_NonReplay( player, "ServerCallback_MapEdit_Restored", minint( placed, 4095 ), minint( carry.len(), 4095 ), slotIndex )
+
+	// A manual load becomes the new auto layout.
+	if ( replace )
+		MapEdit_WriteSlot( player, "auto" )
+}
+
+bool function MapEdit_SaveCmdAllowed( entity player )
+{
+	float now = Time()
+	if ( player in file.lastSaveCmd && now - file.lastSaveCmd[player] < MAPEDIT_SAVE_CMD_COOLDOWN )
+	{
+		MapEdit_Reject( player, "wait a moment before saving or loading again" )
+		return false
+	}
+	file.lastSaveCmd[player] <- now
+	return true
+}
+
+void function ClientCommand_MapEdit_Save( entity player, array<string> args )
+{
+	if ( !MapEditor_IsEnabled() )
+		return
+
+	if ( !IsValid( player ) || !player.IsPlayer() || player.IsBot() )
+		return
+
+	if ( args.len() != 1 || !MapEdit_IsSlotName( args[0] ) || args[0] == "auto" )
+	{
+		MapEdit_Reject( player, format( "save needs a slot 1-%d", MAPEDIT_SAVE_SLOTS ) )
+		return
+	}
+
+	if ( player in file.restoring && file.restoring[player] )
+		return
+
+	if ( !MapEdit_SaveCmdAllowed( player ) )
+		return
+
+	if ( MapEdit_WriteSlot( player, args[0] ) )
+		MapEdit_Report( player, format( "saved slot %s (%d objects)", args[0], MapEdit_GroupsOwnedBy( player ).len() ) )
+	else
+		MapEdit_Reject( player, "save failed" )
+}
+
+void function ClientCommand_MapEdit_Load( entity player, array<string> args )
+{
+	if ( !MapEditor_IsEnabled() )
+		return
+
+	if ( !IsValid( player ) || !player.IsPlayer() || player.IsBot() )
+		return
+
+	if ( args.len() != 1 || !MapEdit_IsSlotName( args[0] ) )
+	{
+		MapEdit_Reject( player, format( "load needs a slot 1-%d or auto", MAPEDIT_SAVE_SLOTS ) )
+		return
+	}
+
+	if ( MapEditor_IsFrozenFor( player ) )
+	{
+		MapEdit_Reject( player, "load frozen by admin" )
+		return
+	}
+
+	if ( !MapEdit_SaveCmdAllowed( player ) )
+		return
+
+	thread MapEdit_RestoreThread( player, args[0], true )
+}
+
+void function ClientCommand_MapEdit_Slots( entity player, array<string> args )
+{
+	if ( !MapEditor_IsEnabled() )
+		return
+
+	if ( !IsValid( player ) || !player.IsPlayer() || player.IsBot() )
+		return
+
+	if ( !MapEdit_SaveCmdAllowed( player ) )
+		return
+
+	string msg = "slots:"
+	array< string > slots = [ "auto" ]
+	for ( int i = 1; i <= MAPEDIT_SAVE_SLOTS; i++ )
+		slots.append( string( i ) )
+
+	foreach ( string slot in slots )
+	{
+		array< MapEditPlacement > descs
+		array< string > raw
+		if ( MapEdit_ReadSlot( player, slot, descs, raw ) )
+			msg += format( " %s=%d", slot, descs.len() )
+		else
+			msg += format( " %s=-", slot )
+	}
+	MapEdit_Report( player, msg )
 }
 
 // ---------------------------------------------------------------------------
@@ -874,28 +1271,14 @@ void function ClientCommand_MapEdit_Freeze( entity player, array<string> args )
 		return
 	}
 
-	if ( args.len() < 1 )
+	if ( args.len() != 1 || ( args[0] != "0" && args[0] != "1" ) )
 	{
 		MapEdit_Reject( player, "freeze needs <0|1>" )
 		return
 	}
 
-	if ( !IsStringNumber( args[0] ) )
-	{
-		MapEdit_Reject( player, "freeze arg not a number" )
-		return
-	}
-
-	int v = args[0].tointeger()
-	if ( v != 0 && v != 1 )
-	{
-		MapEdit_Reject( player, "freeze needs <0|1>" )
-		return
-	}
-
-	g_MapEditFrozen = ( v == 1 )
-	MapEdit_Report( player, format( "freeze=%d", v ) )
-	return
+	g_MapEditFrozen = args[0] == "1"
+	MapEdit_Report( player, "freeze=" + args[0] )
 }
 
 void function ClientCommand_MapEdit_ClearPlayer( entity player, array<string> args )
@@ -929,45 +1312,14 @@ void function ClientCommand_MapEdit_ClearPlayer( entity player, array<string> ar
 		}
 	}
 
-	// Also match by ownerId against still-registered props if the player is gone.
-	string targetUid = ""
-	if ( IsValid( target ) )
-		targetUid = target.GetPlatformUID()
-
-	array< entity > toRemove
-	foreach ( MapEditorProp prop in file.props )
+	if ( !IsValid( target ) )
 	{
-		bool match = false
-		if ( IsValid( target ) && MapEdit_IsOwner( prop, target ) )
-			match = true
-		else if ( targetUid != "" && prop.ownerId == targetUid )
-			match = true
-		else if ( !IsValid( target ) && prop.ownerId == "" && IsValid( prop.owner ) && prop.owner.GetPlayerName() == targetName )
-			match = true
-
-		// Name match against stored owner when entity owner is still valid.
-		if ( !match && IsValid( prop.owner ) && prop.owner.GetPlayerName() == targetName )
-			match = true
-
-		if ( match && IsValid( prop.ent ) )
-			toRemove.append( prop.ent )
-	}
-
-	if ( toRemove.len() == 0 && !IsValid( target ) )
-	{
-		// Last chance: match props whose live owner name equals the arg (already done)
-		// or report not found.
-		MapEdit_Reject( player, "clear_player: no props for '" + targetName + "'" )
+		MapEdit_Reject( player, "clear_player: no player '" + targetName + "'" )
 		return
 	}
 
-	int n = toRemove.len()
-	MapEdit_DestroyMany( toRemove )
-	if ( IsValid( target ) )
-		MapEdit_ClearPlayerStacks( target )
-
-	MapEdit_Report( player, format( "clear_player '%s': removed %d (global %d)", targetName, n, file.props.len() ) )
-	return
+	int n = MapEdit_ClearOwned( target )
+	MapEdit_Report( player, format( "clear_player '%s': removed %d (global %d)", targetName, n, file.entityCount ) )
 }
 
 void function ClientCommand_MapEdit_ClearAll( entity player, array<string> args )
@@ -984,28 +1336,19 @@ void function ClientCommand_MapEdit_ClearAll( entity player, array<string> args 
 		return
 	}
 
-	// Snapshot every registered entity, then destroy via registry.
-	array< entity > toRemove
-	foreach ( MapEditorProp prop in file.props )
-	{
-		if ( IsValid( prop.ent ) )
-			toRemove.append( prop.ent )
-	}
+	array< int > ids
+	foreach ( int groupId, MapEditGroup group in file.groups )
+		ids.append( groupId )
+	foreach ( int groupId in ids )
+		MapEdit_DestroyGroup( groupId )
 
-	int n = toRemove.len()
-	MapEdit_DestroyMany( toRemove )
-
-	// Wipe every player's undo/redo -- multi-remove is where stale stacks bite.
 	foreach ( entity p in GetPlayerArray() )
 	{
 		if ( IsValid( p ) )
 			MapEdit_ClearPlayerStacks( p )
 	}
-	// Also drop disconnected-key tables by clearing known keys left on entities that disconnected.
-	// placeTimes/undo/redo for disconnected players are already cleaned on disconnect.
 
-	MapEdit_Report( player, format( "clear_all: removed %d", n ) )
-	return
+	MapEdit_Report( player, format( "clear_all: removed %d", ids.len() ) )
 }
 
 // ---------------------------------------------------------------------------
@@ -1022,6 +1365,53 @@ void function MapEdit_RegisterNetworking()
 
 	Remote_RegisterClientFunction( "ServerCallback_MapEdit_PackLoad", "int", 0, 31 )
 	Remote_RegisterServerFunction( "MapEdit_SV_PackReady", "int", 0, 31 )
+	Remote_RegisterClientFunction( "ServerCallback_MapEdit_Hotbar", "int", 0, 3, "int", 0, 3, "int", 0, 65536, "vector", -360.0, 360.0, 32 )
+	Remote_RegisterClientFunction( "ServerCallback_MapEdit_Opts", "int", -1, 256 )
+	Remote_RegisterClientFunction( "ServerCallback_MapEdit_FavClear" )
+	Remote_RegisterClientFunction( "ServerCallback_MapEdit_Fav", "int", 0, 65536 )
+	Remote_RegisterClientFunction( "ServerCallback_MapEdit_ModelInfo", "int", 0, 65536, "int", -1, 2, "vector", 0.0, 16384.0, 32, "vector", -16384.0, 16384.0, 32 )
+	Remote_RegisterClientFunction( "ServerCallback_MapEdit_PackRefused", "int", 0, 32, "int", 0, 4 )
+	Remote_RegisterServerFunction( "MapEdit_SV_RequestModel", "int", 0, 65536 )
+	Remote_RegisterClientFunction( "ServerCallback_MapEdit_ModelReady", "int", 0, 65536 )
+	Remote_RegisterClientFunction( "ServerCallback_MapEdit_Restored", "int", 0, 4096, "int", 0, 4096, "int", 0, 6 )
+}
+
+bool function MapEdit_PackPreflight( string mapName, entity player )
+{
+	if ( mapName.len() > 64 )
+	{
+		MapEdit_Reject( player, "pack: map name too long" )
+		return false
+	}
+
+	int bit = MapEditorCatalog_GetMapBit( mapName )
+	if ( bit < 0 || bit > 31 )
+	{
+		MapEdit_Reject( player, "pack: unknown map" )
+		return false
+	}
+
+	if ( mapName == GetMapName() )
+	{
+		MapEdit_Reject( player, "pack: already on map '" + mapName + "'" )
+		return false
+	}
+
+	if ( ( file.activePackMask & ( 1 << bit ) ) != 0 )
+	{
+		MapEdit_Reject( player, "pack: '" + mapName + "' already active" )
+		return false
+	}
+
+	if ( !MapEdit_RequestMapPak( mapName ) )
+	{
+		MapEdit_Reject( player, "pack: load rejected for '" + mapName + "'" )
+		return false
+	}
+
+	MapEdit_Report( player, "pack: loading '" + mapName + "'" )
+	thread MapEdit_PackLoadThread( bit, mapName )
+	return true
 }
 
 void function ClientCommand_MapEdit_Pack( entity player, array<string> args )
@@ -1032,92 +1422,28 @@ void function ClientCommand_MapEdit_Pack( entity player, array<string> args )
 	if ( !IsValid( player ) || !player.IsPlayer() )
 		return
 
-	if ( !IsAdmin( player ) && !GetCurrentPlaylistVarBool( "mapeditor_pack_open", true ) )
-	{
-		MapEdit_Reject( player, "pack: admin only" )
-		return
-	}
-
 	if ( args.len() < 1 )
 	{
 		MapEdit_Reject( player, "pack needs <mapName>" )
 		return
 	}
 
-	string mapName = args[0]
-	if ( mapName.len() > 64 )
+	int bit = MapEditorCatalog_GetMapBit( args[0] )
+	if ( !IsAdmin( player ) && !GetCurrentPlaylistVarBool( "mapeditor_pack_open", false ) )
 	{
-		MapEdit_Reject( player, "pack: map name too long" )
+		MapEdit_Reject( player, "pack: admin only" )
+		MapEdit_PackRefused( player, bit, ePackRefusal.ADMIN_ONLY )
 		return
 	}
 
-	int bit = MapEditorCatalog_GetMapBit( mapName )
-	if ( bit < 0 || bit > 31 )
-	{
-		MapEdit_Reject( player, "pack: unknown map '" + mapName + "'" )
-		return
-	}
-
-	if ( mapName == GetMapName() )
-	{
-		MapEdit_Reject( player, "pack: already on map '" + mapName + "'" )
-		return
-	}
-
-	if ( ( file.activePackMask & ( 1 << bit ) ) != 0 )
-	{
-		MapEdit_Reject( player, "pack: '" + mapName + "' already active" )
-		return
-	}
-
-	if ( !MapEdit_RequestMapPak( mapName ) )
-	{
-		MapEdit_Reject( player, "pack: load rejected for '" + mapName + "'" )
-		return
-	}
-
-	MapEdit_Report( player, "pack: loading '" + mapName + "'" )
-	thread MapEdit_PackLoadThread( bit, mapName )
-	return
+	if ( !MapEdit_PackPreflight( args[0], player ) )
+		MapEdit_PackRefused( player, bit, ePackRefusal.REJECTED )
 }
 
 void function MapEdit_PackFromConsole( string mapName )
 {
 	MapEditorCatalog_Init()
-
-	if ( mapName.len() > 64 )
-	{
-		printt( "[MAPEDIT] pack: map name too long" )
-		return
-	}
-
-	int bit = MapEditorCatalog_GetMapBit( mapName )
-	if ( bit < 0 || bit > 31 )
-	{
-		printt( "[MAPEDIT] pack: unknown map '" + mapName + "'" )
-		return
-	}
-
-	if ( mapName == GetMapName() )
-	{
-		printt( "[MAPEDIT] pack: already on map '" + mapName + "'" )
-		return
-	}
-
-	if ( ( file.activePackMask & ( 1 << bit ) ) != 0 )
-	{
-		printt( "[MAPEDIT] pack: '" + mapName + "' already active" )
-		return
-	}
-
-	if ( !MapEdit_RequestMapPak( mapName ) )
-	{
-		printt( "[MAPEDIT] pack: load rejected for '" + mapName + "'" )
-		return
-	}
-
-	printt( "[MAPEDIT] pack: loading '" + mapName + "'" )
-	thread MapEdit_PackLoadThread( bit, mapName )
+	MapEdit_PackPreflight( mapName, null )
 }
 
 void function MapEdit_PackLoadThread( int bit, string mapName )
@@ -1129,8 +1455,8 @@ void function MapEdit_PackLoadThread( int bit, string mapName )
 		int status = MapEdit_MapPakStatus( mapName )
 		if ( status == 1 )
 		{
-			MapEdit_PrecachePack( bit )
 			file.activePackMask = file.activePackMask | ( 1 << bit )
+			MapEdit_PackInfo( bit )
 			MapEditorCatalog_SetActivePackMask( file.activePackMask )
 
 			foreach ( entity p in GetPlayerArray() )
@@ -1146,6 +1472,7 @@ void function MapEdit_PackLoadThread( int bit, string mapName )
 		if ( status == -1 )
 		{
 			printt( format( "[MAPEDIT] pack load failed: %s bit=%d", mapName, bit ) )
+			MapEdit_PackRefusedAll( bit )
 			return
 		}
 
@@ -1153,56 +1480,96 @@ void function MapEdit_PackLoadThread( int bit, string mapName )
 	}
 
 	printt( format( "[MAPEDIT] pack load timed out: %s bit=%d", mapName, bit ) )
+	MapEdit_PackRefusedAll( bit )
 }
 
-void function MapEdit_PrecachePack( int bit )
+void function MapEdit_PackRefused( entity player, int bit, int reason )
+{
+	if ( IsValid( player ) && bit >= 0 && bit < 32 )
+		Remote_CallFunction_NonReplay( player, "ServerCallback_MapEdit_PackRefused", bit, reason )
+}
+
+void function MapEdit_PackRefusedAll( int bit )
+{
+	foreach ( entity p in GetPlayerArray() )
+		MapEdit_PackRefused( p, bit, ePackRefusal.FAILED )
+}
+
+// A catalog model the current map or a loaded pack provides gets precached the
+// first time it is placed.
+bool function MapEdit_EnsureModelPrecached( MapEditorCatalogEntry entry, entity requester = null )
+{
+	if ( ModelIsPrecached( entry.model ) )
+		return true
+	if ( !MapEditorCatalog_IsAvailableOnMap( entry, GetMapName() ) )
+		return false
+	if ( file.lazyPrecached >= MAPEDIT_LAZY_PRECACHE_MAX )
+	{
+		if ( !file.lazyBudgetWarned )
+			printt( format( "[MAPEDIT] lazy precache budget spent (%d); further models are refused this map", MAPEDIT_LAZY_PRECACHE_MAX ) )
+		file.lazyBudgetWarned = true
+		return false
+	}
+
+	// The budget is per map and never refunded, and browsing spends it too; each player gets an
+	// even split among those present, never below the floor, so a solo builder keeps all of it.
+	string uid = IsValid( requester ) ? requester.GetPlatformUID() : ""
+	if ( uid != "" )
+	{
+		int share = maxint( MAPEDIT_LAZY_PRECACHE_MAX / maxint( 1, GetPlayerArray().len() ), MAPEDIT_LAZY_PRECACHE_PER_PLAYER )
+		int spent = uid in file.lazyPrecachedBy ? file.lazyPrecachedBy[ uid ] : 0
+		if ( spent >= share )
+			return false
+		file.lazyPrecachedBy[ uid ] <- spent + 1
+	}
+	file.lazyPrecached++
+	if ( !MapEdit_PrecacheModel( entry.model ) || !ModelIsPrecached( entry.model ) )
+		return false
+	file.precachedIds[ entry.id ] <- true
+	return true
+}
+
+// A browser pick of a model nobody has placed yet: precache it and tell the player.
+void function MapEdit_SV_RequestModel( entity player, int catalogId )
+{
+	if ( !MapEditor_IsEnabled() || !IsValid( player ) || !player.IsPlayer() )
+		return
+
+	float now = Time()
+	if ( !( player in file.modelRequests ) )
+		file.modelRequests[ player ] <- []
+	array< float > recent = file.modelRequests[ player ]
+	while ( recent.len() > 0 && now - recent[0] > 1.0 )
+		recent.remove( 0 )
+	if ( recent.len() >= MAPEDIT_MODEL_REQUESTS_PER_SEC )
+		return
+	recent.append( now )
+
+	MapEditorCatalogEntry ornull e = MapEditorCatalog_GetEntry( catalogId )
+	if ( e == null )
+		return
+	if ( MapEdit_EnsureModelPrecached( expect MapEditorCatalogEntry( e ), player ) )
+		Remote_CallFunction_NonReplay( player, "ServerCallback_MapEdit_ModelReady", catalogId )
+}
+
+void function MapEdit_PackInfo( int bit )
 {
 	int flag = 1 << bit
-	int attempted = 0
-	int verified = 0
-
+	array< int > ids
 	foreach ( string category in MapEditorCatalog_GetCategories() )
 	{
-		if ( attempted >= MAPEDIT_PACK_PRECACHE_MAX )
-			break
-
 		foreach ( MapEditorCatalogEntry entry in MapEditorCatalog_GetCategoryEntries( category ) )
 		{
-			if ( attempted >= MAPEDIT_PACK_PRECACHE_MAX )
-				break
-
-			if ( ( entry.mapMask & flag ) == 0 )
-				continue
-
-			if ( entry.id in file.precachedIds )
-				continue
-
-			attempted++
-			if ( !MapEdit_PrecacheModel( entry.model ) )
-				continue
-
-			if ( ModelIsPrecached( entry.model ) )
-			{
-				file.precachedIds[ entry.id ] <- true
-				verified++
-			}
+			if ( ( entry.mapMask & flag ) != 0 )
+				ids.append( entry.id )
 		}
 	}
-
-	printt( format( "[MAPEDIT] pack precache bit=%d attempted=%d verified=%d cap=%d",
-		bit, attempted, verified, MAPEDIT_PACK_PRECACHE_MAX ) )
+	MapEditInfo_Add( ids )
 }
 
+// The client's pack-loaded acknowledgement; nothing on the server depends on it.
 void function MapEdit_SV_PackReady( entity player, int bit )
 {
-	if ( bit < 0 || bit > 31 )
-	{
-		printt( "[MAPEDIT] PackReady: bit out of range" )
-		return
-	}
-
-	string who = IsValid( player ) ? player.GetPlayerName() : "null"
-	printt( format( "[MAPEDIT] PackReady: bit=%d from %s", bit, who ) )
 }
 
 void function MapEdit_OnClientConnected( entity player )
@@ -1256,13 +1623,9 @@ void function ClientCommand_MapEdit_Legends( entity player, array<string> args )
 	array< ItemFlavor > characters = GetAllCharacters()
 	printt( format( "[MAPEDIT] legends list (%d) for %s:", characters.len(), player.GetPlayerName() ) )
 	for ( int i = 0; i < characters.len(); i++ )
-	{
-		string ref = ItemFlavor_GetHumanReadableRef( characters[i] )
-		printt( format( "  %d: %s", i, ref ) )
-	}
+		printt( format( "  %d: %s", i, ItemFlavor_GetHumanReadableRef( characters[i] ) ) )
 
 	MapEdit_Report( player, format( "legends: %d entries printed to console", characters.len() ) )
-	return
 }
 
 void function ClientCommand_MapEdit_Legend( entity player, array<string> args )
@@ -1273,15 +1636,9 @@ void function ClientCommand_MapEdit_Legend( entity player, array<string> args )
 	if ( !IsValid( player ) || !player.IsPlayer() )
 		return
 
-	if ( args.len() < 1 )
+	if ( args.len() < 1 || !MapEdit_IsIntToken( args[0] ) )
 	{
 		MapEdit_Reject( player, "legend needs <index>" )
-		return
-	}
-
-	if ( !IsStringNumber( args[0] ) )
-	{
-		MapEdit_Reject( player, "legend index not a number" )
 		return
 	}
 
@@ -1295,8 +1652,5 @@ void function ClientCommand_MapEdit_Legend( entity player, array<string> args )
 
 	ItemFlavor character = characters[index]
 	SetItemFlavorLoadoutSlot( ToEHI( player ), Loadout_Character(), character )
-
-	string ref = ItemFlavor_GetHumanReadableRef( character )
-	MapEdit_Report( player, format( "legend set to %d: %s", index, ref ) )
-	return
+	MapEdit_Report( player, format( "legend set to %d: %s", index, ItemFlavor_GetHumanReadableRef( character ) ) )
 }

@@ -63,6 +63,7 @@ void function FS_1v1_SharedInit()
 
 	FS_1v1_InitHelpers()
 	FS_1v1_RegisterNetwork()
+	FS_Scenarios_SharedInit()
 
 	// BR systems FlagInit+Set these in deathfield/loot populate. Arena maps still FlagWait them; 1v1 never runs those inits.
 	// BleedoutDebug is FlagInit'd only in Bleedout_Init; CodeCallback_KillDamagePlayerOrNPC still Flags it on kill.
@@ -144,7 +145,6 @@ void function FS_1v1_RegisterNetwork()
 	RegisterNetworkedVariable( "FSDM_1v1_Enemy", SNDC_PLAYER_GLOBAL, SNVT_ENTITY )
 	RegisterNetworkedVariable( "FSDM_1v1_PositionInScoreboard", SNDC_PLAYER_GLOBAL, SNVT_INT, -1 )
 	RegisterNetworkedVariable( "FS_1v1_PlayerState", SNDC_PLAYER_EXCLUSIVE, SNVT_INT )
-	RegisterNetworkedVariable( "FS_PlayerIsMnk", SNDC_PLAYER_GLOBAL, SNVT_BOOL, false )
 
 	// VS HUD input readout: eIBMMLockState, and the current duel opponent's
 	// device (0 = MnK, 1 = controller, -1 = unknown)
@@ -153,7 +153,8 @@ void function FS_1v1_RegisterNetwork()
 
 	// Waiting-room queue card: when the IBMM input-lock grace opens to any input,
 	// and how long the grace was (drives the countdown bar client-side)
-	RegisterNetworkedVariable( "FS_1v1_QueueGraceEnd", SNDC_PLAYER_EXCLUSIVE, SNVT_TIME, -1 )
+	// PLAYER_GLOBAL: the PLAYER_EXCLUSIVE time pool (10 slots) is full once per-player charselect is on
+	RegisterNetworkedVariable( "FS_1v1_QueueGraceEnd", SNDC_PLAYER_GLOBAL, SNVT_TIME, -1 )
 	RegisterNetworkedVariable( "FS_1v1_QueueGraceDur", SNDC_PLAYER_EXCLUSIVE, SNVT_FLOAT_RANGE, 0.0, 0.0, 60.0 )
 
 	// Career totals. Session "kills" is SNVT_INT (-512..511); career must not share that. -1 = not published yet.
@@ -256,6 +257,8 @@ void function FS_1v1_RegisterNetwork()
 		"int", INT_MIN, INT_MAX, "int", INT_MIN, INT_MAX, "int", INT_MIN, INT_MAX, "int", INT_MIN, INT_MAX,
 		"int", INT_MIN, INT_MAX, "int", INT_MIN, INT_MAX, "int", INT_MIN, INT_MAX, "int", INT_MIN, INT_MAX,
 		"int", INT_MIN, INT_MAX, "int", INT_MIN, INT_MAX, "int", INT_MIN, INT_MAX, "int", INT_MIN, INT_MAX )
+
+	FS_Scenarios_RegisterNetwork()
 
 	printt( "[FS-1V1] network registered (netvars + remotes)" )
 }
@@ -611,7 +614,9 @@ void function FS_1v1_ClientChampionRoom_THREAD( int durationSec, int careerKills
 	RuiSetString( podiumRui, "title", Localize( "#GLADIATOR_CARD_INTRO_CHAMPION_SOLO" ) )
 	RuiSetString( podiumRui, "desc", champName )
 	string modeLabel = "FLOWSTATE 1V1"
-	if ( GetCurrentPlaylistVarBool( "freedm_ffa_active", false ) )
+	if ( FS_IsScenarios() )
+		modeLabel = "ZONE WARS"
+	else if ( GetCurrentPlaylistVarBool( "freedm_ffa_active", false ) )
 		modeLabel = "FLOWSTATE FFA"
 	RuiSetString( podiumRui, "gameModeString", modeLabel )
 	RuiSetString( podiumRui, "mapNameString", Localize( GetCurrentMapDisplayName() ) )

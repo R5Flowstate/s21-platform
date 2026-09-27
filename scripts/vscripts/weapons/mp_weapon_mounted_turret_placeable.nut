@@ -317,25 +317,17 @@ var function OnWeaponPrimaryAttack_weapon_mounted_turret_placeable( entity weapo
 	entity ownerPlayer = weapon.GetWeaponOwner()
 	Assert( ownerPlayer.IsPlayer() )
 
+	// Check for valid spot
+	if ( !weapon.ObjectPlacementHasValidSpot() )
+	{
+		weapon.DoDryfire()
+		return 0
+	}
+
 	#if SERVER
-		// Calculate placement info inline since GetObjectPlacement methods don't exist
-		vector eyePos = ownerPlayer.EyePosition()
-		vector viewVec = ownerPlayer.GetViewVector()
-		vector angles = < 0, VectorToAngles( viewVec ).y, 0 >
-		viewVec = AnglesToForward( angles )
-
-		float maxRange = MOUNTED_TURRET_PLACEABLE_PLACEMENT_RANGE_MAX
-		TraceResults viewTraceResults = TraceLine( eyePos, eyePos + viewVec * maxRange, [ownerPlayer], TRACE_MASK_SOLID, TRACE_COLLISION_GROUP_NONE )
-
-		vector origin
-		if ( viewTraceResults.fraction < 1.0 )
-			origin = viewTraceResults.endPos
-		else
-			origin = eyePos + viewVec * maxRange
-
-		// No parent entity support in this version
-		entity parentTo = null
-
+		vector origin = weapon.GetObjectPlacementOrigin()
+		vector angles = weapon.GetObjectPlacementAngles()
+		entity parentTo = weapon.GetObjectPlacementParent()
 		thread MountedTurretPlaceable_Deploy( weapon, ownerPlayer, origin, angles, parentTo )
 	#endif
 
@@ -1023,7 +1015,7 @@ void function DestroyTurretFX( entity turretProxy, entity attacker )
 
 		foreach ( entity player in GetPlayerArray() )
 		{
-			if ( !IsValid( player ) )
+			if ( !IsValid( player ) || !player.DoesShareRealms( turretProxy ) )
 				continue
 
 			Remote_CallFunction_Replay( player, "ServerCallback_PlayTurretDestroyFX", baseOrigin, baseAngles, gunOrigin, gunAngles )

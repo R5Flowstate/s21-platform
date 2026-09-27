@@ -354,10 +354,26 @@ void function SmartAmmo_LockedOntoWarningHUD_Update()
 		}
 
 
+		else if ( StatusEffect_HasSeverity( player, eStatusEffect.hit_by_sonar_dart ) && !StatusEffect_HasSeverity( player, eStatusEffect.on_hit_list ) )
+		{
+			RuiSetString( file.lockon_hud, "lockMessage", "#TRACKING_INITIATED" )
+			RuiSetGameTime( file.lockon_hud, "lockEndTime", Time() + StatusEffect_GetTimeRemaining( player, eStatusEffect.hit_by_sonar_dart ) )
+			RuiSetBool( file.lockon_hud, "isVisible", true )
+			RuiSetBool( file.lockon_hud, "northLock", false )
+			RuiSetBool( file.lockon_hud, "southLock", false )
+			RuiSetBool( file.lockon_hud, "westLock", false )
+			RuiSetBool( file.lockon_hud, "eastLock", false )
+			RuiSetImage( file.lockon_hud, "characterIcon", $"rui/hud/tactical_icons/tactical_sparrow" )
+			RuiSetFloat3( file.lockon_hud, "borderColor", < 1.0, 0.41, 0.0 > )
+			RuiSetFloat( file.lockon_hud, "characterIconScale", 0.6 )
+		}
+
 		else if ( (StatusEffect_HasSeverity( player, eStatusEffect.camera_detected )
 			|| StatusEffect_HasSeverity( player, eStatusEffect.maphack_detected )
 			|| StatusEffect_HasSeverity( player, eStatusEffect.sonar_detected )
 			|| StatusEffect_HasSeverity( player, eStatusEffect.sonar_round_embedded )
+			|| StatusEffect_HasSeverity( player, eStatusEffect.on_hit_list )
+			|| StatusEffect_HasSeverity( player, eStatusEffect.arco_ult_scan )
 
 			|| StatusEffect_HasSeverity( player, eStatusEffect.mortar_ring_reveal ) )
 
@@ -403,6 +419,21 @@ void function SmartAmmo_LockedOntoWarningHUD_Update()
 			{
 				RuiSetString( file.lockon_hud, "lockMessage", "#VANTAGE_SNIPER_ULT_WARNING" )
 				RuiSetImage( file.lockon_hud, "characterIcon", $"rui/hud/character_abilities/vantage_gun_mark" )
+			}
+
+			else if ( StatusEffect_HasSeverity( player, eStatusEffect.on_hit_list ) )
+			{
+				RuiSetString( file.lockon_hud, "lockMessage", "#WPN_TRACKING_STATUS" )
+				RuiSetImage( file.lockon_hud, "characterIcon", $"rui/hud/tactical_icons/tactical_sparrow" )
+				RuiSetFloat3( file.lockon_hud, "borderColor", < 0.85, 0.07, 0.07 > )
+				RuiSetFloat( file.lockon_hud, "characterIconScale", 0.6 )
+			}
+			else if ( StatusEffect_HasSeverity( player, eStatusEffect.arco_ult_scan ) )
+			{
+				RuiSetString( file.lockon_hud, "lockMessage", "#WPN_ULT_TRACKING_STATUS" )
+				RuiSetImage( file.lockon_hud, "characterIcon", $"rui/menu/buttons/battlepass/character_skin_sparrow" )
+				RuiSetFloat3( file.lockon_hud, "borderColor", < 0.85, 0.2, 0.18 > )
+				RuiSetFloat( file.lockon_hud, "characterIconScale", 0.6 )
 			}
 
 			else if ( StatusEffect_HasSeverity( player, eStatusEffect.mortar_ring_reveal ) )

@@ -53,6 +53,7 @@ struct
 	ButtonData vsUiButtonData
 	ButtonData oneVOneSettingsButtonData
 	ButtonData leaderboardButtonData
+	ButtonData scenariosStandingsButtonData
 
 	bool enableChangeCharacterButton = true
 	bool challengeInProgress = false
@@ -139,11 +140,15 @@ void function InitSystemMenu( var newMenuArg )
 	file.leaderboardButtonData.label = "#FS_TOGGLE_SCOREBOARD"
 	file.leaderboardButtonData.activateFunc = OpenLeaderboard_System
 
+	file.scenariosStandingsButtonData.label = "#FS_SCENARIOS_STANDINGS"
+	file.scenariosStandingsButtonData.activateFunc = UI_FS_Scenarios_OpenStandings
+
 	AddMenuFooterOption( menu, LEFT, BUTTON_B, true, "#B_BUTTON_BACK", "#B_BUTTON_BACK" )
 
 	// DevMenu always registered; content gated by sv_cheats inside the menu.
 	AddMenuFooterOption( menu, LEFT, BUTTON_Y, true, "#Y_BUTTON_DEV_MENU", "#DEV_MENU", OpenDevMenu )
 	AddMenuFooterOption( menu, LEFT, KEY_M, true, "#Y_BUTTON_MODS", "#BRIDGE_MODS", OpenModsListDialog )
+	AddMenuFooterOption( menu, LEFT, KEY_J, true, "", "#DEMO_FOOTER_REPLAYS", OpenReplaysMenu )
 	if ( GetConVarBool( "cl_ezlaunch_button" ) )
 		AddMenuFooterOption( menu, LEFT, BUTTON_Y, true, "EZ Launch", "EZ Launch", RunEZLaunch, ShouldDisplayOptInOptions )
 
@@ -288,7 +293,10 @@ void function UpdateSystemMenu()
 
 		if ( Flowstate_IsGame1v1Type() )
 		{
-			SetButtonData( buttonIndex++, file.vsUiButtonData )
+			if ( FS_IsScenarios() )
+				SetButtonData( buttonIndex++, file.scenariosStandingsButtonData )
+			else
+				SetButtonData( buttonIndex++, file.vsUiButtonData )
 			SetButtonData( buttonIndex++, file.restButtonData )
 			SetButtonData( buttonIndex++, file.oneVOneSettingsButtonData )
 		}

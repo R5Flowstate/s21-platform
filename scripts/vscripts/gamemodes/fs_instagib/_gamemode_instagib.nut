@@ -237,7 +237,7 @@ void function FS_Instagib_LatencyFeed_THREAD( entity player )
 
 	for ( ;; )
 	{
-		player.SetPlayerNetInt( "latency", ClampInt( int( player.GetLatency() * 1000 ), 0, 500 ) )
+		player.SetPlayerNetInt( "latency", ClampInt( int( player.GetConnectionLatencyMS() ), 0, 500 ) )
 		wait 0.5
 	}
 }

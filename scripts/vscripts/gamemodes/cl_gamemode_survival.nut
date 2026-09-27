@@ -870,8 +870,8 @@ void function SURVIVAL_PopulatePlayerInfoRui( entity player, var rui )
 		RuiSetAsset( rui, "customSmallIcon", classIcon )
 
 	string platformString = ""
-	if ( GetLocalClientPlayer() != GetLocalViewPlayer() && CrossplayUserOptIn() )
-		platformString = PlatformIDToIconString( GetHardwareFromName( GetLocalViewPlayer().GetHardwareName() ) )
+	if ( GetLocalClientPlayer() != GetLocalViewPlayer() )
+		platformString = PlayerInputIconString( GetLocalViewPlayer() )
 	RuiSetString( rui, "platformString", platformString )
 
 	bool isSwitchHardware = player.GetHardwareName() == "HARDWARE_SWITCH"
@@ -1662,17 +1662,17 @@ void function SetNextCircleDisplayCustomClear()
 string function GetRingClosingString(int roundNumber)
 {
 	if ( !SURVIVAL_IsFinalDeathFieldStage() )
-		return Localize( "#" + GameRules_GetGameMode().toupper() + "_CIRCLE_STATUS_ROUND_CLOSING", roundNumber )
+		return Localize( "#" + ( IsArenaMode() ? "ARENAS" : GameRules_GetGameMode().toupper() ) + "_CIRCLE_STATUS_ROUND_CLOSING", roundNumber )
 
-	return Localize( "#" + GameRules_GetGameMode().toupper() + "_CIRCLE_STATUS_ROUND_CLOSING_FINAL" )
+	return Localize( "#" + ( IsArenaMode() ? "ARENAS" : GameRules_GetGameMode().toupper() ) + "_CIRCLE_STATUS_ROUND_CLOSING_FINAL" )
 }
 
 string function GetAnnouncementSubtextString(int roundNumber)
 {
 	if ( !SURVIVAL_IsFinalDeathFieldStage() )
-		return Localize( "#" + GameRules_GetGameMode().toupper() + "_CIRCLE_ROUND", roundNumber )
+		return Localize( "#" + ( IsArenaMode() ? "ARENAS" : GameRules_GetGameMode().toupper() ) + "_CIRCLE_ROUND", roundNumber )
 
-	return Localize( "#" + GameRules_GetGameMode().toupper() + "_CIRCLE_ROUND_FINAL" )
+	return Localize( "#" + ( IsArenaMode() ? "ARENAS" : GameRules_GetGameMode().toupper() ) + "_CIRCLE_ROUND_FINAL" )
 }
 
 void function NextCircleStartTimeChanged( entity player, float new )
@@ -5075,6 +5075,8 @@ void function ServerCallback_PromptTaunt()
 
 void function ServerCallback_PromptSayThanks( entity playerBeingAddressed )
 {
+	if ( !IsValid( playerBeingAddressed ) )
+		return
 
 		
 		if ( GameModeVariant_IsActive( eGameModeVariants.SURVIVAL_VALENTINES_S15 ) && Valentines_S15_ILoveYouEasterEggEnabled() )
@@ -5092,6 +5094,8 @@ void function ServerCallback_PromptSayThanks( entity playerBeingAddressed )
 
 void function ServerCallback_PromptSayThanksRevive( entity playerBeingAddressed )
 {
+	if ( !IsValid( playerBeingAddressed ) )
+		return
 
 		
 		if ( GameModeVariant_IsActive( eGameModeVariants.SURVIVAL_VALENTINES_S15 ) && Valentines_S15_ILoveYouEasterEggEnabled() )
@@ -5169,6 +5173,9 @@ void function OnPlayerKilled( entity player )
 
 void function UpdateInventoryCounter( entity player, string ref, bool isFull = false )
 {
+	// modes that skip survival's client init (the 1v1 shell) still pick up loot
+	if ( file.inventoryCountRui == null )
+		file.inventoryCountRui = CreateFullscreenRui( $"ui/inventory_count_meter.rpak", 0 )
 	var rui = file.inventoryCountRui
 
 	RuiSetGameTime( rui, "startTime", Time() )

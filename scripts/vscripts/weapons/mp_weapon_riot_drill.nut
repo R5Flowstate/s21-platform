@@ -389,7 +389,7 @@ void function RiotDrill_CreateBreachingCharge_System( RiotDrillPlacementInfo pla
 	// Sound dummy ( R5DEV-331260 )
 	fbs.riotDrillSoundDummy = CreatePropScript( $"mdl/dev/empty_model.rmdl", placementInfo.endOrigin - (BREACH_SPIKE_SOUND_OFFSET * AnglesToUp( spikeEndAngles )) )
 	fbs.riotDrillSoundDummy.SetParent( fbs.riotDrillStart )
-	riotDrillElements.append( fbs.riotDrillEnd )
+	riotDrillElements.append( fbs.riotDrillSoundDummy )
 
 	foreach ( bs in riotDrillElements )
 		RiotDrill_SetBreachingChargeElementInfo( bs, owner, hitEnt )
@@ -857,7 +857,7 @@ void function RiotDrill_DrillOutOfRange_Think( entity owner, vector pos, vector 
 	// why is this "wait" required for creating these FX?
 	wait 0.1
 
-	StartParticleEffectInWorld( GetParticleSystemIndex( RIOT_DRILL_FIZZLE_EXPLODE_FX ), pos, <0,0,0> )
+	StartParticleEffectInWorldForRealms( GetParticleSystemIndex( RIOT_DRILL_FIZZLE_EXPLODE_FX ), pos, <0,0,0>, owner )
 	if ( IsValid( fizzledDrill ) )
 		StartParticleEffectOnEntity( fizzledDrill, GetParticleSystemIndex( RIOT_DRILL_FIZZLE_SPARKS_FX ), FX_PATTACH_ABSORIGIN_FOLLOW, ATTACHMENTID_INVALID )
 

@@ -256,6 +256,7 @@ void function CodeCallback_MapSpawn() // original script entry point
 	#endif
 
 	AddSpawnCallback( "player", MP_PlayerPostInit )
+	InputDetector_Init()
 	AddSpawnCallback( "trigger_hurt", InitDamageTriggers )
 
 	#if DEVELOPER

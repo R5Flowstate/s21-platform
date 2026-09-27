@@ -47,17 +47,100 @@
         {
             ControlName				CNestedPanel
             InheritProperties       SettingsContentPanel
-			tall                    1560
+			tall                    1620
 			visible                 1
             tabPosition             1
 
-            StraferHeader
+            TargetsHeader
             {
                 ControlName				ImagePanel
                 InheritProperties		SubheaderBackgroundWide
                 className               "SettingScrollSizer"
                 xpos					0
                 ypos					6
+            }
+
+            TargetsHeaderText
+            {
+                ControlName				Label
+                InheritProperties		SubheaderText
+                pin_to_sibling			TargetsHeader
+                pin_corner_to_sibling	LEFT
+                pin_to_sibling_corner	LEFT
+                use_pin_locale_direction    1
+                labelText				"#LAB_TARGETS_HDR_TARGETS"
+            }
+
+            SwitchPreset
+            {
+                ControlName				RuiButton
+                InheritProperties		SwitchButton
+                className               "SettingScrollSizer"
+                style					DialogListButton
+                list
+                {
+                    "#LAB_TARGETS_PRESET_WARMUP"	0
+                    "#LAB_TARGETS_PRESET_STANDARD"	1
+                    "#LAB_TARGETS_PRESET_ADVANCED"	2
+                    "#LAB_TARGETS_PRESET_TRACKING"	4
+                    "#LAB_TARGETS_PRESET_REACTIVE"	5
+                    "#LAB_TARGETS_PRESET_CLOSE"	6
+                    "#LAB_TARGETS_PRESET_FLICK"	7
+                    "#LAB_TARGETS_PRESET_DUEL"	8
+                    "#LAB_TARGETS_PRESET_CUSTOM"	3
+                }
+                childGroupAlways        MultiChoiceButtonAlways
+                navUp                   SwitchPreset
+                navDown                 ButtonStraferAdd
+                pin_to_sibling			TargetsHeader
+                pin_corner_to_sibling	TOP_LEFT
+                pin_to_sibling_corner	BOTTOM_LEFT
+            }
+
+            ButtonStraferAdd
+            {
+                ControlName				RuiButton
+                InheritProperties		SettingBasicButton
+                className               "SettingScrollSizer"
+                navUp                   SwitchPreset
+                navDown                 ButtonStraferRemove
+                pin_to_sibling			SwitchPreset
+                pin_corner_to_sibling	TOP_LEFT
+                pin_to_sibling_corner	BOTTOM_LEFT
+            }
+
+            ButtonStraferRemove
+            {
+                ControlName				RuiButton
+                InheritProperties		SettingBasicButton
+                className               "SettingScrollSizer"
+                navUp                   ButtonStraferAdd
+                navDown                 ButtonQuitAimTrainer
+                pin_to_sibling			ButtonStraferAdd
+                pin_corner_to_sibling	TOP_LEFT
+                pin_to_sibling_corner	BOTTOM_LEFT
+            }
+
+            ButtonQuitAimTrainer
+            {
+                ControlName				RuiButton
+                InheritProperties		SettingBasicButton
+                className               "SettingScrollSizer"
+                navUp                   ButtonStraferRemove
+                navDown                 SwitchStraferBody
+                pin_to_sibling			ButtonStraferRemove
+                pin_corner_to_sibling	TOP_LEFT
+                pin_to_sibling_corner	BOTTOM_LEFT
+            }
+
+            StraferHeader
+            {
+                ControlName				ImagePanel
+                InheritProperties		SubheaderBackgroundWide
+                className               "SettingScrollSizer"
+                pin_to_sibling			ButtonQuitAimTrainer
+                pin_corner_to_sibling	TOP_LEFT
+                pin_to_sibling_corner	BOTTOM_LEFT
             }
 
             StraferHeaderText
@@ -82,8 +165,8 @@
                     "Dummy"	dummy
                     "Legend"	legend
                 }
-                childGroupAlways        ChoiceButtonAlways
-                navUp                   SwitchStraferBody
+                childGroupAlways        MultiChoiceButtonAlways
+                navUp                   ButtonQuitAimTrainer
                 navDown                 SwitchStraferClass
                 pin_to_sibling			StraferHeader
                 pin_corner_to_sibling	TOP_LEFT
@@ -120,32 +203,39 @@
                 }
                 childGroupAlways        MultiChoiceButtonAlways
                 navUp                   SwitchStraferClass
-                navDown                 ButtonStrafer
+                navDown                 SwitchFixedSpawn
                 pin_to_sibling			SwitchStraferClass
                 pin_corner_to_sibling	TOP_LEFT
                 pin_to_sibling_corner	BOTTOM_LEFT
             }
 
-            ButtonStrafer
+            SwitchFixedSpawn
             {
                 ControlName				RuiButton
-                InheritProperties		SettingBasicButton
+                InheritProperties		SwitchButton
                 className               "SettingScrollSizer"
+                style					DialogListButton
+                list
+                {
+                    "#SETTING_OFF"	0
+                    "#SETTING_ON"	1
+                }
+                childGroupAlways        ChoiceButtonAlways
                 navUp                   SwitchStraferLegend
-                navDown                 ButtonStraferFast
+                navDown                 ButtonSetSpawn
                 pin_to_sibling			SwitchStraferLegend
                 pin_corner_to_sibling	TOP_LEFT
                 pin_to_sibling_corner	BOTTOM_LEFT
             }
 
-            ButtonStraferFast
+            ButtonSetSpawn
             {
                 ControlName				RuiButton
                 InheritProperties		SettingBasicButton
                 className               "SettingScrollSizer"
-                navUp                   ButtonStrafer
-                navDown                 SwitchDummyArmor
-                pin_to_sibling			ButtonStrafer
+                navUp                   SwitchFixedSpawn
+                navDown                 SwitchStrafing
+                pin_to_sibling			SwitchFixedSpawn
                 pin_corner_to_sibling	TOP_LEFT
                 pin_to_sibling_corner	BOTTOM_LEFT
             }
@@ -155,7 +245,7 @@
                 ControlName				ImagePanel
                 InheritProperties		SubheaderBackgroundWide
                 className               "SettingScrollSizer"
-                pin_to_sibling			ButtonStraferFast
+                pin_to_sibling			ButtonSetSpawn
                 pin_corner_to_sibling	TOP_LEFT
                 pin_to_sibling_corner	BOTTOM_LEFT
             }
@@ -168,7 +258,109 @@
                 pin_corner_to_sibling	LEFT
                 pin_to_sibling_corner	LEFT
                 use_pin_locale_direction    1
-                labelText				"#LAB_TARGETS_HDR_SETTINGS"
+                labelText				"#LAB_TARGETS_HDR_DIFFICULTY"
+            }
+
+            SwitchStrafing
+            {
+                ControlName				RuiButton
+                InheritProperties		SwitchButton
+                className               "SettingScrollSizer"
+                style					DialogListButton
+                list
+                {
+                    "#SETTING_OFF"	0
+                    "#SETTING_ON"	1
+                }
+                childGroupAlways        ChoiceButtonAlways
+                navUp                   ButtonSetSpawn
+                navDown                 SwitchStrafeTimeMin
+                pin_to_sibling			SettingsHeader
+                pin_corner_to_sibling	TOP_LEFT
+                pin_to_sibling_corner	BOTTOM_LEFT
+            }
+
+            SwitchStrafeTimeMin
+            {
+                ControlName				RuiButton
+                InheritProperties		SwitchButton
+                className               "SettingScrollSizer"
+                style					DialogListButton
+                childGroupAlways        MultiChoiceButtonAlways
+                navUp                   SwitchStrafing
+                navDown                 SwitchStrafeTimeMax
+                pin_to_sibling			SwitchStrafing
+                pin_corner_to_sibling	TOP_LEFT
+                pin_to_sibling_corner	BOTTOM_LEFT
+            }
+
+            SwitchStrafeTimeMax
+            {
+                ControlName				RuiButton
+                InheritProperties		SwitchButton
+                className               "SettingScrollSizer"
+                style					DialogListButton
+                childGroupAlways        MultiChoiceButtonAlways
+                navUp                   SwitchStrafeTimeMin
+                navDown                 SldStrafeSpeed
+                pin_to_sibling			SwitchStrafeTimeMin
+                pin_corner_to_sibling	TOP_LEFT
+                pin_to_sibling_corner	BOTTOM_LEFT
+            }
+
+            SldStrafeSpeed
+            {
+                ControlName				SliderControl
+                InheritProperties		SliderControl
+                className               "SettingScrollSizer"
+                minValue				0.5
+                maxValue				2.0
+                stepSize				0.1
+                showLabel               3
+                navUp                   SwitchStrafeTimeMax
+                navDown                 SwitchBrain
+                pin_to_sibling			SwitchStrafeTimeMax
+                pin_corner_to_sibling	TOP_LEFT
+                pin_to_sibling_corner	BOTTOM_LEFT
+            }
+
+            SwitchBrain
+            {
+                ControlName				RuiButton
+                InheritProperties		SwitchButton
+                className               "SettingScrollSizer"
+                style					DialogListButton
+                list
+                {
+                    "#LAB_TARGETS_BRAIN_NORMAL"	0
+                    "#LAB_TARGETS_BRAIN_HARD"	1
+                }
+                childGroupAlways        MultiChoiceButtonAlways
+                navUp                   SldStrafeSpeed
+                navDown                 SwitchCrouch
+                pin_to_sibling			SldStrafeSpeed
+                pin_corner_to_sibling	TOP_LEFT
+                pin_to_sibling_corner	BOTTOM_LEFT
+            }
+
+            SwitchCrouch
+            {
+                ControlName				RuiButton
+                InheritProperties		SwitchButton
+                className               "SettingScrollSizer"
+                style					DialogListButton
+                list
+                {
+                    "#LAB_TARGETS_CROUCH_AUTO"	0
+                    "#SETTING_OFF"	1
+                    "#SETTING_ON"	2
+                }
+                childGroupAlways        MultiChoiceButtonAlways
+                navUp                   SwitchBrain
+                navDown                 SwitchDummyArmor
+                pin_to_sibling			SwitchBrain
+                pin_corner_to_sibling	TOP_LEFT
+                pin_to_sibling_corner	BOTTOM_LEFT
             }
 
             SwitchDummyArmor
@@ -186,25 +378,9 @@
                     "Random"	10
                 }
                 childGroupAlways        MultiChoiceButtonAlways
-                navUp                   ButtonStraferFast
-                navDown                 SldStrafeSpeed
-                pin_to_sibling			SettingsHeader
-                pin_corner_to_sibling	TOP_LEFT
-                pin_to_sibling_corner	BOTTOM_LEFT
-            }
-
-            SldStrafeSpeed
-            {
-                ControlName				SliderControl
-                InheritProperties		SliderControl
-                className               "SettingScrollSizer"
-                minValue				0.5
-                maxValue				2.0
-                stepSize				0.1
-                showLabel               3
-                navUp                   SwitchDummyArmor
+                navUp                   SwitchCrouch
                 navDown                 SwitchBotHealth
-                pin_to_sibling			SwitchDummyArmor
+                pin_to_sibling			SwitchCrouch
                 pin_corner_to_sibling	TOP_LEFT
                 pin_to_sibling_corner	BOTTOM_LEFT
             }
@@ -221,9 +397,9 @@
                     "#SETTING_ON"	1
                 }
                 childGroupAlways        ChoiceButtonAlways
-                navUp                   SldStrafeSpeed
+                navUp                   SwitchDummyArmor
                 navDown                 SwitchBotFire
-                pin_to_sibling			SldStrafeSpeed
+                pin_to_sibling			SwitchDummyArmor
                 pin_corner_to_sibling	TOP_LEFT
                 pin_to_sibling_corner	BOTTOM_LEFT
             }
@@ -257,155 +433,8 @@
                 stepSize				0.05
                 showLabel               3
                 navUp                   SwitchBotFire
-                navDown                 SwitchStrafeTimeMin
-                pin_to_sibling			SwitchBotFire
-                pin_corner_to_sibling	TOP_LEFT
-                pin_to_sibling_corner	BOTTOM_LEFT
-            }
-
-            SwitchStrafeTimeMin
-            {
-                ControlName				RuiButton
-                InheritProperties		SwitchButton
-                className               "SettingScrollSizer"
-                style					DialogListButton
-                childGroupAlways        MultiChoiceButtonAlways
-                navUp                   SldBotAim
-                navDown                 SwitchStrafeTimeMax
-                pin_to_sibling			SldBotAim
-                pin_corner_to_sibling	TOP_LEFT
-                pin_to_sibling_corner	BOTTOM_LEFT
-            }
-
-            SwitchStrafeTimeMax
-            {
-                ControlName				RuiButton
-                InheritProperties		SwitchButton
-                className               "SettingScrollSizer"
-                style					DialogListButton
-                childGroupAlways        MultiChoiceButtonAlways
-                navUp                   SwitchStrafeTimeMin
-                navDown                 SwitchFixedSpawn
-                pin_to_sibling			SwitchStrafeTimeMin
-                pin_corner_to_sibling	TOP_LEFT
-                pin_to_sibling_corner	BOTTOM_LEFT
-            }
-
-            SwitchFixedSpawn
-            {
-                ControlName				RuiButton
-                InheritProperties		SwitchButton
-                className               "SettingScrollSizer"
-                style					DialogListButton
-                list
-                {
-                    "#SETTING_OFF"	0
-                    "#SETTING_ON"	1
-                }
-                childGroupAlways        ChoiceButtonAlways
-                navUp                   SwitchStrafeTimeMax
-                navDown                 ButtonSetSpawn
-                pin_to_sibling			SwitchStrafeTimeMax
-                pin_corner_to_sibling	TOP_LEFT
-                pin_to_sibling_corner	BOTTOM_LEFT
-            }
-
-            ButtonSetSpawn
-            {
-                ControlName				RuiButton
-                InheritProperties		SettingBasicButton
-                className               "SettingScrollSizer"
-                navUp                   SwitchFixedSpawn
-                navDown                 SwitchAimMode
-                pin_to_sibling			SwitchFixedSpawn
-                pin_corner_to_sibling	TOP_LEFT
-                pin_to_sibling_corner	BOTTOM_LEFT
-            }
-
-            ChallengeHeader
-            {
-                ControlName				ImagePanel
-                InheritProperties		SubheaderBackgroundWide
-                className               "SettingScrollSizer"
-                pin_to_sibling			ButtonSetSpawn
-                pin_corner_to_sibling	TOP_LEFT
-                pin_to_sibling_corner	BOTTOM_LEFT
-            }
-
-            ChallengeHeaderText
-            {
-                ControlName				Label
-                InheritProperties		SubheaderText
-                pin_to_sibling			ChallengeHeader
-                pin_corner_to_sibling	LEFT
-                pin_to_sibling_corner	LEFT
-                use_pin_locale_direction    1
-                labelText				"#LAB_TARGETS_HDR_CHALLENGE"
-            }
-
-            SwitchAimMode
-            {
-                ControlName				RuiButton
-                InheritProperties		SwitchButton
-                className               "SettingScrollSizer"
-                style					DialogListButton
-                list
-                {
-                    "Target Switch"	0
-                    "Popcorn"	1
-                    "Floating Target"	2
-                    "Smoothbot"	3
-                }
-                childGroupAlways        MultiChoiceButtonAlways
-                navUp                   ButtonSetSpawn
-                navDown                 SwitchDuration
-                pin_to_sibling			ChallengeHeader
-                pin_corner_to_sibling	TOP_LEFT
-                pin_to_sibling_corner	BOTTOM_LEFT
-            }
-
-            SwitchDuration
-            {
-                ControlName				RuiButton
-                InheritProperties		SwitchButton
-                className               "SettingScrollSizer"
-                style					DialogListButton
-                list
-                {
-                    "30s"	30
-                    "60s"	60
-                    "90s"	90
-                    "120s"	120
-                    "Unlimited"	999
-                }
-                childGroupAlways        MultiChoiceButtonAlways
-                navUp                   SwitchAimMode
-                navDown                 ButtonChallengeStart
-                pin_to_sibling			SwitchAimMode
-                pin_corner_to_sibling	TOP_LEFT
-                pin_to_sibling_corner	BOTTOM_LEFT
-            }
-
-            ButtonChallengeStart
-            {
-                ControlName				RuiButton
-                InheritProperties		SettingBasicButton
-                className               "SettingScrollSizer"
-                navUp                   SwitchDuration
-                navDown                 ButtonChallengeStop
-                pin_to_sibling			SwitchDuration
-                pin_corner_to_sibling	TOP_LEFT
-                pin_to_sibling_corner	BOTTOM_LEFT
-            }
-
-            ButtonChallengeStop
-            {
-                ControlName				RuiButton
-                InheritProperties		SettingBasicButton
-                className               "SettingScrollSizer"
-                navUp                   ButtonChallengeStart
                 navDown                 SwitchReloadKill
-                pin_to_sibling			ButtonChallengeStart
+                pin_to_sibling			SwitchBotFire
                 pin_corner_to_sibling	TOP_LEFT
                 pin_to_sibling_corner	BOTTOM_LEFT
             }
@@ -415,7 +444,7 @@
                 ControlName				ImagePanel
                 InheritProperties		SubheaderBackgroundWide
                 className               "SettingScrollSizer"
-                pin_to_sibling			ButtonChallengeStop
+                pin_to_sibling			SldBotAim
                 pin_corner_to_sibling	TOP_LEFT
                 pin_to_sibling_corner	BOTTOM_LEFT
             }
@@ -443,7 +472,7 @@
                     "#SETTING_ON"	1
                 }
                 childGroupAlways        ChoiceButtonAlways
-                navUp                   ButtonChallengeStop
+                navUp                   SldBotAim
                 navDown                 SwitchReloadHit
                 pin_to_sibling			ReloadHeader
                 pin_corner_to_sibling	TOP_LEFT
@@ -560,20 +589,8 @@
                 }
                 childGroupAlways        ChoiceButtonAlways
                 navUp                   SwitchReconBars
-                navDown                 ButtonQuitAimTrainer
+                navDown                 SwitchHighlight
                 pin_to_sibling			SwitchReconBars
-                pin_corner_to_sibling	TOP_LEFT
-                pin_to_sibling_corner	BOTTOM_LEFT
-            }
-
-            ButtonQuitAimTrainer
-            {
-                ControlName				RuiButton
-                InheritProperties		SettingBasicButton
-                className               "SettingScrollSizer"
-                navUp                   SwitchHighlight
-                navDown                 ButtonQuitAimTrainer
-                pin_to_sibling			SwitchHighlight
                 pin_corner_to_sibling	TOP_LEFT
                 pin_to_sibling_corner	BOTTOM_LEFT
             }

@@ -1,0 +1,7 @@
+name,alias,priority,perspective,canPlayIfSolo,legendFlavors,radioDisplayName,team,radioIntercept,vduVideo,dialogue
+"bc_arenasMatchStart","diag_mp_%voice%_bc_arenasMatchStart_%perspective%",10,"",true,"","","",false,"",""
+"bc_arenasMatchPoint","diag_mp_%voice%_bc_arenasMatchPoint_%perspective%",10,"",true,"","","",false,"",""
+"bc_arenasMatchPointSquad","diag_mp_%voice%_bc_arenasMatchPointSquad_%perspective%",10,"",true,"","","",false,"",""
+"bc_arenasMatchPointEnemy","diag_mp_%voice%_bc_arenasMatchPointEnemy_%perspective%",10,"",true,"","","",false,"",""
+"ping_arenasGoCarePackage","diag_mp_%voice%_ping_arenasGoCarePackage_calmFar_%perspective%",10,"",true,"","","",false,"",""
+string,string,int,string,bool,string,string,string,bool,asset_noprecache,string

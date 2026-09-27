@@ -12,6 +12,8 @@
 	"anim_stop_start_gesture_on_attack" "1"
 	"alt_fire_anim_count" "1"
 	"offhand_switch_slot" "1"
+	"offhand_cancelled_by_melee" "1"
+	"offhand_interupts_weapon_anims" "0"
 	"burst_fire_count" "12"
 	"burst_fire_delay" "0.500000"
 	"cooldown_type" "ammo_instant"
@@ -117,23 +119,31 @@
 
 		"upgrade_core_valk_tac_increase_missiles_1"
 		{
-			"ammo_clip_size" "450"
-			"ammo_default_total" "450"
-			"ammo_stockpile_max" "450"
-			"regen_ammo_refill_rate" "15"
-			"burst_fire_count" "15"
+			"ammo_clip_size" "400"
+			"ammo_default_total" "400"
+			"ammo_stockpile_max" "400"
+			"ammo_min_to_fire" "20"
+			"ammo_per_shot" "20"
+			"regen_ammo_refill_rate" "20"
+			"burst_fire_count" "20"
 
 		}
 
 		"upgrade_core_valk_tac_increase_missiles_2"
 		{
-			"ammo_clip_size" "375"
-			"ammo_default_total" "375"
-			"ammo_stockpile_max" "375"
-			"ammo_min_to_fire" "25"
-			"ammo_per_shot" "25"
-			"regen_ammo_refill_rate" "15"
-			"burst_fire_count" "15"
+			"ammo_clip_size" "400"
+			"ammo_default_total" "400"
+			"ammo_stockpile_max" "400"
+			"ammo_min_to_fire" "20"
+			"ammo_per_shot" "20"
+			"regen_ammo_refill_rate" "26.667"
+			"burst_fire_count" "20"
+
+		}
+
+		"block_melee_when_shooting"
+		{
+			"offhand_cancelled_by_melee" "0"
 
 		}
 

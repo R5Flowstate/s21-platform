@@ -19,6 +19,14 @@ global function FS_1v1_ResolveCharacter
 global function FS_1v1_CharacterResetOverride
 global function FS_1v1_OnCharacterSlotChanged
 global function FS_1v1_DumpLegendTable
+global function FS_1v1_AbilitiesAllowed
+global function FS_1v1_ChallengeLegendsActive
+global function FS_1v1_QueueChallengePick
+global function FS_1v1_RunChallengePick
+global function FS_1v1_RetireChallengeLegends
+
+const float CHAL_PICK_INTRO = 1.0
+const float CHAL_PICK_OUTRO = 1.0
 
 // The ref -> setfile table this build actually resolves. Setfiles carry ability
 // codenames, not legend names -- character_wraith is pilot_survival_closer,
@@ -56,15 +64,12 @@ void function FS_1v1_OnCharacterSlotChanged( EHI playerEHI, ItemFlavor flavor )
 ItemFlavor function FS_1v1_CharacterResetOverride( EHI playerEHI )
 {
 	entity player = FromEHI( playerEHI )
-	ItemFlavor character = FS_1v1_GetForcedCharacter( player )
+	ItemFlavor character = FS_1v1_ResolveCharacter( player, -1 )
 
 	// Only when it actually caught a stomp -- this runs on every respawn.
 	if ( LoadoutSlot_IsReady( playerEHI, Loadout_Character() )
 		&& LoadoutSlot_GetItemFlavor( playerEHI, Loadout_Character() ) != character )
 	{
-		printt( format( "[FS-1V1][LEGEND] held %s at '%s' against a reset",
-			IsValid( player ) ? player.GetPlayerName() : "<invalid>",
-			ItemFlavor_GetHumanReadableRef( character ) ) )
 	}
 
 	return character
@@ -98,6 +103,11 @@ ItemFlavor function FS_1v1_GetForcedCharacter( entity player )
 // force is about to overwrite -- so the wait is what stalls match start.
 ItemFlavor function FS_1v1_ResolveCharacter( entity player, int index )
 {
+	// A challenge pick outranks the playlist force, but only inside that challenge.
+	ItemFlavor ornull challengePick = FS_1v1_ChallengeLegend( player )
+	if ( challengePick != null )
+		return expect ItemFlavor( challengePick )
+
 	if ( FS_1v1_IsForceCharacter() )
 		return FS_1v1_GetForcedCharacter( player )
 
@@ -230,17 +240,9 @@ void function RechargePlayerAbilities( entity player, int index = -1, bool noUlt
 	player.GiveOffhandWeapon(CharacterAbility_GetWeaponClassname( tacticalAbility ), OFFHAND_TACTICAL )
 
 	int charID = ItemFlavor_GetGUID( character )
+	bool giveUltimate = FS_1v1_ChallengeLegendsActive( player ) || LEGEND_GUID_ENABLED_ULTIMATES.contains( charID )
 
-	if( GetCurrentPlaylistName() == "fs_scenarios" )
-	{
-		array<ItemFlavor> passives = CharacterClass_GetPassiveAbilities( character )
-		if ( passives.len() > 0 )
-			GivePassive( player, CharacterAbility_GetPassiveIndex( passives[ 0 ] ) )
-	}
-
-	//wait 0.5
-
-	if( settings.isScenariosMode || LEGEND_GUID_ENABLED_ULTIMATES.contains( charID ) )
+	if( giveUltimate )
 	{
 		ItemFlavor ultimateAbility = CharacterClass_GetUltimateAbility( character )
 		player.GiveOffhandWeapon( CharacterAbility_GetWeaponClassname( ultimateAbility ), OFFHAND_ULTIMATE, [] )
@@ -254,12 +256,6 @@ void function RechargePlayerAbilities( entity player, int index = -1, bool noUlt
 	ReloadTactical( player )
 	player.Server_TurnOffhandWeaponsDisabledOff()
 
-	printt( "[FS-1V1] abilities " + player.GetPlayerName()
-		+ " guid=" + string( charID )
-		+ " tacticalRef=" + CharacterAbility_GetWeaponClassname( tacticalAbility )
-		+ " tacticalGiven=" + string( IsValid( player.GetOffhandWeapon( OFFHAND_TACTICAL ) ) )
-		+ " ultWhitelisted=" + string( LEGEND_GUID_ENABLED_ULTIMATES.contains( charID ) )
-		+ " ultGiven=" + string( IsValid( player.GetOffhandWeapon( OFFHAND_ULTIMATE ) ) ) )
 }
 
 // Legend abilities off. The offhand-disabled flag is still cleared, or the
@@ -319,14 +315,242 @@ void function _decideLegend( MatchGroup group )
 	AssignLegendToGroup( group.p1LegendIndex, [ group.player1 ] )
 	AssignLegendToGroup( group.p2LegendIndex, [ group.player2 ] )
 
-	if( !settings.bAllowAbilities )
+	foreach ( int i, entity player in [ group.player1, group.player2 ] )
 	{
-		FS_1v1_StripAbilities( group.player1 )
-		FS_1v1_StripAbilities( group.player2 )
+		if ( !FS_1v1_AbilitiesAllowed( player ) )
+		{
+			FS_1v1_StripAbilities( player )
+			continue
+		}
+
+		RechargePlayerAbilities( player, i == 0 ? group.p1LegendIndex : group.p2LegendIndex )
+		if ( FS_1v1_ChallengeLegendsActive( player ) )
+			group.challengeLegendsGranted = true
 	}
-	else
+}
+
+//////////////////////////////////////////////////////////////////////////////
+// Challenge legends: an accepted challenge picks legends through the per-player
+// character select and plays them with tactical and ultimate. Normal duels keep
+// the playlist legend and no abilities.
+
+bool function FS_1v1_ChallengeLegendsActive( entity player )
+{
+	if ( !settings.bChallengeLegends || !IsValid( player ) )
+		return false
+
+	MatchGroup group = Gamemode1v1_GetPlayerSoloGroup( player )
+	return Gamemode1v1_IsMatchValid( group ) && group.IsKeep
+}
+
+bool function FS_1v1_AbilitiesAllowed( entity player )
+{
+	return settings.bAllowAbilities || FS_1v1_ChallengeLegendsActive( player )
+}
+
+bool function FS_1v1_IsChallengePickable( ItemFlavor character )
+{
+	if ( ItemFlavor_GetType( character ) != eItemType.character || ItemFlavor_GetAsset( character ) == CHARACTER_RANDOM )
+		return false
+	return !CharacterClass_IsBlockedForCurrentPlaylist( character )
+}
+
+ItemFlavor ornull function FS_1v1_ChallengeLegend( entity player )
+{
+	if ( !FS_1v1_ChallengeLegendsActive( player ) )
+		return null
+
+	MatchGroup group = Gamemode1v1_GetPlayerSoloGroup( player )
+	int guid = player == group.player1 ? group.p1ChallengeLegend : group.p2ChallengeLegend
+	if ( guid == 0 || !IsValidItemFlavorGUID( guid ) )
+		return null
+
+	ItemFlavor character = GetItemFlavorByGUID( guid )
+	if ( !FS_1v1_IsChallengePickable( character ) )
+		return null
+
+	return character
+}
+
+// Returns a localization token describing why the pick was refused, or "" when queued.
+string function FS_1v1_QueueChallengePick( entity player, bool onlyIfUnpicked = false )
+{
+	if ( !settings.bChallengeLegends )
+		return "#FS_DisabledLegends"
+	if ( !FS_1v1_ChallengeLegendsActive( player ) )
+		return "#FS_NotInChal"
+
+	MatchGroup group = Gamemode1v1_GetPlayerSoloGroup( player )
+	if ( player == group.player1 )
 	{
-		RechargePlayerAbilities( group.player1, group.p1LegendIndex )
-		RechargePlayerAbilities( group.player2, group.p2LegendIndex )
+		if ( !onlyIfUnpicked || group.p1ChallengeLegend == 0 )
+			group.p1PickPending = true
 	}
+	else if ( player == group.player2 )
+	{
+		if ( !onlyIfUnpicked || group.p2ChallengeLegend == 0 )
+			group.p2PickPending = true
+	}
+
+	return ""
+}
+
+// Runs between a challenge round's respawn and its weapons. Both fighters are held
+// still while either one picks, so a quick lock cannot shoot a player still in the menu.
+void function FS_1v1_RunChallengePick( MatchGroup group )
+{
+	if ( !settings.bChallengeLegends || !Gamemode1v1_IsMatchValid( group ) || !group.IsKeep )
+		return
+
+	array<entity> pickers
+	if ( group.p1PickPending )
+		pickers.append( group.player1 )
+	if ( group.p2PickPending )
+		pickers.append( group.player2 )
+	group.p1PickPending = false
+	group.p2PickPending = false
+
+	if ( pickers.len() == 0 )
+		return
+
+	array<entity> fighters = [ group.player1, group.player2 ]
+
+	OnThreadEnd(
+		function() : ( fighters, pickers )
+		{
+			foreach ( entity player in pickers )
+				FS_1v1_CloseChallengePick( player )
+
+			foreach ( entity player in fighters )
+			{
+				if ( !IsValid( player ) )
+					continue
+				player.MovementEnable()
+				player.UnforceStand()
+			}
+		}
+	)
+
+	foreach ( entity player in fighters )
+	{
+		player.MovementDisable()
+		player.ForceStand()
+		player.Server_TurnOffhandWeaponsDisabledOn()
+	}
+
+	float pickTime = settings.challengeLegendPickTime
+	float pickStart = Time() + CHAL_PICK_INTRO
+	float pickEnd = pickStart + pickTime + CHAL_PICK_OUTRO
+
+	foreach ( entity player in pickers )
+	{
+		player.SetPlayerNetInt( CHARACTER_SELECT_NETVAR_LOCK_STEP_PLAYER_INDEX, 0 )
+		player.SetPlayerNetBool( CHARACTER_SELECT_NETVAR_HAS_LOCKED_IN_CHARACTER, false )
+		player.SetPlayerNetInt( CHARACTER_SELECT_NETVAR_FOCUS_CHARACTER_GUID, -1 )
+		player.SetPlayerNetInt( "characterSelectFocusSkinGUID", -1 )
+		player.SetPlayerNetInt( CharSelect_PlayerStateNetVar( CHARACTER_SELECT_NETVAR_LOCK_STEP_INDEX ), -1 )
+		player.SetPlayerNetTime( CharSelect_PlayerStateNetVar( "pickLoadoutGamestateStartTime" ), pickStart )
+		player.SetPlayerNetTime( CharSelect_PlayerStateNetVar( "pickLoadoutGamestateEndTime" ), pickEnd )
+		player.SetPlayerNetBool( CharSelect_PlayerStateNetVar( "characterSelectionReady" ), true )
+	}
+
+
+	wait CHAL_PICK_INTRO
+
+	float stepStart = Time()
+	float stepEnd = stepStart + pickTime
+	foreach ( entity player in pickers )
+	{
+		if ( !IsValid( player ) )
+			continue
+		player.SetPlayerNetTime( CharSelect_PlayerStateNetVar( CHARACTER_SELECT_NETVAR_LOCK_STEP_START_TIME ), stepStart )
+		player.SetPlayerNetTime( CharSelect_PlayerStateNetVar( CHARACTER_SELECT_NETVAR_LOCK_STEP_END_TIME ), stepEnd )
+		player.SetPlayerNetInt( CharSelect_PlayerStateNetVar( CHARACTER_SELECT_NETVAR_LOCK_STEP_INDEX ), 0 )
+	}
+
+	while ( Time() < stepEnd )
+	{
+		if ( !Gamemode1v1_IsMatchValid( group ) || !group.IsKeep )
+			return
+
+		bool allLocked = true
+		foreach ( entity player in pickers )
+		{
+			if ( IsValid( player ) && !player.GetPlayerNetBool( CHARACTER_SELECT_NETVAR_HAS_LOCKED_IN_CHARACTER ) )
+				allLocked = false
+		}
+		if ( allLocked )
+			break
+
+		WaitFrame()
+	}
+
+	foreach ( entity player in pickers )
+		FS_1v1_FinalizeChallengePick( group, player )
+
+	foreach ( entity player in pickers )
+	{
+		if ( IsValid( player ) )
+			player.SetPlayerNetInt( CharSelect_PlayerStateNetVar( CHARACTER_SELECT_NETVAR_LOCK_STEP_INDEX ), 1 )
+	}
+
+	wait CHAL_PICK_OUTRO
+}
+
+// A player who does not lock keeps the legend they last played in this challenge.
+void function FS_1v1_FinalizeChallengePick( MatchGroup group, entity player )
+{
+	if ( !IsValid( player ) || !player.GetPlayerNetBool( CHARACTER_SELECT_NETVAR_HAS_LOCKED_IN_CHARACTER ) )
+		return
+
+	EHI ehi = ToEHI( player )
+	if ( !LoadoutSlot_IsReady( ehi, Loadout_Character() ) )
+		return
+
+	ItemFlavor character = LoadoutSlot_GetItemFlavor( ehi, Loadout_Character() )
+	if ( !FS_1v1_IsChallengePickable( character ) )
+		return
+
+	int guid = ItemFlavor_GetGUID( character )
+	if ( player == group.player1 )
+		group.p1ChallengeLegend = guid
+	else if ( player == group.player2 )
+		group.p2ChallengeLegend = guid
+
+}
+
+void function FS_1v1_CloseChallengePick( entity player )
+{
+	if ( !IsValid( player ) )
+		return
+
+	player.SetPlayerNetBool( CharSelect_PlayerStateNetVar( "characterSelectionReady" ), false )
+	player.SetPlayerNetInt( CharSelect_PlayerStateNetVar( CHARACTER_SELECT_NETVAR_LOCK_STEP_INDEX ), -1 )
+	player.SetPlayerNetInt( CHARACTER_SELECT_NETVAR_LOCK_STEP_PLAYER_INDEX, -1 )
+	player.SetPlayerNetInt( CHARACTER_SELECT_NETVAR_FOCUS_CHARACTER_GUID, -1 )
+	player.SetPlayerNetInt( "characterSelectFocusSkinGUID", -1 )
+	player.SetPlayerNetBool( CHARACTER_SELECT_NETVAR_HAS_LOCKED_IN_CHARACTER, true )
+}
+
+// Called with the group already invalid, so every resolve below lands on the playlist
+// legend. Clears what the challenge legends left in the fight realm.
+void function FS_1v1_RetireChallengeLegends( MatchGroup group )
+{
+	if ( !group.challengeLegendsGranted )
+		return
+
+	group.challengeLegendsGranted = false
+
+	foreach ( entity player in [ group.player1, group.player2 ] )
+	{
+		if ( !IsValid( player ) )
+			continue
+
+		FS_1v1_CloseChallengePick( player )
+		_CleanupPlayerEntities( player )
+		FS_1v1_StripAbilities( player )
+		FS_1v1_ApplyCharacter( player )
+	}
+
+	FS_Scenarios_SweepRealm( group.slotIndex, "1v1-challenge-retire" )
 }

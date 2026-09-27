@@ -314,22 +314,18 @@ void function PIN_PlayerJumpedFromPlane( entity player, int len )
 
 void function PIN_AirdropAction( string actionType, vector origin )
 {
-	Warning( "PIN_AirdropAction stub: " + actionType )
 }
 
 void function PIN_RingTick( entity player )
 {
-	Warning( "PIN_RingTick stub" )
 }
 
 void function PIN_Perks_ExtendedSupplyBinCreated( entity bin, vector origin )
 {
-	Warning( "PIN_Perks_ExtendedSupplyBinCreated stub" )
 }
 
 void function PIN_Perks_WeaponSupplyBinCreated( entity bin, vector origin )
 {
-	Warning( "PIN_Perks_WeaponSupplyBinCreated stub" )
 }
 
 void function PIN_Perks_RingConsoleCreated( entity beacon, vector origin )

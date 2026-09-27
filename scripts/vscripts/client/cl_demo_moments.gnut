@@ -1,0 +1,76 @@
+// Replay moments: while the match is being recorded, the player's kills,
+// knocks and deaths and the mode's rounds, fights and ring closes are written
+// into the replay, so the replay bar can mark them and jump to them.
+
+global function DemoMoments_OnDeath
+global function ServerCallback_Demo_Moment
+
+struct
+{
+	string lastKey
+	float lastTime = -99.0
+} file
+
+// Names arrive truncated to 16 characters in 1v1, so compare on that length.
+bool function DemoMoments_IsLocalName( string name )
+{
+	entity player = GetLocalClientPlayer()
+	if ( !IsValid( player ) || name == "" )
+		return false
+	string own = player.GetPlayerName()
+	if ( own.len() > 16 && name.len() == 16 )
+		own = own.slice( 0, 16 )
+	return own == name
+}
+
+void function DemoMoments_OnDeath( string attackerName, string victimName, int damageSourceId, int obitFlags )
+{
+	if ( !Demo_IsRecording() || Demo_IsPlaying() || victimName == "" )
+		return
+
+	bool downed = ( obitFlags & OBIT_FLAG_DOWNED ) != 0
+	string type = ""
+	if ( DemoMoments_IsLocalName( victimName ) )
+		type = downed ? "knocked" : "death"
+	else if ( DemoMoments_IsLocalName( attackerName ) )
+		type = downed ? "knock" : "kill"
+	else
+		return
+
+	// Modes that print their own obituary can report the same death twice.
+	string key = type + "|" + victimName
+	if ( key == file.lastKey && Time() - file.lastTime < 1.0 )
+		return
+	file.lastKey = key
+	file.lastTime = Time()
+
+	string weapon = ""
+	try
+	{
+		weapon = DamageSourceIDToString( damageSourceId )
+	}
+	catch ( eWeapon )
+	{
+	}
+	Demo_RecordEvent( type, attackerName, victimName, weapon, 0.0 )
+}
+
+void function ServerCallback_Demo_Moment( int kind )
+{
+	if ( !Demo_IsRecording() || Demo_IsPlaying() )
+		return
+
+	string type = ""
+	switch ( kind )
+	{
+		case eDemoMoment.FIGHT_START: type = "fight"; break
+		case eDemoMoment.FIGHT_WON:   type = "fight_won"; break
+		case eDemoMoment.FIGHT_LOST:  type = "fight_lost"; break
+		case eDemoMoment.ROUND_START: type = "round"; break
+		case eDemoMoment.ROUND_WON:   type = "round_won"; break
+		case eDemoMoment.ROUND_LOST:  type = "round_lost"; break
+		case eDemoMoment.RING:        type = "ring"; break
+		default: return
+	}
+	Demo_RecordEvent( type, "", "", "", 0.0 )
+}

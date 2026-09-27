@@ -696,6 +696,11 @@ playlists
             inherit defaults
         }
 
+        fs_arenas
+        {
+            inherit defaults
+        }
+
     } //End of MP Gamemodes ----------------------------------------------------
 
     Playlists
@@ -983,6 +988,16 @@ playlists
             inherit survival_staging_baseline
             vars
             {
+                // Host settings: the launcher builds its server form from these.
+                r5f_setting_survival_loot_enabled              ""
+                r5f_setting_sur_circle_start_paused            ""
+                r5f_setting_loot_drones_spawn_count            ""
+                r5f_setting_sur_bots_spawn_with_random_weapons ""
+                r5f_setting_has_infinite_clips                 "bool|Infinite ammo"
+                r5f_setting_allow_third_person                 "bool|Third person"
+                r5f_setting_has_variable_speed_targets         "bool|Moving targets"
+                r5f_setting_staging_ultimates_enabled          "bool|Ultimates"
+
                 visible 0
                 ui_slot firing_range
 
@@ -1066,6 +1081,31 @@ playlists
                 mp_rr_canyonlands_staging_mu1 1
             } } }
         }
+
+        survival_firingrange_classic
+        {
+            inherit survival_firingrange_base
+            vars
+            {
+                r5f_mode_group                          apex
+                r5f_mode_family                         firingrange
+                r5f_mode_family_title                   "Firing Range"
+                r5f_mode_family_order                   95
+                r5f_mode_family_blurb                   "Every weapon and every legend, no match running."
+                r5f_mode                                1
+                r5f_mode_order                          41
+                r5f_mode_title                          "FIRING RANGE (CLASSIC)"
+                r5f_mode_map                            mp_rr_canyonlands_staging
+                r5f_mode_blurb                          "The original firing range, before the Arsenal rework."
+                visible 1
+
+                name                                    "FIRING RANGE (CLASSIC)"
+                map_name                                "Firing Range (Classic)"
+            }
+            gamemodes { survival { maps {
+                mp_rr_canyonlands_staging 1
+            } } }
+        }
         ///////////////////////////////////
         ///////////   MIXTAPE   ///////////
         ///////////////////////////////////
@@ -1094,6 +1134,16 @@ playlists
             inherit defaults
             vars
             {
+                // Host settings: the launcher builds its server form from these.
+                r5f_setting_match_time_limit               "float 300 3600|Match length"
+                r5f_setting_mode_health_regen_active       "bool|Health regen"
+                r5f_setting_control_spawn_wave_enabled     "bool|Spawn waves"
+                r5f_setting_control_enable_airdrops        "bool|Airdrops"
+                r5f_setting_control_enable_mrb_event       "bool|Respawn beacon event"
+                r5f_setting_control_enable_lockout         "bool|Lockout"
+                r5f_setting_control_default_weapon_tier    "int 1 3|Starting weapon tier"
+                r5f_setting_control_default_equipment_tier "int 1 3|Starting armor tier"
+
                 visible 0
                 name #CONTROL_NAME
                 description #CONTROL_DESC
@@ -1568,6 +1618,11 @@ playlists
 			inherit defaults
 			vars
 			{
+				// Host settings: the launcher builds its server form from these.
+				r5f_setting_match_time_limit         "float 60 3600|Match length"
+				r5f_setting_mode_health_regen_active "bool|Health regen"
+				r5f_setting_mode_health_regen_delay  "float 0 30|Health regen delay"
+
 				name        ""
 				description ""
 				emblem freedm
@@ -1633,6 +1688,9 @@ playlists
             inherit freedm_base
             vars
             {
+                // Host settings: the launcher builds its server form from these.
+                r5f_setting_scorelimit "int 5 300|Score limit"
+
                 // Lobby + Mode select
                 name            #TDM_NAME
                 description     #TDM_DESC
@@ -1818,6 +1876,18 @@ playlists
             inherit freedm_tdm
             vars
             {
+                // Host settings: the launcher builds its server form from these.
+                r5f_setting_match_time_limit                ""
+                r5f_setting_flowstateRoundtime              "float 300 7200|Round length"
+                r5f_setting_respawn_cooldown                "float 0 15|Respawn delay"
+                r5f_setting_ffa_ring                        "bool|Ring"
+                r5f_setting_ffa_akimbo                      "bool|Akimbo"
+                r5f_setting_ffa_armor_level                 "int 0 5|Armor level"
+                r5f_setting_ffa_give_tactical               "bool|Tactical"
+                r5f_setting_ffa_give_ultimate               "bool|Ultimate"
+                r5f_setting_flowstateRandomCharacterOnSpawn "bool|Random legend on spawn"
+                r5f_setting_flowstateDoorsEnabled           "bool|Doors"
+
                 name            "FFA"
                 description     "Free for all. Timed rounds. First to the score limit or time expires."
                 about_text      "Everyone for themselves. Rounds reset like 1v1."
@@ -2407,6 +2477,12 @@ playlists
            inherit freedm_base
            vars
            {
+				// Host settings: the launcher builds its server form from these.
+				r5f_setting_scorelimit                         "int 5 100|Score limit"
+				r5f_setting_gungame_score_assists              "bool|Assists score"
+				r5f_setting_freedm_gun_game_melee_reduce_point "bool|Melee kill demotes"
+				r5f_setting_gun_game_weapon_skip_enable        "bool|Weapon skip"
+
 				// Lobby + Mode select
 				name #GAME_MODE_GUNGAME
 				description #GUNGAME_DESCRIPTION
@@ -2589,6 +2665,11 @@ playlists
 		    inherit freedm_base
 		    vars
 		    {
+		        // Host settings: the launcher builds its server form from these.
+		        r5f_setting_scorelimit                           "int 100 2000|Score limit"
+		        r5f_setting_treasure_hunt_zone_hold_time         "float 15 300|Zone hold time"
+		        r5f_setting_treasure_hunt_should_heal_on_capture "bool|Heal on capture"
+
 		        visible                                 0
 		        is_limited_mode                         0
 		        ui_slot                                 mixtape
@@ -4853,6 +4934,12 @@ playlists
             inherit defaults
             vars
             {
+                // Host settings: the launcher builds its server form from these.
+                r5f_setting_survival_loot_enabled   "bool|Loot"
+                r5f_setting_sur_circle_start_paused "bool|Ring paused"
+                survival_loot_enabled               1
+                sur_circle_start_paused             0
+
                 name #EMPTY_STRING
                 description #PL_survival_squads_desc
                 image fw
@@ -4872,6 +4959,10 @@ playlists
             inherit survival
             vars
             {
+                // Host settings: the launcher builds its server form from these.
+                r5f_setting_loot_drones_spawn_count            "int 0 30|Loot drones"
+                r5f_setting_sur_bots_spawn_with_random_weapons "bool|Bots get random weapons"
+
                 r5f_mode_group                          apex
                 r5f_mode_family                         freeroam
                 r5f_mode_family_title                   "Free Roam"
@@ -5020,6 +5111,21 @@ playlists
             inherit survival_dev
             vars
             {
+                // Host settings: the launcher builds its server form from these.
+                r5f_setting_survival_loot_enabled              ""
+                r5f_setting_sur_circle_start_paused            ""
+                r5f_setting_loot_drones_spawn_count            ""
+                r5f_setting_sur_bots_spawn_with_random_weapons ""
+                r5f_setting_flowstateAutoChangeLevelEnable     "bool|Rotate maps"
+                r5f_setting_flowstateRoundsBeforeChangeLevel   "int 1 20|Rounds per map"
+                r5f_setting_rest_grace                         "float 0 30|Rest grace"
+                r5f_setting_default_shield_hp                  "int 0 125|Shield"
+                r5f_setting_enable_challenges                  "bool|Challenges"
+                r5f_setting_challenge_legends                  "bool|Challenge legends"
+                r5f_setting_player_collision_enabled           "bool|Player collision"
+                r5f_setting_flowstateKickHighPingPlayer        "bool|Kick high ping"
+                r5f_setting_flowstateMaxPingAllowed            "int 50 500|Max ping"
+
                 aimassist_player_tune_allowed           0
                 r5f_mode_group                          flowstate
                 r5f_mode_family                         1v1
@@ -5149,7 +5255,7 @@ playlists
                 ibmm_wait_limit                         30
 
                 afk_to_rest_bool                        1
-                enable_ping_kick                        0
+                enable_ping_kick                        1
                 enable_afk_thread                       0
 
                 custom_1v1_weapons_primary              ""
@@ -5166,6 +5272,10 @@ playlists
                 enable_challenges                       1
                 give_legend_tactical                    0
                 give_legend                             0
+                // Accepted challenges pick legends and play them with tactical and ultimate.
+                challenge_legends                       1
+                challenge_legend_pick_time              10
+                charselect_per_player_state             1
                 challenge_recap_server_message          0
                 custom_weapons_challenge_only           1
 
@@ -5226,6 +5336,20 @@ playlists
             inherit survival_dev
             vars
             {
+                // Host settings: the launcher builds its server form from these.
+                r5f_setting_survival_loot_enabled              ""
+                r5f_setting_sur_circle_start_paused            ""
+                r5f_setting_loot_drones_spawn_count            ""
+                r5f_setting_sur_bots_spawn_with_random_weapons ""
+                r5f_setting_flowstateAutoChangeLevelEnable     "bool|Rotate maps"
+                r5f_setting_flowstateRoundsBeforeChangeLevel   "int 1 20|Rounds per map"
+                r5f_setting_rest_grace                         "float 0 30|Rest grace"
+                r5f_setting_default_shield_hp                  "int 0 125|Shield"
+                r5f_setting_enable_challenges                  "bool|Challenges"
+                r5f_setting_player_collision_enabled           "bool|Player collision"
+                r5f_setting_flowstateKickHighPingPlayer        "bool|Kick high ping"
+                r5f_setting_flowstateMaxPingAllowed            "int 50 500|Max ping"
+
                 aimassist_player_tune_allowed           0
                 r5f_mode_group                          flowstate
                 r5f_mode_family                         1v1
@@ -5343,7 +5467,7 @@ playlists
                 ibmm_wait_limit                         30
 
                 afk_to_rest_bool                        1
-                enable_ping_kick                        0
+                enable_ping_kick                        1
                 enable_afk_thread                       0
 
                 custom_1v1_weapons_primary              ""
@@ -5398,6 +5522,202 @@ playlists
         }
 
         ///////////////////////////////////////////////////////////////////////////////////
+        //// Flowstate fs_scenarios (team fights, one realm per fight, on the fs_1v1 shell)
+        ///////////////////////////////////////////////////////////////////////////////////
+        fs_scenarios
+        {
+            inherit survival_dev
+            vars
+            {
+                r5f_setting_survival_loot_enabled              ""
+                r5f_setting_sur_circle_start_paused            ""
+                r5f_setting_loot_drones_spawn_count            ""
+                r5f_setting_sur_bots_spawn_with_random_weapons ""
+
+                aimassist_player_tune_allowed           0
+                r5f_mode_group                          flowstate
+                r5f_mode_family                         scenarios
+                r5f_mode_family_title                   "Zone Wars"
+                r5f_mode_family_order                   22
+                r5f_mode_family_blurb                   "Squad fights with legends, loot and a closing ring."
+                r5f_mode                                1
+                r5f_mode_order                          22
+                r5f_mode_title                          "Zone Wars"
+                r5f_mode_blurb                          "Squad fights with legends, loot and a closing ring."
+                visible                                 1
+                name                                    "Zone Wars"
+                description                             "Zone Wars"
+                abbreviation                            "ZW"
+                lobbytitle                              "Zone Wars"
+                character_valkyrie hide
+                character_newcastle hide
+                map_name                                ""
+                gamemode_logo                           BATTLE_ROYALE
+                emblem                                  emblem_fs_scenarios
+
+                image                                   worlds_edge
+                video                                   worlds_edge
+                panel_image                             panel_worlds_edge
+                battlechatter_enabled                   1
+
+                // max_team_size is the fight team size: the squad HUD reads it.
+                max_team_size                           2
+                max_teams                               120
+                max_players                             120
+                min_players                             0
+                matchmake_from_match                    0
+                cmdlineMapLoad                          0
+
+                bleedout_enabled                        1
+                survival_revive_enabled                 1
+                emotes_enable                           0
+                holosprays_enabled                      0
+
+                fs_1v1_use_realms                       1
+                squad_mute_intro_enable                 0
+                squad_mute_legend_select_enable         0
+
+                is_elimination_based                    0
+                spectator_enabled                       0
+
+                waiting_for_players_spawning_enabled    1
+                waiting_for_players_countdown_seconds   0
+                waiting_for_players_timeout_seconds     1
+                character_select_time_min               0
+                character_select_time_max               0
+                charselect_picking_delay_after_all      0
+                charselect_outro_transition_duration    1.0
+                survival_firingrange                    0
+                character_reselect_enabled              0
+                survival_enable_squad_intro             0
+                survival_enable_gladiator_intros        0
+                survival_hide_character_select_room     1
+                charselect_outro_champion_present_duration 8.0
+                jump_from_plane_enabled                 0
+                match_ending_enabled                    0
+
+                // Each fight picks its legends while other fights play.
+                charselect_per_player_state             1
+
+                // Every fight owns a ring on its realm slot; the BR ring stays off.
+                sur_circle_start_paused                 1
+                deathfield_ringOpacityOverrideEnabled   0
+                deathfield_enforced_ring_lethality_enabled 0
+
+                replay_enabled                          1
+
+                default_shield_hp                       100
+                skydive_ziplines_enabled                1
+                survival_loot_enabled                   0
+                survival_block_lootbin_creation         1
+                crafting_enabled                        0
+                crafting_midgame_airdrop_enabled        0
+                airdrop_enabled                         0
+
+                survival_jumpkit_enabled                0
+                survival_wallrun_enabled                0
+                survival_infinite_ammo                  0
+
+                flowstateForceCharacter                 0
+                give_legend                             0
+                give_legend_tactical                    0
+
+                flowstateAutoChangeLevelEnable          0
+                flowstateRoundsBeforeChangeLevel        2
+                rotate_map                              0
+
+                flowstateAdminTgive                     0
+                flowstateRoundtime                      900
+
+                passive_upgrade_core_enabled            0
+                character_select_upgrade_tree_enabled   0
+                compass_flat_enabled                    0
+                fullmap_enabled                         1
+
+                show_short_champion_screen              1
+                flowstateDoorsEnabled                   0
+                flowstateReloadTacticalOnRespawn        1
+                flowstateReloadUltimateOnRespawn        0
+                flowstateGiveAllOpticsToPlayer          0
+                damage_slowdown_enabled                 1
+                allowSpectatingEnemySquad               0
+                flowstateBattleLogEnable                0
+                flowstateKickHighPingPlayer             0
+                flowstateMaxPingAllowed                 300
+                respawn_delay                           3
+                flowstate_allow_cfgs                    0
+
+                COMMAND_RATE_LIMIT                      0.200
+
+                default_ibmm_wait                       0
+                ibmm_wait_limit                         0
+
+                afk_to_rest_bool                        1
+                enable_ping_kick                        0
+                enable_afk_thread                       0
+
+                enable_challenges                       0
+                custom_weapons_challenge_only           0
+                fs_1v1_locked_set                       "blue"
+                customAttachments                       ""
+
+                rest_grace                              5.0
+                custom_match_ending_title               "Match complete"
+                custom_match_ending_message             "Server is changing maps."
+                give_weapon_stack_count_amount          3
+                player_collision_enabled                1
+
+                // Host settings: the launcher builds its server form from these.
+                r5f_setting_fs_scenarios_teamAmount              "int 2 5|Teams"
+                r5f_setting_max_team_size                        "int 1 5|Squad size"
+                r5f_setting_flowstateRoundtime                   "int 300 3600|Round length"
+                r5f_setting_fs_scenarios_ringclosing_maxtime     "int 30 300|Ring close time"
+                r5f_setting_fs_scenarios_ring_damage             "int 5 100|Ring damage"
+                r5f_setting_fs_scenarios_characterselect_enabled "bool|Legend select"
+                r5f_setting_fs_scenarios_inventory_empty         "bool|Start empty-handed"
+                r5f_setting_fs_scenarios_ground_loot             "bool|Ground loot"
+                r5f_setting_fs_scenarios_ground_loot_count       "int 0 64|Ground loot items"
+                r5f_setting_fs_scenarios_lootbins                "bool|Loot bins"
+                r5f_setting_fs_scenarios_doors                   "bool|Doors"
+                r5f_setting_fs_scenarios_deathboxes_enabled      "bool|Death boxes"
+                r5f_setting_fs_scenarios_max_queuetime           "int 10 120|Max queue wait"
+                r5f_setting_fs_scenarios_allow_teams             "bool|Premade teams"
+                fs_scenarios_teamAmount                 3
+                fs_scenarios_max_queuetime              12
+                fs_scenarios_max_queuetime_low          8
+                fs_scenarios_min_players_forced_match   2
+                fs_scenarios_forcegame_enabled          1
+                fs_scenarios_characterselect_enabled    1
+                fs_scenarios_characterselect_time_per_player 3.5
+                fs_scenarios_game_start_time_delay      3
+                fs_scenarios_default_radius_padding     500
+                fs_scenarios_zonewars_ring_ringclosingspeed 1.0
+                fs_scenarios_ringclosing_maxtime        100
+                fs_scenarios_ring_damage                25
+                fs_scenarios_ring_damage_step_time      1.5
+                fs_scenarios_inventory_empty            0
+                fs_scenarios_kit_sets                   "blue purple"
+                fs_scenarios_gold_weapon_per_fight      1
+                fs_scenarios_ground_loot                1
+                fs_scenarios_lootbins                   1
+                fs_scenarios_doors                      1
+                fs_scenarios_loot_group                 "Zone_High"
+                fs_scenarios_ground_loot_count          24
+                fs_scenarios_deathboxes_enabled         1
+                fs_scenarios_allow_teams                1
+                fs_scenarios_min_locations              16
+
+                spawnpaks_preferred_pak                 0
+                custom_spawnpak                         ""
+                custom_playlist_spawnpak                ""
+                fs_spawns_use_rpak                      1
+            }
+            gamemodes { fs_1v1 { maps {
+                mp_rr_district_mu1                      1
+            } } }
+        }
+
+        ///////////////////////////////////////////////////////////////////////////////////
         //// Flowstate fs_movement_recorder (free roam + movement recorder bots)
         ///////////////////////////////////////////////////////////////////////////////////
         fs_movement_recorder
@@ -5437,6 +5757,17 @@ playlists
             inherit survival_dev
             vars
             {
+                // Host settings: the launcher builds its server form from these.
+                r5f_setting_survival_loot_enabled              ""
+                r5f_setting_sur_circle_start_paused            ""
+                r5f_setting_loot_drones_spawn_count            ""
+                r5f_setting_sur_bots_spawn_with_random_weapons ""
+                r5f_setting_flowstateRoundtime                 "float 120 3600|Round length"
+                r5f_setting_flowstateAutoChangeLevelEnable     "bool|Rotate maps"
+                r5f_setting_flowstateRoundsBeforeChangeLevel   "int 1 20|Rounds per map"
+                r5f_setting_respawn_delay                      "float 0 15|Respawn delay"
+                r5f_setting_player_collision_enabled           "bool|Player collision"
+
                 r5f_mode_group                          flowstate
                 r5f_mode_family                         instagib
                 r5f_mode_family_title                   "Instagib"
@@ -5531,14 +5862,134 @@ playlists
         }
 
         ///////////////////////////////////////////////////////////////////////////////////
-        //// Map Editor -- co-op prop building sandbox. Console only: `playlist map_editor`.
+        //// Flowstate Arenas (bridge port) -- 3v3 round-based, buy phase + combat
+        ///////////////////////////////////////////////////////////////////////////////////
+        fs_arenas
+        {
+            inherit survival_dev
+            vars
+            {
+                // Host settings: the launcher builds its server form from these.
+                r5f_setting_survival_loot_enabled              ""
+                r5f_setting_sur_circle_start_paused            ""
+                r5f_setting_loot_drones_spawn_count            ""
+                r5f_setting_sur_bots_spawn_with_random_weapons ""
+                r5f_setting_arenas_shop_duration               "float 10 90|Buy phase length"
+                r5f_setting_arenas_kill_reward                 "int 0 500|Kill reward"
+                r5f_setting_bleedout_enabled                   "bool|Knockdowns"
+
+                r5f_mode_group                          flowstate
+                r5f_mode_family                         arenas
+                r5f_mode_family_title                   "Arenas"
+                r5f_mode_family_order                   22
+                r5f_mode_family_blurb                   "3v3 round-based. Buy your loadout, win three rounds."
+                r5f_mode                                1
+                r5f_mode_order                          22
+                r5f_mode_title                          "Arenas"
+                r5f_mode_blurb                          "3v3 round-based. Buy your loadout, win three rounds."
+                visible                                 1
+                name                                    "ARENAS"
+                description                             "Arenas"
+                abbreviation                            "Arenas"
+                lobbytitle                              "Arenas"
+                map_name                                "Arenas"
+                gamemode_logo                           BATTLE_ROYALE
+                emblem                                  emblem_fs_arenas
+
+                image                                   worlds_edge
+                video                                   worlds_edge
+                panel_image                             panel_worlds_edge
+                battlechatter_enabled                   1
+
+                // Every arenas script gates on this var; IsArenaMode() reads it.
+                arenas_mode                             1
+                deathfield_enforced_ring_lethality_enabled    0
+                arenas_shop_duration                    30.0
+                arenas_kill_reward                      75
+                arenas_available_weapon_rows            4
+                arenas_available_weapon_columns         5
+
+                max_team_size                           3
+                max_players                             6
+                min_players                             6
+                matchmake_from_match                    0
+
+                bleedout_enabled                        1
+                emotes_enable                           1
+                holosprays_enabled                      1
+                is_elimination_based                    0
+                spectator_enabled                       1
+                player_collision_enabled                0
+
+                waiting_for_players_spawning_enabled    0
+                waiting_for_players_countdown_seconds   0
+                waiting_for_players_timeout_seconds     1
+                waiting_for_players_timeout_force       0
+                character_select_time_min               3
+                character_select_time_max               4
+                charselect_picking_delay_after_all      0.5
+                survival_firingrange                    0
+                character_reselect_enabled              0
+                survival_enable_squad_intro             0
+                survival_enable_gladiator_intros        0
+                survival_hide_character_select_room     0
+                jump_from_plane_enabled                 0
+                match_ending_enabled                    0
+                roundtimelimit                          0
+                ultimates_chargeovertime_enabled        0
+                charselect_picking_delay_on_first       0.5
+                charselect_picking_delay_after_each_lock 0.25
+                charselect_intro_transition_duration    1.5
+                charselect_outro_scene_change_duration  2.0
+                charselect_outro_squad_present_duration 3.0
+                music_override_charselect               Music_CharacterSelect_Arenas
+                music_override_skydive                  Music_Intro_Loadout_Arenas
+                maplist                                 "mp_rr_arena_composite,mp_rr_arena_phase_runner,mp_rr_arena_habitat,mp_rr_arena_skygarden,mp_rr_party_crasher"
+
+                sur_circle_start_paused                 1
+                deathfield_start_enabled                1
+                survival_loot_enabled                   0
+                survival_block_lootbin_creation         1
+                crafting_enabled                        0
+                crafting_midgame_airdrop_enabled        0
+                airdrop_enabled                         0
+                survival_jumpkit_enabled                0
+                survival_wallrun_enabled                0
+                skydive_ziplines_enabled                0
+                replay_enabled                          0
+
+                passive_upgrade_core_enabled            0
+                character_select_upgrade_tree_enabled   0
+                fullmap_enabled                         1
+                compass_flat_enabled                    0
+            }
+            gamemodes { fs_arenas { maps {
+                mp_rr_arena_composite                   1
+                mp_rr_arena_phase_runner                1
+                mp_rr_arena_habitat                     1
+                mp_rr_arena_skygarden                   1
+                mp_rr_party_crasher                     1
+            } } }
+        }
+
+        ///////////////////////////////////////////////////////////////////////////////////
+        //// Map Editor -- co-op prop building sandbox
         ///////////////////////////////////////////////////////////////////////////////////
         map_editor
         {
             inherit survival_dev
             vars
             {
-                visible                                 0
+                r5f_mode_group                          flowstate
+                r5f_mode_family                         mapeditor
+                r5f_mode_family_title                   "Map Editor"
+                r5f_mode_family_order                   30
+                r5f_mode_family_blurb                   "Build, script and test in the world itself."
+                r5f_mode                                1
+                r5f_mode_order                          30
+                r5f_mode_title                          "MAP EDITOR"
+                r5f_mode_blurb                          "Interactive map editor."
+                visible                                 1
                 name                                    "MAP EDITOR"
                 description                             "Build together. Place props, save your work."
                 abbreviation                            "EDIT"
@@ -5584,6 +6035,50 @@ playlists
                 mp_rr_party_crasher                     1
                 mp_rr_thunderdome                       1
                 mp_rr_tropic_island_mu2                 1
+            } } }
+        }
+
+        fs_chronicle
+        {
+            inherit survival_dev
+            vars
+            {
+                r5f_mode_group                          apex
+                r5f_mode_family                         chronicle
+                r5f_mode_family_title                   "Chronicles"
+                r5f_mode_family_order                   96
+                r5f_mode_family_blurb                   "Story courses. One legend, one route, no match running."
+                r5f_mode                                0
+                r5f_mode_order                          41
+                r5f_mode_title                          "LOBA CHRONICLE"
+                r5f_mode_map                            mp_rr_salham
+                r5f_mode_blurb                          "Solo obstacle course. Reach the end of the facility."
+                visible                                 1
+
+                name                                    "LOBA CHRONICLE"
+                description                             "Solo obstacle course. Reach the end of the facility."
+                abbreviation                            "CHR"
+                lobbytitle                              "Loba Chronicle"
+                map_name                                "Loba Chronicle"
+                gamemode_logo                           BATTLE_ROYALE
+
+                // The S21 script tree keeps its Chronicle branches behind this var:
+                // HUD trims, no drop, translocation safety on the fall trigger, p0/p1 mods.
+                is_event_finale                         1
+                // The Chronicle facility ships no overview art; keep the empty map off.
+                fullmap_enabled                         0
+
+                survival_loot_enabled                   0
+                loot_drones_spawn_count                 0
+                loot_drones_vault_key_count             0
+                sur_circle_start_paused                 1
+                jump_from_plane_enabled                 0
+                match_ending_enabled                    0
+                character_valkyrie hide
+                character_newcastle hide
+            }
+            gamemodes { survival { maps {
+                mp_rr_salham                            1
             } } }
         }
 

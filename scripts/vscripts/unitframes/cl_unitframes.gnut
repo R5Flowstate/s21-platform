@@ -9,6 +9,7 @@ global function OnPlayerEquippedWeaponChanged
 
 global function UnitFrame_GetOwnerByIndex
 global function UnitFrame_SetConsumableIconForPlayer
+global function UnitFrame_OnPlayerInputDeviceChanged
 
 global function AddCallback_OnTeamUnitFrameCreated
 global function AddCallback_OnTeamUnitFrameDestroyed
@@ -687,8 +688,7 @@ void function SetUnitFrameDataFromOwner( var rui, entity ent, entity localPlayer
 	RuiTrackFloat( rui, "targetHealthFrac", ent, RUI_TRACK_STATUS_EFFECT_TOTAL_SEVERITY, eStatusEffect.target_health )
 	RuiTrackFloat( rui, "targetHealthFracTemp", ent, RUI_TRACK_HEAL_TARGET )
 
-	string platformString = CrossplayUserOptIn() ? PlatformIDToIconString( GetHardwareFromName( ent.GetHardwareName() ) ) : ""
-	RuiSetString( rui, "platformString", platformString )
+	RuiSetString( rui, "platformString", PlayerInputIconString( ent ) )
 
 	bool showBleedoutTimer = true
 
@@ -820,6 +820,16 @@ void function SetUnitFrameConsumableData( var rui, entity ent, int ornull kitTyp
 	RuiSetFloat( rui, "consumableStartTime", startTime )
 	RuiSetFloat( rui, "consumableEndTime", endTime )
 	RuiSetBool( rui, "consumablePanelVisible", hudIcon != $"" && endTime > 0 )
+}
+
+void function UnitFrame_OnPlayerInputDeviceChanged( entity player, bool isMnk )
+{
+	if ( !( player in file.teamUnitFrames ) )
+		return
+
+	var rui = file.teamUnitFrames[player].rui
+	if ( rui != null )
+		RuiSetString( rui, "platformString", PlayerInputIconString( player ) )
 }
 
 void function OnInUseHealingKitTypeChanged( entity player, int kitType )

@@ -52,6 +52,7 @@ global const GRENADE_INDICATOR_STALKER_MODEL = $"mdl/hud/grenade_indicator/bang_
 global const GRENADE_INDICATOR_SKULL_MODEL = $"mdl/hud/grenade_indicator/grenade_indicator_skull.rmdl"
 global const GRENADE_INDICATOR_PHASE_DOOR = $"mdl/hud/grenade_indicator/grenade_indicator_alter_portal.rmdl"
 global const GRENADE_INDICATOR_AXLE_ULT = $"mdl/weapons/overdrive_ult_drone/axle_ult_drone_threat_indicator.rmdl"
+global const GRENADE_INDICATOR_ARCO_ULT = $"mdl/props/single_joint_props/sparrow_kit_ult_arrow_threat_indicator.rmdl"
 global const GRENADE_MODEL = $"mdl/weapons/grenades/m20_f_grenade.rmdl"
 global const DAMAGEARROW_MODEL = $"mdl/weapons/bullets/damage_arrow.rmdl"
 
@@ -68,6 +69,7 @@ global enum eThreatIndicatorID
 	GRENADE_INDICATOR_SKULL_MODEL,
 	GRENADE_INDICATOR_PHASE_DOOR,
 	GRENADE_INDICATOR_AXLE_ULT,
+	GRENADE_INDICATOR_ARCO_ULT,
 }
 
 global enum eThreatIndicatorVisibility

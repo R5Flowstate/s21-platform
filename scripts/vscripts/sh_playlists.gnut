@@ -67,6 +67,7 @@ global const table<string, string> MAP_DISPLAY_NAMES = {
 	[ "mp_rr_district" ]                = "E-District",
 	[ "mp_rr_district_mu1" ]            = "E-District",
 	[ "mp_rr_canyonlands_staging_mu1" ] = "Firing Range",
+	[ "mp_rr_canyonlands_staging" ]     = "Firing Range (Classic)",
 	[ "mp_rr_party_crasher" ]           = "Party Crasher",
 	[ "mp_rr_thunderdome" ]             = "Thunderdome",
 	[ "mp_rr_arena_habitat" ]           = "Habitat",
@@ -1326,7 +1327,9 @@ const table<string, asset> GAMEMODE_EMBLEM_MAP = {
 
 	emblem_fs_1v1 = $"rui/flowstatecustom/1v1",
 	emblem_fs_instagib = $"rui/flowstatecustom/cafesinstagib",
+	emblem_fs_arenas = $"rui/rui_screens/arenas_logo",
 	emblem_map_editor = $"rui/flowstatecustom/generic_ltm",
+	emblem_fs_scenarios = $"rui/flowstatecustom/generic_ltm",
 
                               
                                                                       

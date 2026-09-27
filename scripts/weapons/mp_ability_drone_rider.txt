@@ -10,6 +10,7 @@
 	"offhand_active_slot" "mainHand"
 	"offhand_keep_primary_in_hand" "0"
 	"offhand_holster_primary" "1"
+	"offhand_deactivate_on_jump_toggle_or_release" "1"
 	"fast_swap_from" "1"
 	"instant_swap_to" "1"
 	"offhand_instant_swap_to_offhand" "1"

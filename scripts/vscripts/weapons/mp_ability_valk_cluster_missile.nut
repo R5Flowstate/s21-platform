@@ -8,43 +8,46 @@ global function OnWeaponDeactivate_ability_valk_cluster_missile
 #if CLIENT
 global function OnClientAnimEvent_ability_valk_cluster_missile
 global function ValkTacShowTargetLocsThread
+global function ClusterMissile_EntityShouldBeHighlighted
 #endif
-
-#if SERVER
-global function ShowFinalLocsThread
-#endif
-
-
 
 // Ability settings -- should these go into the txt instead?
 
-const float MAX_ATTACK_RANGE = 16000.0 // max range from current position that barrage can start
-const float MIN_ATTACK_RANGE = 500.0 // for safety: minimum range
+const float MAX_ATTACK_RANGE = 125.0 * METERS_TO_INCHES // max range from current position that barrage can start
+const float MIN_ATTACK_RANGE = 400.0 // for safety: minimum range
 const float MIN_TRAVEL_TIME = 2.0
-const float MAX_TRAVEL_TIME = 6.0
+const float MAX_TRAVEL_TIME = 4.0
+const float MAX_ATTACK_RANGE_IN_SKYDIVE = 250.0 * METERS_TO_INCHES
+const float MIN_TRAVEL_TIME_IN_SKYDIVE = 0.3
+const float MAX_TRAVEL_TIME_IN_SKYDIVE = 5.0
+const int SIDE_STEPS_UPGRADED = 3
+const int FORWARD_STEPS_UPGRADED = 4
+const float FANOUT_ON_LAUNCH = 0.1
+const float FANOUT_ON_LAUNCH_UPGRADED = 0.06
+const float HIGHLIGHT_DURATION = 1.5
 const int SIDE_STEPS = 2
 const int FORWARD_STEPS = 4
 // Total number of rockets = ((1 + (sideSteps *2)) * (forwardSteps+1))
-const float STEP_HEIGHT = 300.0 // how far we step up before stepping to the side or forward
-const float STEP_SIDE = 155.0 // how far we step to the side
-const float STEP_FORWARD = 300.0 // how far we step forward
-const float MISSILE_SPEED = 1200 // max speed
+const float STEP_HEIGHT = 250.0 // how far we step up before stepping to the side or forward
+const float STEP_SIDE = 163.16 // how far we step to the side
+const float STEP_FORWARD = 185.0 // how far we step forward
+const float MISSILE_SPEED = 1600 // max speed
 const float MISSILE_APEX_HEIGHT = 400
 const float GRENADE_LOB_TIME = 0.75
 
 const float STUN_DURATION = 2.0
 const float STUN_EASEOUT = 1.5
 
-const float STUN_MOVESLOW = 0.5
+const float STUN_MOVESLOW = 0.75
 const float STUN_TURNSLOW = 0.0
 
-const float EXPLOSION_DAMAGE = 25
-const float EXPLOSION_FOLLOWUP_FACTOR = 0.15 // percentage of full damage you take from rockets beyond the first
+const float EXPLOSION_DAMAGE = 15
+const float EXPLOSION_FOLLOWUP_FACTOR = 0.2 // percentage of full damage you take from rockets beyond the first
 const float EXPLOSION_FOLLOWUP_TIME = 5 // amount of time since the last hit; if less than this, take reduced dmg
-const float EXPLOSION_RADIUS = 125
+const float EXPLOSION_RADIUS = 150
 
 const float IN_ROW_DELAY = 0.05
-const float ROW_TO_ROW_DELAY = 0.3
+const float ROW_TO_ROW_DELAY = 0.15
 
 const float INITIAL_DELAY = 0.75 // delay before the first missile flies off
 
@@ -61,6 +64,7 @@ struct {
 	#endif
 	#if CLIENT
 		array<entity> valkTacWarnEntities
+		table<entity, float> playerHighlightEndTime
 	#endif
 
 } file
@@ -70,34 +74,38 @@ struct ValkMissileInfo
 	float  missileSpeed
 	vector phase1Vector
 	vector phase2Vector
+	vector phase3Vector
 	vector firePos
 	vector targetPos
 	float  phase1Time
 	float  phase1To2Time
 	float  phase2Time
 	float  phase2To3Time
+	float  phase3ToTarTime
 }
 
-array< int > fanAdjustments =
+array< float > fanAdjustments =
 [
-	-1,
-	1,
-	-2,
-	2,
-	-3,
-	3,
-	-4,
-	4,
-	-5,
-	5,
-	-6,
-	6
-
-	,
-	-7,
-	7,
-	-8
-
+	-1.0,
+	1.0,
+	-2.0,
+	2.0,
+	-3.0,
+	3.0,
+	-4.0,
+	4.0,
+	-5.0,
+	5.0,
+	-6.0,
+	6.0,
+	-7.0,
+	7.0,
+	-8.0,
+	8.0,
+	-9.0,
+	10.0,
+	-11.0,
+	11.0
 ]
 
 
@@ -122,7 +130,7 @@ const asset FX_MUZZLE_FLASH_FP = $"P_wpn_mflash_bang_rocket_FP"
 const asset FX_MUZZLE_FLASH_3P = $"P_wpn_mflash_bang_rocket"
 const asset MISSILE_TRAIL = $"P_valk_rckt_stg2"
 const asset GRENADE_TRAIL = $"P_valk_rckt_stg1"
-const asset ROCKET_PROJECTILE = $"mdl/weapons/bullets/projectile_rocket_launcher_sram.rmdl"
+const asset ROCKET_PROJECTILE = $"mdl/humans_r5/pilots_r5/pilot_valkyrie/w_valkyrie_rocket_projectile.rmdl"
 
 void function MpAbilityValkClusterMissile_Init()
 {
@@ -141,6 +149,9 @@ void function MpAbilityValkClusterMissile_Init()
 	#endif
 	#if CLIENT
 		AddTargetNameCreateCallback( VALK_TAC_WARNING_ENTITY, ValkTacAddWarning )
+		AddLocalPlayerDidDamageCallback( ClusterMissile_OnLocalPlayerDidDamage )
+		StatusEffect_RegisterEnabledCallback( eStatusEffect.valk_tac_scan, ClusterMissile_UpdateHighlightOnStatusEffectChange )
+		StatusEffect_RegisterDisabledCallback( eStatusEffect.valk_tac_scan, ClusterMissile_UpdateHighlightOnStatusEffectChange )
 	#endif //CLIENT
 
 
@@ -183,6 +194,9 @@ void function ValkTac_OnEntityDamagedByPlayer( entity hitEnt, var damageInfo )
 		}
 	}
 
+	if( IsForgedShadowsShield( hitEnt ) )
+		hitEnt = hitEnt.GetOwner()
+
 	if ( hitEnt.IsPlayer() || hitEnt.IsNPC() )
 	{
 		// Players and NPCs are also stunned
@@ -193,10 +207,42 @@ void function ValkTac_OnEntityDamagedByPlayer( entity hitEnt, var damageInfo )
 			EmitSoundOnEntityOnlyToPlayer( hitEnt, hitEnt, "Arcstar_visualimpair" )
 
 		thread EMP_FX( FX_EMP_BODY_HUMAN, hitEnt, "CHESTFOCUS", STUN_DURATION )
+		StatusEffect_AddTimed( hitEnt, eStatusEffect.valk_tac_scan, 1.0, HIGHLIGHT_DURATION, 0.0 )
 
-		if ( ( !recentlyHitPlayer ) && IsValidTacticalDamageStatTarget( valk, hitEnt ) )
+		if (( !recentlyHitPlayer ) && IsValidTacticalDamageStatTarget( valk, hitEnt ))
 			StatsHook_ValkClusterMissileHits( valk )
 	}
+}
+#endif
+
+#if CLIENT
+bool function ClusterMissile_EntityShouldBeHighlighted( entity viewPlayer, entity hitPlayer )
+{
+	if ( !( hitPlayer in file.playerHighlightEndTime ) || file.playerHighlightEndTime[ hitPlayer ] < Time() )
+		return false
+
+	return StatusEffect_HasSeverity( hitPlayer, eStatusEffect.valk_tac_scan )
+}
+
+void function ClusterMissile_OnLocalPlayerDidDamage( entity attacker, entity target, vector damagePosition, int damageType, float damageAmount )
+{
+	if ( !IsAlive( attacker ) || !attacker.IsPlayer() || !IsValid( target ) )
+		return
+
+	if ( !target.IsPlayer() && !target.IsNPC() )
+		return
+
+	if ( attacker == target || !PlayerHasPassive( attacker, ePassives.PAS_VALK ) )
+		return
+
+	file.playerHighlightEndTime[ target ] <- Time() + HIGHLIGHT_DURATION
+	if ( StatusEffect_HasSeverity( target, eStatusEffect.valk_tac_scan ) )
+		ManageHighlightEntity( target )
+}
+
+void function ClusterMissile_UpdateHighlightOnStatusEffectChange( entity ent, int statusEffect, bool actuallyChanged )
+{
+	ManageHighlightEntity( ent )
 }
 #endif
 
@@ -248,7 +294,95 @@ void function ValkTac_CheckForReasonToDeactivate( entity weapon )
 	if ( valk.GetActiveWeapon( eActiveInventorySlot.mainHand ) == weapon )
 		SwapToLastEquippedPrimary( valk )
 }
+#endif
 
+void function OnWeaponDeactivate_ability_valk_cluster_missile( entity weapon )
+{
+	entity owner = weapon.GetOwner()
+	if ( IsValid( owner ) )
+		owner.Signal( "ValkTacTargetingEnd" )
+
+	#if CLIENT
+		if ( !InPrediction() || !IsFirstTimePredicted() )
+			return
+	#endif
+
+	if ( weapon.HasMod( "block_melee_when_shooting" ) )
+		weapon.RemoveMod( "block_melee_when_shooting" )
+}
+
+// pass in the weapon
+// this can be rewritten to be way simpler because we don't have jetpack anymore
+#if CLIENT
+void function ValkTacShowTargetLocsThread( entity owner, entity weapon )
+{
+	EndSignal( owner, "ValkTacTargetingEnd", "OnDeath" )
+	EndSignal( weapon, "OnDestroy" )
+	array<int> vfxRefs = []
+
+	OnThreadEnd( void function() : ( vfxRefs ) {
+		foreach ( ref in vfxRefs )
+		{
+			CleanupFXHandle( ref, true, false )
+		}
+	} )
+
+	// Create 12 target circles
+
+	int systemIndex = GetParticleSystemIndex( FX_BOMBARDMENT_MARKER )
+
+	array<WeaponMissileMultipleTargetData> targetLocs = GetValkTacTargets( weapon, owner )
+	vector normalAngle
+
+	for ( int i = 0; i < targetLocs.len(); i++ )
+	{
+		WeaponMissileMultipleTargetData res = targetLocs[i]
+
+		normalAngle = VectorToAngles( res.normal )
+		normalAngle = FlattenVec( normalAngle )
+		int thisRef = StartParticleEffectInWorldWithHandle( systemIndex, res.pos, normalAngle )
+		// Fix for R5DEV-253916
+		EffectSetDistanceCullingScalar( thisRef, 999.0 )
+		vfxRefs.append( thisRef )
+	}
+
+	// Until this thread is killed, update their locations and orientations
+	while ( true )
+	{
+		targetLocs = GetValkTacTargets( weapon, owner )
+
+		for ( int i = 0; i < targetLocs.len() && i < vfxRefs.len(); i++ )
+		{
+			WeaponMissileMultipleTargetData res = targetLocs[i]
+			normalAngle = VectorToAngles( res.normal )
+			EffectSetControlPointVector( vfxRefs[i], 0, res.pos )
+			EffectSetControlPointAngles( vfxRefs[i], 0, normalAngle )
+		}
+		WaitFrame()
+	}
+}
+#endif
+
+array<WeaponMissileMultipleTargetData> function GetValkTacTargets( entity weapon, entity owner )
+{
+	vector attackDir = weapon.GetAttackDirection()
+	vector attackPos = weapon.GetAttackPosition()
+	int forwardSteps = FORWARD_STEPS
+	int sideSteps = SIDE_STEPS
+
+	if( owner.HasPassive( ePassives.PAS_EXTRA_SWARM_MISSILE ) )
+	{
+		forwardSteps = FORWARD_STEPS_UPGRADED
+		sideSteps = SIDE_STEPS_UPGRADED
+	}
+
+	float maxRange = owner.Player_IsSkydiving() ? MAX_ATTACK_RANGE_IN_SKYDIVE : MAX_ATTACK_RANGE
+	array<WeaponMissileMultipleTargetData> targetLocs = weapon.GetWeaponMissileMultipleTargets( attackPos, attackDir, owner, forwardSteps, sideSteps, STEP_FORWARD, STEP_SIDE, STEP_HEIGHT, INITIAL_DELAY, IN_ROW_DELAY, ROW_TO_ROW_DELAY, maxRange, MIN_ATTACK_RANGE )
+	return targetLocs
+}
+
+
+#if SERVER
 void function ShowFinalLocsThread( entity player, entity weapon )
 {
 	// this shows the locked in target locations for Valk's tactical to all players in game
@@ -291,127 +425,6 @@ void function ShowFinalLocsThread( entity player, entity weapon )
 	}
 }
 #endif
-
-void function OnWeaponDeactivate_ability_valk_cluster_missile( entity weapon )
-{
-	entity owner = weapon.GetOwner()
-	if ( IsValid( owner ) )
-		owner.Signal( "ValkTacTargetingEnd" )
-}
-
-// pass in the weapon
-// this can be rewritten to be way simpler because we don't have jetpack anymore
-#if CLIENT
-void function ValkTacShowTargetLocsThread( entity owner, entity weapon )
-{
-	EndSignal( owner, "ValkTacTargetingEnd", "OnDeath" )
-	EndSignal( weapon, "OnDestroy" )
-	array<int> vfxRefs = []
-
-	OnThreadEnd( void function() : ( vfxRefs ) {
-		foreach ( ref in vfxRefs )
-		{
-			CleanupFXHandle( ref, true, false )
-		}
-	} )
-
-	
-
-	int systemIndex = GetParticleSystemIndex( FX_BOMBARDMENT_MARKER )
-
-	array<WeaponMissileMultipleTargetData> targetLocs = GetValkTacTargets( weapon, owner )
-	vector normalAngle
-
-	for ( int i = 0; i < targetLocs.len(); i++ )
-	{
-		WeaponMissileMultipleTargetData res = targetLocs[i]
-
-		normalAngle = VectorToAngles( res.normal )
-		normalAngle = FlattenVec( normalAngle )
-		int thisRef = StartParticleEffectInWorldWithHandle( systemIndex, res.pos, normalAngle )
-		
-		EffectSetDistanceCullingScalar( thisRef, 999.0 )
-		vfxRefs.append( thisRef )
-	}
-
-	
-	while ( true )
-	{
-		targetLocs = GetValkTacTargets( weapon, owner )
-
-		for ( int i = 0; i < targetLocs.len() && i < vfxRefs.len(); i++ )
-		{
-			WeaponMissileMultipleTargetData res = targetLocs[i]
-			normalAngle = VectorToAngles( res.normal )
-			EffectSetControlPointVector( vfxRefs[i], 0, res.pos )
-			EffectSetControlPointAngles( vfxRefs[i], 0, normalAngle )
-		}
-		WaitFrame()
-	}
-}
-#endif
-
-array<WeaponMissileMultipleTargetData> function GetValkTacTargets( entity weapon, entity owner )
-{
-	vector attackDir = weapon.GetAttackDirection()
-	vector attackPos = weapon.GetAttackPosition()
-	int forwardSteps = FORWARD_STEPS
-	int sideSteps = SIDE_STEPS
-
-	array<WeaponMissileMultipleTargetData> targetLocs = GetWeaponMissileMultipleTargets( attackPos, attackDir, owner, forwardSteps, sideSteps, STEP_FORWARD, STEP_SIDE, STEP_HEIGHT, INITIAL_DELAY, IN_ROW_DELAY, ROW_TO_ROW_DELAY, MAX_ATTACK_RANGE, MIN_ATTACK_RANGE )
-	return targetLocs
-}
-
-array<WeaponMissileMultipleTargetData> function GetWeaponMissileMultipleTargets( vector attackPos, vector attackDir, entity owner, int forwardSteps, int sideSteps, float stepForward, float stepSide, float stepHeight, float initialDelay, float inRowDelay, float rowToRowDelay, float maxAttackRange, float minAttackRange )
-{
-	array<WeaponMissileMultipleTargetData> targetLocs
-
-	vector rightVec = CrossProduct( attackDir, Vector( 0, 0, 1 ) )
-	vector upVec = Vector( 0, 0, 1 )
-
-	float currentDelay = initialDelay
-
-	for ( int forwardIndex = 0; forwardIndex <= forwardSteps; forwardIndex++ )
-	{
-		for ( int sideIndex = -sideSteps; sideIndex <= sideSteps; sideIndex++ )
-		{
-			vector targetPos = attackPos
-			targetPos = targetPos + (attackDir * (forwardIndex * stepForward))
-			targetPos = targetPos + (rightVec * (sideIndex * stepSide))
-			targetPos = targetPos + (upVec * stepHeight)
-
-			// Trace down to ground to get actual impact point
-			vector traceStart = targetPos
-			vector traceEnd = targetPos - <0, 0, 20000>
-			TraceResults groundTrace = TraceLine( traceStart, traceEnd, [], TRACE_MASK_NPCWORLDSTATIC, TRACE_COLLISION_GROUP_NONE )
-
-			vector surfaceNormal = attackDir  // Default to attack direction
-			if ( groundTrace.fraction < 1.0 )
-			{
-				targetPos = groundTrace.endPos + <0, 0, 0.1>  // Small offset to prevent being inside ground
-				surfaceNormal = groundTrace.surfaceNormal
-			}
-
-			float distToTarget = Distance( attackPos, targetPos )
-
-			if ( distToTarget >= minAttackRange && distToTarget <= maxAttackRange )
-			{
-				WeaponMissileMultipleTargetData newTarget
-				newTarget.pos = targetPos
-				newTarget.normal = surfaceNormal
-				newTarget.delay = currentDelay
-
-				targetLocs.append( newTarget )
-
-				currentDelay += inRowDelay
-			}
-		}
-
-		currentDelay += rowToRowDelay
-	}
-
-	return targetLocs
-}
 
 vector function SanitizePos ( vector pos )
 {
@@ -481,11 +494,11 @@ void function RemoveTacWarnEntity( int grenadeHandle, entity owner )
 #if CLIENT
 void function ValkTacAddWarning( entity warnEntity )
 {
-	
+	//printt("valktacaddwarning")
 	file.valkTacWarnEntities.append( warnEntity )
 	thread Thread_WaitForWarnEntDeletion( warnEntity )
 
-	
+	// if we're going from 0 to 1, turn on the management thread
 	if ( file.valkTacWarnEntities.len() == 1 )
 		thread ValkTacManageThreatIndicator()
 }
@@ -566,7 +579,7 @@ void function ValkTacManageThreatIndicator()
 				continue
 
 			vector point = warningLoc.GetOrigin()
-			
+			//DebugDrawSphere( point, 25, <100, 0, 0>, true, 0.1 )
 			if ( firstLoop )
 			{
 				closestPoint = point
@@ -614,7 +627,7 @@ void function ValkTacManageThreatIndicator()
 			vector damageArrowAngles = AnglesInverse( localPlayer.EyeAngles() )
 			vector vecToDamage       = closestPoint - (localPlayer.EyePosition() + (localPlayer.GetViewVector() * 20.0))
 
-			
+			// reparent for embark/disembark
 			if ( arrow.GetParent() == null )
 				arrow.SetParent( cockpit, "CAMERA_BASE", true )
 
@@ -650,6 +663,7 @@ var function OnWeaponPrimaryAttack_valk_cluster_missile( entity weapon, WeaponPr
 	if ( attackParams.burstIndex == 0 )
 	{
 		// first rocket
+		weapon.AddMod( "block_melee_when_shooting" )
 		owner.Signal( "ValkTacTargetingEnd" )
 		#if CLIENT
 			ClientScreenShake( 10, 100, 0.5, attackDir )
@@ -667,7 +681,7 @@ var function OnWeaponPrimaryAttack_valk_cluster_missile( entity weapon, WeaponPr
 			thread ShowFinalLocsThread( owner, weapon )
 			PlayBattleChatterLineToSpeakerAndTeam( owner, "bc_valk_tactical" )
 			EmitSoundOnEntityExceptToPlayer( owner, owner, "Valk_ShoulderRocket_Fire_Comp_3P" )
-			EmitSoundOnEntityOnlyToPlayer( owner, owner, "Valk_ShoulderRocket_Fire_Comp_1P" ) // for spectators
+			EmitSoundOnEntityOnlyToPlayer_PredictedByPlayer( owner, owner, "Valk_ShoulderRocket_Fire_Comp_1P" ) // for spectators
 		#endif
 
 	}
@@ -687,7 +701,7 @@ var function OnWeaponPrimaryAttack_valk_cluster_missile( entity weapon, WeaponPr
 	if (weapon.w.valkTac_targetData.len() < 1)
 		return
 
-	if( attackParams.burstIndex >= weapon.w.valkTac_targetData.len() )
+	if( attackParams.burstIndex >= weapon.w.valkTac_targetData.len() || attackParams.burstIndex >= fanAdjustments.len() )
 		return
 
 	WeaponMissileMultipleTargetData thisResult = weapon.w.valkTac_targetData[attackParams.burstIndex]
@@ -705,10 +719,10 @@ var function OnWeaponPrimaryAttack_valk_cluster_missile( entity weapon, WeaponPr
 	WeaponFireMissileParams fireMissileParams
 	fireMissileParams.pos                       = attackPos
 	fireMissileParams.dir                       = attackDir
-	fireMissileParams.scriptTouchDamageType     = damageTypes.projectileImpact// | DF_SHIELD_SYPHON
+	fireMissileParams.scriptTouchDamageType     = damageTypes.projectileImpact// | DF_IMPACT
 	fireMissileParams.scriptExplosionDamageType = damageTypes.explosive
 	fireMissileParams.clientPredicted           = false
-	fireMissileParams.speed                     = 1.0  // Base speed, InitMissileExpandContract handles actual velocity
+	fireMissileParams.speed                     = 1.0
 
 	vector swarmVector = attackParams.dir
 	swarmVector = Normalize( swarmVector )
@@ -717,9 +731,10 @@ var function OnWeaponPrimaryAttack_valk_cluster_missile( entity weapon, WeaponPr
 	flatRight.z = 0
 	flatRight   = Normalize( flatRight )
 
-	float fanAdjust = float(fanAdjustments[attackParams.burstIndex])
+	float fanAdjust = fanAdjustments[attackParams.burstIndex]
+	bool hasMoreMissiles = owner.HasPassive( ePassives.PAS_EXTRA_SWARM_MISSILE )
 
-	swarmVector += flatRight * fanAdjust * 0.1 // the last number decides how broadly they fan out
+	swarmVector += flatRight * fanAdjust * ( hasMoreMissiles ? FANOUT_ON_LAUNCH_UPGRADED : FANOUT_ON_LAUNCH )
 	swarmVector.z = 0.7
 	swarmVector   = Normalize( swarmVector )
 
@@ -730,8 +745,10 @@ var function OnWeaponPrimaryAttack_valk_cluster_missile( entity weapon, WeaponPr
 	dir2d   = Normalize( dir2d )
 	vector phase1Vec = Normalize( swarmVector ) * 0.6
 	vector phase2Vec = Normalize ( dir2d + <0, 0, 0.7> ) * 0.8
+	vector phase3Vec = dir2d * 0.9
 	thisMissileInfo.phase1Vector = phase1Vec
 	thisMissileInfo.phase2Vector = phase2Vec
+	thisMissileInfo.phase3Vector = phase3Vec
 
 	// Give the missile an initial direction and a better spawn location
 	fireMissileParams.dir     = phase1Vec
@@ -757,7 +774,7 @@ var function OnWeaponPrimaryAttack_valk_cluster_missile( entity weapon, WeaponPr
 	fireGrenadeParams.lagCompensated    = true
 	fireGrenadeParams.useScriptOnDamage = true
 
-	int rocketsInRow = 1 + (SIDE_STEPS * 2)
+	int rocketsInRow = 1 + ( ( hasMoreMissiles ? SIDE_STEPS_UPGRADED : SIDE_STEPS ) * 2 )
 
 	// Calculate travel times and overall missile speed
 	int row = attackParams.burstIndex / rocketsInRow
@@ -766,7 +783,10 @@ var function OnWeaponPrimaryAttack_valk_cluster_missile( entity weapon, WeaponPr
 	float distance = (curTar - attackPos).Length()
 
 	float travelTime = log( distance )
-	travelTime = GraphCapped( travelTime, log( MIN_ATTACK_RANGE ), log( MAX_ATTACK_RANGE ), MIN_TRAVEL_TIME, MAX_TRAVEL_TIME )
+	if ( owner.Player_IsSkydiving() )
+		travelTime = GraphCapped( travelTime, log( MIN_ATTACK_RANGE ), log( MAX_ATTACK_RANGE_IN_SKYDIVE ), MIN_TRAVEL_TIME_IN_SKYDIVE, MAX_TRAVEL_TIME_IN_SKYDIVE )
+	else
+		travelTime = GraphCapped( travelTime, log( MIN_ATTACK_RANGE ), log( MAX_ATTACK_RANGE ), MIN_TRAVEL_TIME, MAX_TRAVEL_TIME )
 	travelTime += row * ROW_TO_ROW_DELAY
 	int indexInRow = attackParams.burstIndex % rocketsInRow
 	travelTime += indexInRow * IN_ROW_DELAY
@@ -784,10 +804,12 @@ var function OnWeaponPrimaryAttack_valk_cluster_missile( entity weapon, WeaponPr
 	float phase1To2Time   = 0.01
 	float phase2Time      = rocketTravelTime * 0.1
 	float phase2To3Time   = rocketTravelTime * 0.16
+	float phase3ToTarTime = rocketTravelTime * 0.1
 	thisMissileInfo.phase1Time      = phase1Time
 	thisMissileInfo.phase1To2Time   = phase1To2Time
 	thisMissileInfo.phase2Time      = phase2Time
 	thisMissileInfo.phase2To3Time   = phase2To3Time
+	thisMissileInfo.phase3ToTarTime = phase3ToTarTime
 	thisMissileInfo.missileSpeed    = speed
 
 	// Fire grenade
@@ -822,12 +844,12 @@ var function OnWeaponPrimaryAttack_valk_cluster_missile( entity weapon, WeaponPr
 	//		//EmitSoundOnEntity( grenade, "Bangalore_Ultimate_Whoosh" )
 	//#endif
 
-
-
-
-
-
-
+                        
+                                          
+   
+                                 
+   
+       
 
 	// on last shot, return whatever the correct number is for max ammo; otherwise return 0
 	if ( attackParams.burstIndex == weapon.GetWeaponSettingInt( eWeaponVar.burst_fire_count ) - 1 )
@@ -869,10 +891,12 @@ void function Thread_WaitForIgnition( entity owner, entity weapon, entity grenad
 			float speed           = valkMissileInfo.missileSpeed
 			vector phase1Vec      = valkMissileInfo.phase1Vector
 			vector phase2Vec      = valkMissileInfo.phase2Vector
+			vector phase3Vec      = valkMissileInfo.phase3Vector
 			float phase1Time      = 0.01
 			float phase1To2Time   = 0.01
 			float phase2Time      = valkMissileInfo.phase2Time
 			float phase2To3Time   = valkMissileInfo.phase2To3Time
+			float phase3ToTarTime = valkMissileInfo.phase3ToTarTime
 			vector curTar         = valkMissileInfo.targetPos
 			vector attackPos      = grenade.GetOrigin()
 			fireMissileParams.pos = grenade.GetOrigin()
@@ -892,21 +916,55 @@ void function Thread_WaitForIgnition( entity owner, entity weapon, entity grenad
 
 			missile.proj.valkTacGrenadeHandle = grenadeHandle
 
-			// missile.SetGracePeriod( 0.5 ) // Native function not available - missile should work without it
+			missile.SetGracePeriod( 0.5 )
 			missile.SetModel( ROCKET_PROJECTILE )
 			//thread DebugTimeMissile( missile, burstIndex, expectedTime )
 			thread Thread_CreateMissileTrail( missile )
 
-			// Simple trace to check for obstacles above - adjust phase2Vec if needed
-			vector estimatedHighPoint = attackPos + (phase2Vec * 300)
-			TraceResults upTrace = TraceLine( attackPos, estimatedHighPoint, [ owner ], TRACE_MASK_SOLID, TRACE_COLLISION_GROUP_NONE )
+			// Now let's shorten phase2 to stop collisions
+			vector phase2StartPos = missile.MissilePath_GetExpandContractPositionAtTime( speed, attackPos, phase1Vec, phase2Vec, phase3Vec, phase1Time, phase1To2Time, phase2Time, phase2To3Time, phase3ToTarTime, curTar, (phase1Time + phase1To2Time) )
+			vector phase2EndPos   = missile.MissilePath_GetExpandContractPositionAtTime( speed, attackPos, phase1Vec, phase2Vec, phase3Vec, phase1Time, phase1To2Time, phase2Time, phase2To3Time, phase3ToTarTime, curTar, (phase1Time + phase1To2Time + phase2Time) )
+			vector phase3EndPos   = missile.MissilePath_GetExpandContractPositionAtTime( speed, attackPos, phase1Vec, phase2Vec, phase3Vec, phase1Time, phase1To2Time, phase2Time, phase2To3Time, phase3ToTarTime, curTar, (phase1Time + phase1To2Time + phase2Time + phase2To3Time) )
+
+			float horizontalVelocityMax = 0.3
+			float horizontalVelocityMin = 0.2
+			float horizontalTimeMax     = 0.3
+			float horizontalTimeMin     = 0.1
+			float verticalTimeMax       = 0.3
+			float verticalTimeMin       = 0.2
+			float verticalVelocityMax   = 0.2
+			float verticalVelocityMin   = 0.1
+			float easeIn                = 0.7
+			float easeOut               = 0
+			float startDelay            = 0
+
+			// Final niceness from me: if the missile's up trajectory were to hit geo, try to stop short; if the forward trace hits geo before we turn toward
+			// target, also go up less and try to turn more aggressively to avoid geo. If after all this we still faceplant a missile, PEBKAC
+			TraceResults upTrace = TraceLine( phase2StartPos, phase2EndPos, [ owner ], TRACE_MASK_SOLID, TRACE_COLLISION_GROUP_NONE )
 			if ( upTrace.fraction < 1.0 )
 			{
-				// Reduce upward movement if there's a ceiling
 				phase2Vec *= clamp( (upTrace.fraction - 0.5), 0.1, 1 )
+				verticalVelocityMax   = 0
+				horizontalVelocityMax = 0.1
 			}
+			else
+			{
+				TraceResults forwardTrace = TraceLine( phase2EndPos, phase3EndPos, [ owner ], TRACE_MASK_SOLID, TRACE_COLLISION_GROUP_NONE )
+				if ( forwardTrace.fraction < 1.0 )
+				{
+					phase2Vec *= 0.4
+					phase2To3Time         = 0.1
+					verticalVelocityMax   = 0
+					horizontalVelocityMax = 0.1
+				}
+			}
+			missile.InitMissileExpandContract( speed, phase1Vec, phase2Vec, phase3Vec, phase1Time, phase1To2Time, phase2Time, phase2To3Time, phase3ToTarTime, curTar, false )
 
-			missile.InitMissileExpandContract( phase1Vec, phase2Vec, phase1Time, phase1To2Time, phase2Time, phase2To3Time, curTar, false )
+			float duration = phase1Time + phase1To2Time + phase2Time + phase2To3Time
+			if ( fireMissileParams.projectileIndex >= 8 )
+				startDelay = 0.2
+
+			missile.InitMissileWiggleSettings( horizontalVelocityMax, horizontalVelocityMin, horizontalTimeMax, horizontalTimeMin, verticalTimeMax, verticalTimeMin, verticalVelocityMax, verticalVelocityMin, easeIn, easeOut, startDelay, duration )
 		}
 	)
 	WaitForever()
@@ -956,20 +1014,22 @@ int function ValkCanFireTactical( entity weapon )
 		return eCanFireTactical.NO_OTHER
 
 	entity owner = weapon.GetWeaponOwner()
+	if ( !IsValid( owner ) || owner.IsPhaseShifted() )
+		return eCanFireTactical.NO_OTHER
+
 	if ( StatusEffect_HasSeverity( owner, eStatusEffect.skyward_embark ) )
 	{
 		return eCanFireTactical.NO_OTHER
 	}
-	float traceDist      = 300
-	TraceResults results = TraceLine( owner.EyePosition(), owner.GetOrigin() + <0, 0, traceDist>, [ owner ], TRACE_MASK_BLOCKLOS, TRACE_COLLISION_GROUP_NONE )
-	float dist           = traceDist * results.fraction
-	if ( dist < 160 )
-	{
-		return eCanFireTactical.NO_CLEARANCE
-	}
 
-	if ( owner.IsPhaseShifted() )
-		return eCanFireTactical.NO_OTHER
+	float clearanceRequired = GetCurrentPlaylistVarFloat( "valk_tac_verticalClearanceRequired", 0.0 )
+	if ( clearanceRequired > 0.0 )
+	{
+		float traceDist      = 300
+		TraceResults results = TraceLine( owner.EyePosition(), owner.GetOrigin() + <0, 0, traceDist>, [ owner ], TRACE_MASK_SOLID, TRACE_COLLISION_GROUP_PLAYER )
+		if ( traceDist * results.fraction < clearanceRequired )
+			return eCanFireTactical.NO_CLEARANCE
+	}
 
 	return eCanFireTactical.YES
 }
@@ -1025,7 +1085,7 @@ void function OnProjectileCollision_ability_valk_cluster_missile( entity project
 		RemoveTacWarnEntity( projectile.proj.valkTacGrenadeHandle, owner )
 
 		Explosion( pos, owner, projectile.GetOwner(), damage, damage, radius, radius, SF_ENVEXPLOSION_NOSOUND_FOR_ALLIES, projectile.proj.valkTacMissileStartPos, 10, damageTypes.explosive, eDamageSourceId.mp_ability_valk_cluster_missile, "exp_valk_rocket" )
-		CreateShake( pos, 16, 140, 0.25, 800 )
+		CopyRealmsFromTo( projectile, CreateShake( pos, 16, 140, 0.25, 800 ) )
 		projectile.Destroy()
 		file.thisValkRocketsInFlight[owner]--
 	#endif
@@ -1039,3 +1099,4 @@ void function OnClientAnimEvent_ability_valk_cluster_missile( entity weapon, str
 	GlobalClientEventHandler( weapon, name )
 }
 #endif // CLIENT
+

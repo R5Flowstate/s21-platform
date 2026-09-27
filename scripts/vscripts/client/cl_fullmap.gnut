@@ -1376,7 +1376,7 @@ void function ShowFullmap()
 	if ( !GetCurrentPlaylistVarBool( "fullmap_enabled", true ) )
 		return
 
-	if ( FS_HasCap( FS_CAP_CUSTOM_SCOREBOARD ) )
+	if ( FS_HasCap( FS_CAP_CUSTOM_SCOREBOARD ) && !FS_IsScenarios() )
 		return
 
 	if ( Freelance_IsHubLevel() )

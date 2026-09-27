@@ -26,6 +26,8 @@ void function RemoteFunctions_Init_Begin()
 	Remote_RegisterClientFunction( "FS_DisplayLocalizedToken", "int", 0, 256, "int", 0, 256, "int", 0, 16, "float", 0.0, 60.0, 32 )
 	Remote_RegisterClientFunction( "FS_DisplaySplashMessage", "float", 0.0, 60.0, 32 )
 	Remote_RegisterClientFunction( "FS_PanelAppendChar", "int", 0, 2, "int", 0, 255 )
+	// Replay moments (sh_demo_moments.gnut eDemoMoment, 7 kinds).
+	Remote_RegisterClientFunction( "ServerCallback_Demo_Moment", "int", 0, 7 )
 	Remote_RegisterClientFunction( "FS_CreateTextInfoPanelWithID_Localized", "int", 0, 256, "int", 0, 256, "vector", -MAX_MAP_BOUNDS, MAX_MAP_BOUNDS, 32, "vector", -MAX_MAP_BOUNDS, MAX_MAP_BOUNDS, 32, "float", 0.0, 100.0, 16, "int", 0, INT_MAX )
 
 	switch ( GetMapName() )
@@ -49,6 +51,12 @@ void function RemoteFunctions_Init_Begin()
 	}
 
 	RegisterNetworkedVariable( "skyDiveTrailOverrideIndex", SNDC_PLAYER_GLOBAL, SNVT_INT, -1 )
+
+	// Detected input device, read by unit frames in every mode.
+	RegisterNetworkedVariable( "FS_PlayerIsMnk", SNDC_PLAYER_GLOBAL, SNVT_BOOL, true )
+	#if CLIENT
+		RegisterNetVarBoolChangeCallback( "FS_PlayerIsMnk", UnitFrame_OnPlayerInputDeviceChanged )
+	#endif
 
 	// Score RUI always tracks these (CreateScoreRUI). Register outside gamemode
 	// switch so custom modes (fs_1v1) still get valid GetNetworkedVariableIndex.
@@ -96,7 +104,7 @@ void function RemoteFunctions_Init_Begin()
 	Remote_RegisterClientFunction( "AimTrainer_CL_DevPreviewResults" )
 	Remote_RegisterClientFunction( "AimTrainer_CL_DevPreviewFRCRecap" )
 	// flags bitfield (hit=1 shot=2 kill=4 dyn=8 bars=16 god=32; max 63 inclusive, max exclusive so 64) + durationSec (999=unlimited; max exclusive) + strafe speed tenths (5-20 inclusive; max exclusive so 21) + dummy armor selection (0=default, 1-4 tier, 10=random; max exclusive so 11) + strafer body (0=dummy, 1=legend) + strafer legend index (-1=same, else sorted visible ref)
-	Remote_RegisterClientFunction( "AimTrainer_CL_SyncDevMenuState", "int", 0, 512, "int", 0, 1000, "int", 0, 21, "int", 0, 11, "int", 0, 2, "int", -1, 64, "int", 0, 101, "int", 0, 1025 )
+	Remote_RegisterClientFunction( "AimTrainer_CL_SyncDevMenuState", "int", 0, 4096, "int", 0, 1000, "int", 0, 21, "int", 0, 11, "int", 0, 2, "int", -1, 64, "int", 0, 101, "int", 0, 2048, "int", 0, 64, "int", 0, 9 )
 	// Server remotes must register here so CLIENT/UI can Remote_ServerCallFunction (not only ServerInit).
 	Remote_RegisterServerFunction( "AimTrainer_SV_OnStatsReset" )
 	Remote_RegisterServerFunction( "AimTrainer_SV_FinishChallenge" )
@@ -241,6 +249,7 @@ void function RemoteFunctions_Init_Begin()
 		// Custom modes need the same player/ability netvars (e.g. Wattson focalTrap).
 		case "fs_1v1":
 		case "fs_instagib":
+		case "fs_arenas":
       
 			RegisterNetworkedVariable( "hasDeathFieldImmunity", SNDC_PLAYER_EXCLUSIVE, SNVT_BOOL, false )
 			RegisterNetworkedVariable( "isMapZoneDisplayTextDisabled", SNDC_GLOBAL, SNVT_BOOL, false )
@@ -260,6 +269,15 @@ void function RemoteFunctions_Init_Begin()
 			RegisterNetworkedVariable( "squadPresentationStartTime", SNDC_GLOBAL, SNVT_TIME, -1 )
 			RegisterNetworkedVariable( "mvpPresentationStartTime", SNDC_GLOBAL, SNVT_TIME, -1 )
 			RegisterNetworkedVariable( "championSquadPresentationStartTime", SNDC_GLOBAL, SNVT_TIME, -1 )
+			if ( CharSelect_UsesPlayerState() )
+			{
+				RegisterNetworkedVariable( "fsPick_StartTime", SNDC_PLAYER_EXCLUSIVE, SNVT_TIME, -1 )
+				RegisterNetworkedVariable( "fsPick_EndTime", SNDC_PLAYER_EXCLUSIVE, SNVT_TIME, -1 )
+				RegisterNetworkedVariable( "fsPick_Ready", SNDC_PLAYER_EXCLUSIVE, SNVT_BOOL, false )
+				RegisterNetworkedVariable( "fsPick_LockstepIndex", SNDC_PLAYER_EXCLUSIVE, SNVT_INT, -1 )
+				RegisterNetworkedVariable( "fsPick_LockstepStartTime", SNDC_PLAYER_EXCLUSIVE, SNVT_TIME, -1 )
+				RegisterNetworkedVariable( "fsPick_LockstepEndTime", SNDC_PLAYER_EXCLUSIVE, SNVT_TIME, -1 )
+			}
 			Remote_RegisterClientFunction( "ServerCallback_CharacterLockRejected" )
 			Remote_RegisterClientFunction( "ServerCallback_ForceCharacterLockFeedback", "entity", "bool" )
 
@@ -625,6 +643,26 @@ void function RemoteFunctions_Init_Begin()
 			Armor_ShieldRegen_RegisterNetworking()
 			HealthRegen_RegisterNetworking()
 			break
+	}
+
+	if ( GameRules_GetGameMode() == "fs_arenas" )
+	{
+		Remote_RegisterClientFunction( "ServerCallback_ShowWinningSquadSequence" )
+		Remote_RegisterClientFunction( "ServerCallback_EnableDeathScreenBanner" )
+		Remote_RegisterClientFunction( "ServerCallback_DisplayArenasPrematch", "int", 0, 30, "int", 0, 30, "int", 0, 5000, "int", 0, 100, "int", 0, 100 )
+		Remote_RegisterClientFunction( "ServerCallback_DisplayRoundLost" )
+		Remote_RegisterClientFunction( "ServerCallback_DisplayRoundWon", "int", 0, 4 )
+		Remote_RegisterClientFunction( "ServerCallback_Arenas_AnnounceResourcesCollected", "int", 0, 255 )
+		Remote_RegisterClientFunction( "ServerCallback_Arenas_UpdateAirdropPreview", "int", 0, INT_MAX, "int", 0, INT_MAX, "int", 0, INT_MAX )
+		Remote_RegisterClientFunction( "ServerCallback_Arenas_AnnounceRoundStart", "int", 0, 255 )
+		Remote_RegisterClientFunction( "ServerCallback_RefreshMenu" )
+		Remote_RegisterClientFunction( "OnCurrentCashChanged", "entity" )
+		Remote_RegisterClientFunction( "ServerCallback_FinishedProcessingClickEvent" )
+		ShCashStation_RegisterNetworking()
+		RegisterNetworkedVariable( "arenas_numties", SNDC_GLOBAL, SNVT_INT, 0 )
+		RegisterNetworkedVariable( "arenas_lastWonTeam", SNDC_GLOBAL, SNVT_INT, 0 )
+		RegisterNetworkedVariable( "arenas_buyMenuStartTime", SNDC_GLOBAL, SNVT_TIME, -1.0 )
+		ShArenas_RegisterNetworking()
 	}
 
 

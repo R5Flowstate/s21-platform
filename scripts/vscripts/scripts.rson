@@ -44,6 +44,7 @@ Scripts:
 	_threads.nut
 	_settings.nut
 	sh_utility_all.gnut
+	sh_demo_moments.gnut
 	sh_playlists.gnut
 	sh_networkvars.gnut
 	sh_items.gnut
@@ -204,8 +205,8 @@ gamemodes/freeroam_weapons_menu/sv_freeroam_weapons_menu.nut
 	gamemodes/fs_1v1/sh_gamemode_1v1.nut
 	gamemodes/fs_lgduels_1v1/_fs_lgduels_1v1.nut
 	gamemodes/fs_1v1/_gamemode_1v1.nut
-	gamemodes/fs_1v1/_fs_scenarios_stubs.gnut
 	gamemodes/fs_1v1/_1v1_match.nut
+	gamemodes/fs_1v1/_1v1_demo.nut
 	gamemodes/fs_1v1/_1v1_matchmaking.nut
 	gamemodes/fs_1v1/_1v1_weapons.nut
 	gamemodes/fs_1v1/_1v1_challenge.nut
@@ -218,6 +219,14 @@ gamemodes/freeroam_weapons_menu/sv_freeroam_weapons_menu.nut
 	gamemodes/fs_1v1/_input_detector.nut
 	gamemodes/fs_1v1/sh_banner_asset.gnut
 	gamemodes/fs_1v1/sh_fs_1v1_register.gnut
+	gamemodes/fs_scenarios/sh_fs_scenarios.gnut
+	gamemodes/fs_scenarios/_scenarios.nut
+	gamemodes/fs_scenarios/_scenarios_spawns.nut
+	gamemodes/fs_scenarios/_scenarios_ring.nut
+	gamemodes/fs_scenarios/_scenarios_loot.nut
+	gamemodes/fs_scenarios/_scenarios_score.nut
+	gamemodes/fs_scenarios/_scenarios_charselect.nut
+	gamemodes/fs_scenarios/_scenarios_teams.nut
 	gamemodes/fs_instagib/sh_fs_instagib_net.gnut
 	weapons/mp_weapon_clickweapon.nut
 	weapons/mp_ability_instagib_railjump.nut
@@ -228,6 +237,8 @@ gamemodes/freeroam_weapons_menu/sv_freeroam_weapons_menu.nut
 	mapeditor/sh_mapeditor_catalog.gnut
 	mapeditor/_mapeditor.nut
 	mapeditor/_mapeditor_palette.nut
+	mapeditor/_mapeditor_prefs.nut
+	mapeditor/_mapeditor_modelinfo.nut
 	sh_persistent_data.gnut
 	sh_mp_utility_all.gnut
 	sh_stats_internals.gnut
@@ -271,6 +282,7 @@ gamemodes/freeroam_weapons_menu/sv_freeroam_weapons_menu.nut
 	sh_ranked_trials.nut
 	sh_arenas_ranked.gnut
 	sh_kepler.gnut
+
 ]
 
 When: "SERVER"
@@ -551,6 +563,10 @@ Scripts:
 	weapons/mp_weapon_grenade_rev_shell.nut
 	weapons/mp_ability_frag_drone.nut
 	weapons/mp_ability_overdrive_tac_slide_gate.nut
+	weapons/mp_weapon_bow_ult_missile.nut
+	weapons/mp_weapon_charge_gauntlet.nut
+	weapons/mp_weapon_charge_gauntlet_alt_mode.nut
+	weapons/mp_weapon_sonar_dart.nut
 	sh_evac_ship.nut
 	mp/sh_skydive_launchers.gnut
 	mp/sh_skydive_launchers_precache.nut
@@ -640,6 +656,7 @@ Scripts:
 	gamemodes/fs_aimtrainer/sh_gamemode_aimtrainer_freeroam.gnut
 	gamemodes/fs_aimtrainer/_gamemode_aimtrainer_freeroam.gnut
 	gamemodes/fs_aimtrainer/_aimtrainer_legend_bots.nut
+	gamemodes/fs_aimtrainer/_aimtrainer_targets.nut
 	cafemods/sh_cafemod_defs.gnut
 	cafemods/sv_cafemod_core.nut
 	cafemods/sv_mod_mitosis.nut
@@ -877,6 +894,7 @@ Scripts:
 	weapons/mp_ability_shield_throw.nut
 	weapons/mp_ability_armored_leap.nut
 	weapons/mp_weapon_revive_shield.nut
+	pilot/_pilot_passive_newcastle.gnut
 	weapons/mp_ability_sniper_ult.nut
 	weapons/mp_ability_companion_launch.nut
 	weapons/mp_ability_companion_launch_entry.nut
@@ -895,6 +913,7 @@ Scripts:
 	weapons/mp_ability_transport_portal_datapad.nut
 	pilot/sh_alter.gnut
 	pilot/sh_ability_overdrive_passive.gnut
+	pilot/sh_pilot_passive_sparrow.gnut
 	pilot/sh_pilot_passive_remote_deathbox_interact.gnut
 	pilot/sh_pilot_passive_void_vision.gnut
 	weapons/mp_ability_void_ring.nut
@@ -903,6 +922,11 @@ Scripts:
 	weapons/mp_weapon_car.nut
 	weapons/mp_weapon_nemesis.nut
 	worldsystems/sh_explosive_loot_hold.nut
+	pilot/sh_pilot_passive_drone_rider.gnut
+	weapons/mp_weapon_following_medic_orders.nut
+	weapons/mp_ability_lifeline_follow_medic.nut
+	weapons/mp_ability_lifeline_halo.nut
+	weapons/mp_ability_lifeline_glide_upgraded.nut
 	mp/sh_sniper_tower.nut
 	mp/levels/sh_crypto_tt_common.nut
 	worldsystems/tts/sh_wattson_tt.gnut
@@ -1369,6 +1393,7 @@ Scripts:
 	gamemodes/fs_1v1/sh_fs_1v1_net.gnut
 	gamemodes/fs_1v1/sh_gamemode_1v1.nut
 	gamemodes/fs_1v1/sh_fs_1v1_register.gnut
+	gamemodes/fs_scenarios/sh_fs_scenarios.gnut
 	gamemodes/fs_instagib/sh_fs_instagib_net.gnut
 	gamemodes/fs_instagib/sh_gamemode_instagib.nut
 	gamemodes/fs_instagib/sh_fs_instagib_register.gnut
@@ -1417,6 +1442,7 @@ Scripts:
 	sh_ranked_trials.nut
 	sh_arenas_ranked.gnut
 	sh_kepler.gnut
+
 ]
 
 When: "UI"
@@ -1640,6 +1666,8 @@ ui/menu_freeroam_weapons.nut
 	ui/lobby_panel_serverbrowser.nut
 	ui/menu_serverbrowser.nut
 	ui/menu_bridge_connect.nut
+	ui/menu_replays.nut
+	ui/menu_demo_controls.nut
 	ui/lobby_panel_gamemodes.nut
 	ui/lobby_panel_create.nut
 	ui/create_panel_map.nut
@@ -1718,13 +1746,14 @@ ui/menu_freeroam_weapons.nut
 	ui/panel_lab_armory.nut
 	ui/panel_lab_targets.nut
 	ui/panel_lab_recorder.nut
-	ui/panel_lab_match.nut
+	ui/panel_lab_challenges.nut
 	ui/panel_lab_mods.nut
 	ui/panel_teams_scoreboard.nut
 	ui/panel_squad.nut
 	ui/menu_survival_quick_swap.nut
 	ui/menu_mapeditor_models.nut
 	ui/fs_1v1/settingsmenu.nut
+	ui/fs_scenarios/scenarios_ui.nut
 	ui/FlowstateLeaderboard/leaderboard.nut
 	ui/menu_lore_reader.nut
 	lobby\sh_lobby.gnut
@@ -1833,6 +1862,11 @@ When: "UI"
 Scripts:
 [
 	gamemodes\sh_loadout_selection_system.nut
+
+	gamemodes/arenas/sh_fs_arenas_register.gnut
+	ui/menu_arenas_buy.nut
+	ui/menu_arenas_post_round_summary.nut
+	ui/dialogs/arenas_select_optic.nut
 ]
 
 When: "CLIENT"
@@ -1849,6 +1883,7 @@ Scripts:
 	_threads.nut
 	_settings.nut
 	sh_utility_all.gnut
+	sh_demo_moments.gnut
 	workarounds.gnut
 	sh_playlists.gnut
 	sh_networkvars.gnut
@@ -1988,6 +2023,7 @@ When: "CLIENT"
 Scripts:
 [
 	client/cl_bridge_mantle_boost.gnut
+	client/cl_demo_overlay.gnut
 ]
 When: "SERVER"
 Scripts:
@@ -2010,6 +2046,8 @@ Scripts:
 	gamemodes/fs_1v1/sh_gamemode_1v1.nut
 	gamemodes/fs_1v1/cl_gamemode_1v1.nut
 	gamemodes/fs_1v1/sh_fs_1v1_register.gnut
+	gamemodes/fs_scenarios/sh_fs_scenarios.gnut
+	gamemodes/fs_scenarios/cl_gamemode_scenarios.nut
 	gamemodes/fs_instagib/sh_fs_instagib_net.gnut
 	weapons/mp_weapon_clickweapon.nut
 	weapons/mp_ability_instagib_railjump.nut
@@ -2019,6 +2057,7 @@ Scripts:
 	mapeditor/sh_mapeditor.gnut
 	mapeditor/sh_mapeditor_catalog.gnut
 	mapeditor/cl_mapeditor.nut
+	mapeditor/cl_mapeditor_preview.nut
 	client/cl_rui_browser.gnut
 	sh_persistent_data.gnut
 	sh_mp_utility_all.gnut
@@ -2063,6 +2102,7 @@ Scripts:
 	sh_ranked_trials.nut
 	sh_arenas_ranked.gnut
 	sh_kepler.gnut
+
 ]
 
 When: "CLIENT"
@@ -2356,6 +2396,10 @@ Scripts:
 	weapons/mp_weapon_grenade_rev_shell.nut
 	weapons/mp_ability_frag_drone.nut
 	weapons/mp_ability_overdrive_tac_slide_gate.nut
+	weapons/mp_weapon_bow_ult_missile.nut
+	weapons/mp_weapon_charge_gauntlet.nut
+	weapons/mp_weapon_charge_gauntlet_alt_mode.nut
+	weapons/mp_weapon_sonar_dart.nut
 	sh_evac_ship.nut
 	mp/sh_skydive_launchers.gnut
 	mp/sh_skydive_launchers_precache.nut
@@ -2489,6 +2533,7 @@ Scripts:
 	client/cl_codecallbacks_mp.gnut
 	client/rui/cl_hud.gnut
 	client/cl_obituary.gnut
+	client/cl_demo_moments.gnut
 	client/cl_gamestate.gnut
 	client/cl_ring_warning.gnut
 	client/cl_player.gnut
@@ -2679,6 +2724,7 @@ Scripts:
 	weapons/mp_ability_shield_throw.nut
 	weapons/mp_ability_armored_leap.nut
 	weapons/mp_weapon_revive_shield.nut
+	pilot/_pilot_passive_newcastle.gnut
 	weapons/mp_ability_sniper_ult.nut
 	weapons/mp_ability_companion_launch.nut
 	weapons/mp_ability_companion_launch_entry.nut
@@ -2697,6 +2743,7 @@ Scripts:
 	weapons/mp_ability_transport_portal_datapad.nut
 	pilot/sh_alter.gnut
 	pilot/sh_ability_overdrive_passive.gnut
+	pilot/sh_pilot_passive_sparrow.gnut
 	pilot/sh_pilot_passive_remote_deathbox_interact.gnut
 	pilot/sh_pilot_passive_mantle_boost.gnut
 	pilot/sh_pilot_passive_void_vision.gnut
@@ -2706,6 +2753,11 @@ Scripts:
 	weapons/mp_weapon_car.nut
 	weapons/mp_weapon_nemesis.nut
 	worldsystems/sh_explosive_loot_hold.nut
+	pilot/sh_pilot_passive_drone_rider.gnut
+	weapons/mp_weapon_following_medic_orders.nut
+	weapons/mp_ability_lifeline_follow_medic.nut
+	weapons/mp_ability_lifeline_halo.nut
+	weapons/mp_ability_lifeline_glide_upgraded.nut
 	mp/sh_sniper_tower.nut
 	mp/levels/sh_crypto_tt_common.nut
 	worldsystems/tts/sh_wattson_tt.gnut
@@ -2924,6 +2976,14 @@ Scripts:
 [
 	remap/cl_remap_objects.nut
 	remap/cl_remap_map.nut
+
+	gamemodes/arenas/sh_gamemode_arenas.nut
+	gamemodes/arenas/sh_arenas_buy_system.nut
+	gamemodes/arenas/sh_arenas_common.nut
+	gamemodes/arenas/sh_arenas_post_round_summary.nut
+	mp/sh_cash_station.gnut
+	gamemodes/arenas/cl_gamemode_arenas.nut
+	gamemodes/arenas/sh_fs_arenas_register.gnut
 ]
 
 When: "SERVER"
@@ -2932,5 +2992,28 @@ Scripts:
 	remap/sv_remap_map.nut
 	remap/sv_remap_objects.nut
 	remap/sv_remap_ziplines.nut
+
+	gamemodes/arenas/sh_gamemode_arenas.nut
+	gamemodes/arenas/sh_arenas_buy_system.nut
+	gamemodes/arenas/sh_arenas_common.nut
+	gamemodes/arenas/sh_arenas_post_round_summary.nut
+	mp/sh_cash_station.gnut
+	gamemodes/arenas/_gamemode_arenas.nut
+	gamemodes/arenas/sh_fs_arenas_register.gnut
+]
+
+// Agent API (local MCP control; answers through the SDK agent link)
+When: "SERVER"
+Scripts:
+[
+	agent/sh_agent_json.nut
+	agent/sv_agent_api.nut
+]
+
+When: "CLIENT"
+Scripts:
+[
+	agent/sh_agent_json.nut
+	agent/cl_agent_api.nut
 ]
 

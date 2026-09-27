@@ -312,7 +312,7 @@ void function MRec_CL_ToggleHints()
 
 void function MRec_CL_OnHintsKey( var button )
 {
-	if ( !MRec_CL_KeyAllowed() )
+	if ( !MRec_CL_KeyAllowed() || MRecHud_EditorActive() )
 		return
 	MRec_CL_ToggleHints()
 }

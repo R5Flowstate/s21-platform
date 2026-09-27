@@ -165,7 +165,7 @@ void function MaggieCommon_ImpactTableFX_Think( entity ent, string fxTable, floa
 		vector pos = ent.GetOrigin() + ( offset * offsetDir )
 
 		if ( IsValid( parentEnt ) && !parentEnt.IsWorld() && ( defaultFX != $"" ) )
-			StartParticleEffectInWorld( GetParticleSystemIndex( defaultFX ), pos, defaultOffsetAngle )
+			StartParticleEffectInWorldForRealms( GetParticleSystemIndex( defaultFX ), pos, defaultOffsetAngle, ent )
 		else
 			PlayImpactFXTable( pos, owner, fxTable )
 

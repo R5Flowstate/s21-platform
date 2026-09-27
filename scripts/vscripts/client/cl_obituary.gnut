@@ -159,6 +159,9 @@ ObitEntityInfo function Obituary_GetEntityInfo( entity ent, int damageSourceId, 
 
 void function Obituary( entity attacker, string attackerClass, entity victim, int scriptDamageType, int damageSourceId, int obitFlags, bool victimIsOwnedTitan = false, bool forceDisplay = false )
 {
+	if ( IsValid( victim ) && victim.IsPlayer() )
+		DemoMoments_OnDeath( IsValid( attacker ) && attacker.IsPlayer() ? attacker.GetPlayerName() : "", victim.GetPlayerName(), damageSourceId, obitFlags )
+
 	if ( GetConVarInt( "hud_setting_showObituary" ) == 0 )
 		return
 

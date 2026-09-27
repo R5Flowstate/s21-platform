@@ -282,6 +282,9 @@ global enum eTrackingVisionNetworkedPOITypes
 	PLAYER_ABILITY_ALTER_ULTIMATE_USED,
 	PLAYER_ABILITY_ALTER_TACTICAL_USED,
 	PLAYER_ABILITY_ALTER_PASSIVE_USED,
+	PLAYER_ABILITY_SPRROW_DOUBLE_JUMP,
+	PLAYER_ABILITY_SPRROW_TRACKER_DART,
+	PLAYER_ABILITY_SPRROW_STINGER_BOLT,
        
 
 	_count,
@@ -535,6 +538,9 @@ int function TrackingVision_GetPriorityForPOIType( int poiEventID )
 		case eTrackingVisionNetworkedPOITypes.PLAYER_LOOT_DROP_GADGET:
 		case eTrackingVisionNetworkedPOITypes.PLAYER_ABILITY_TRANSLOCATION_TOSS:
 		case eTrackingVisionNetworkedPOITypes.PLAYER_ABILITY_TRANSLOCATION_TELEPORT:
+		case eTrackingVisionNetworkedPOITypes.PLAYER_ABILITY_SPRROW_DOUBLE_JUMP:
+		case eTrackingVisionNetworkedPOITypes.PLAYER_ABILITY_SPRROW_TRACKER_DART:
+		case eTrackingVisionNetworkedPOITypes.PLAYER_ABILITY_SPRROW_STINGER_BOLT:
 			return eTrackingPOIPriority.LOW
 
 		case eTrackingVisionNetworkedPOITypes.PLAYER_TRAVERSAL_FOOTPRINT:
@@ -715,6 +721,9 @@ vector function TrackingVision_GetOffsetForPOI( int poiEventID )
 		case eTrackingVisionNetworkedPOITypes.PLAYER_ABILITY_ASH_DATAKNIFE_USED:
 		case eTrackingVisionNetworkedPOITypes.PLAYER_ABILITY_ASH_PORTAL_ENTER:
 		case eTrackingVisionNetworkedPOITypes.PLAYER_ABILITY_ASH_PORTAL_EXIT:
+		case eTrackingVisionNetworkedPOITypes.PLAYER_ABILITY_SPRROW_DOUBLE_JUMP:
+		case eTrackingVisionNetworkedPOITypes.PLAYER_ABILITY_SPRROW_TRACKER_DART:
+		case eTrackingVisionNetworkedPOITypes.PLAYER_ABILITY_SPRROW_STINGER_BOLT:
 			return < 0, 0, 32.0 >
 		case eTrackingVisionNetworkedPOITypes.PLAYER_ABILITY_VALK_ULTIMATE_END:
 			return < 0, 0, 48.0 >
@@ -882,7 +891,7 @@ bool function TrackingVision_CanSpawnWhiteRaven( entity player )
 
 	foreach( enemy in enemyArray )
 	{
-		if( !IsValid( enemy ) )
+		if( !IsValid( enemy ) || !enemy.DoesShareRealms( player ) )
 			continue
 
 		float distToPlayer = Distance2D( enemy.GetOrigin(), origin )
@@ -1019,7 +1028,7 @@ entity function WhiteRaven_GetNearestEnemyTarget( entity player, bool allowClose
 
 	foreach( enemy in enemyArray )
 	{
-		if( !IsValid( enemy ) )
+		if( !IsValid( enemy ) || !enemy.DoesShareRealms( player ) )
 			continue
 
 		float distToPlayer = Distance2D( enemy.GetOrigin(), origin )
@@ -2182,7 +2191,7 @@ void function WhiteRaven_Perched_Idle_Thread( entity player, entity bird, float 
 					}
 				#endif
 
-				EmitSoundAtPosition( TEAM_UNASSIGNED, offsetSoundPos, WHITE_RAVEN_AMBIENT_CAW_SFX )
+				EmitSoundAtPosition( TEAM_UNASSIGNED, offsetSoundPos, WHITE_RAVEN_AMBIENT_CAW_SFX, bird )
 			}
 			else
 			{
@@ -2632,7 +2641,7 @@ void function TrackingVision_AutoDetectEnemyTracking_Thread( entity player, enti
 
 		foreach( otherPlayer in players )
 		{
-			if( otherPlayer.GetTeam() == myTeam )
+			if( otherPlayer.GetTeam() == myTeam || !otherPlayer.DoesShareRealms( player ) )
 				continue
 
 			float distSqr = DistanceSqr( otherPlayer.GetOrigin(), player.GetOrigin() )

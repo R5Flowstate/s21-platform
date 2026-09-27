@@ -22,8 +22,31 @@ global const int AIMTRAINER_FREEROAM_POPCORN = 2
 global const int AIMTRAINER_FREEROAM_FLOATING_TARGET = 3
 global const int AIMTRAINER_FREEROAM_SKYDIVING = 4
 global const int AIMTRAINER_FREEROAM_SMOOTHBOT = 5
+// Strafer challenge: the owner's strafer slots, at least one.
 global const int AIMTRAINER_FREEROAM_AUTOSPAWN = 6
-global const int AIMTRAINER_FREEROAM_AUTOSPAWN_HARD = 7
+// Manual challenge: clock and stats only; targets come from Add Strafer.
+global const int AIMTRAINER_FREEROAM_MANUAL = 8
+
+// Lab target presets; Custom restores the player's own values. Ids are saved
+// in player prefs, so new presets only ever append.
+global const int AIMTRAINER_PRESET_EASY = 0
+global const int AIMTRAINER_PRESET_MEDIUM = 1
+global const int AIMTRAINER_PRESET_HARD = 2
+global const int AIMTRAINER_PRESET_CUSTOM = 3
+global const int AIMTRAINER_PRESET_TRACKING = 4
+global const int AIMTRAINER_PRESET_REACTIVE = 5
+global const int AIMTRAINER_PRESET_CLOSE = 6
+global const int AIMTRAINER_PRESET_FLICK = 7
+global const int AIMTRAINER_PRESET_DUEL = 8
+global const int AIMTRAINER_PRESET_COUNT = 9
+
+// Lab strafer crouch: Auto keeps each strafe pattern's own crouches.
+global const int AIMTRAINER_CROUCH_AUTO = 0
+global const int AIMTRAINER_CROUCH_OFF = 1
+global const int AIMTRAINER_CROUCH_ON = 2
+
+// Concurrent strafers per player; legend bots also take a server seat each.
+global const int AIMTRAINER_MAX_STRAFER_SLOTS = 6
 
 // Default freeplay primary if the player has no gun (loadout skin applied on give).
 global const string AIMTRAINER_DEFAULT_WEAPON = "mp_weapon_volt_smg"
@@ -33,5 +56,7 @@ global const string AIMTRAINER_DEFAULT_WEAPON = "mp_weapon_volt_smg"
 global const float AIMTRAINER_STRAFE_SPEED_MIN = 0.5
 global const float AIMTRAINER_STRAFE_SPEED_MAX = 2.0
 global const float AIMTRAINER_STRAFE_SPEED_DEFAULT = 1.0
+// Lab strafe time list length: indices into FRDummie_StrafeDurationIndexToSeconds.
+global const int AIMTRAINER_STRAFE_TIME_STEPS = 16
 global const float AIMTRAINER_STRAFER_GOD_REGEN_IDLE = 3.0
 global const float AIMTRAINER_STRAFER_GOD_REGEN_DURATION = 1.0

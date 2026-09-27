@@ -394,7 +394,7 @@ bool function CanReclaimWall( entity baseWall )
 	if ( !IsValid( baseWall ) )
 		return false
 
-	if ( IsValid( baseWall.GetOwner() ) )
+	if ( IsValid( baseWall.GetOwner() ) && baseWall.GetOwner().HasPassive( ePassives.PAS_PAS_UPGRADE_ONE ) ) // upgrade_tactical_damaged_retrieval
 		return true
 
 	if ( !IsValid( ampedWall) )
@@ -470,7 +470,7 @@ bool function OnWeaponAttemptOffhandSwitch_weapon_cover_wall( entity weapon )
 	entity ultWeapon = player.GetOffhandWeapon( OFFHAND_ULTIMATE )
 	entity placementWeapon = player.GetOffhandWeapon( OFFHAND_ORDNANCE )
 
-	if( IsValid( ultWeapon ) && IsValid( placementWeapon ) && placementWeapon.GetWeaponClassName() == "mp_weapon_mounted_turret_placeable"
+	if( IsValid( ultWeapon ) && ultWeapon.GetWeaponClassName() == "mp_weapon_mobile_hmg" && IsValid( placementWeapon ) && placementWeapon.GetWeaponClassName() == "mp_weapon_mounted_turret_placeable"
 			&& ( activeWeapon == ultWeapon || activeWeapon == placementWeapon ) )
 	{
 		float timeSinceStart = Time() - ultWeapon.w.startChargeTime
@@ -589,27 +589,34 @@ void function CoverWall_Deploy( entity owner, vector origin, vector angles, enti
 	wallProxy.SetOwner( owner )
 	SetTeam( wallProxy, owner.GetTeam() )
 	wallProxy.e.noOwnerFriendlyFire = false
+	wallProxy.e.noFriendlyFireProtection = true
 	wallProxy.e.canBeDamagedFromGas = false
 	wallProxy.e.canBurn = true
+	wallProxy.e.blocksThermite = true
+	wallProxy.e.preventStickyEnts = true
 	wallProxy.RemoveFromAllRealms()
 	wallProxy.AddToOtherEntitysRealms( owner )
 
-	wallProxy.SetScriptPropFlags( SPF_BLOCKS_AI_NAVIGATION )
+	wallProxy.SetScriptPropFlags( SPF_BLOCKS_AI_NAVIGATION | SPF_OBJECT_PLACEMENT_SPECIAL_IGNORE )
 	wallProxy.EnableAttackableByAI( 5, 0, AI_AP_FLAG_NONE )
+	wallProxy.SetNeverCrush( true )
 
 	wallProxy.SetTouchTriggers( true ) //Make it destroyable by triggers e.g. Leviathan stomp, thermite
 
 	int team = owner.GetTeam()
+	wallProxy.Minimap_SetCustomState( eMinimapObject_prop_script.RAMPART_WALL )
 	wallProxy.Minimap_SetAlignUpright( true )
 	wallProxy.Minimap_SetClampToEdge( false )
 	wallProxy.Minimap_AlwaysShow( team, null )
+
+	AllianceProximity_SetMinimapAlwaysShow_ForAlliance( team, wallProxy, owner )
+
 	wallProxy.Minimap_SetZOrder( MINIMAP_Z_OBJECT-1 )
 
 	wallProxy.Solid()
 	wallProxy.AllowMantle()
 
-	Highlight_SetOwnedHighlight( wallProxy, "sp_friendly_hero" )
-	Highlight_SetFriendlyHighlight( wallProxy, "sp_friendly_hero" )
+	PlayerObjects_CommonInit( owner, wallProxy, true, "sp_friendly_hero", true, true, false )
 
 	string noSpawnIdx = CreateNoSpawnArea( TEAM_INVALID, team, origin, -1.0, COVER_WALL_NO_SPAWN_RADIUS )
 	wallProxy.SetCanBeMeleed( true )
@@ -618,6 +625,8 @@ void function CoverWall_Deploy( entity owner, vector origin, vector angles, enti
 
 	AddEntityCallback_OnDamaged( wallProxy, CoverWall_OnDamaged )
 	AddEntityCallback_OnPostDamaged( wallProxy, CoverWall_OnPostDamaged )
+
+	AddWreckingBallEMPDamageDevice( wallProxy )
 
 	wallProxy.SetUsable()
 	wallProxy.SetUsablePriority( USABLE_PRIORITY_LOW )
@@ -663,6 +672,9 @@ void function CoverWall_Deploy( entity owner, vector origin, vector angles, enti
 
 			if ( IsValid( cylinder ) )
 				cylinder.Destroy()
+
+			if ( IsValid( owner ) && IsValid( wallProxy ) )
+				TrackingVision_CreatePOI( eTrackingVisionNetworkedPOITypes.PLAYER_ABILITY_COVER_WALL, wallProxy, wallProxy.GetOrigin(), owner.GetTeam(), owner )
 
 			bool wasWallDestroyedDueToExceededLimit = true
 			if ( IsValid( owner ) )
@@ -920,12 +932,18 @@ void function DeployAmpedWallAfterDelay( entity baseWall, entity animReference )
 float function GetAmpedWallHealth( entity owner )
 {
 	float health = GetRampartAmpedShieldHealth()
+	if( IsValid( owner ) && owner.HasPassive( ePassives.PAS_TAC_UPGRADE_TWO ) ) // upgrade_placable_extra_health
+		health *= GetRampartUpgradedShieldHealth()
+
 	return health
 }
 
 float function GetBaseWallHealth( entity owner )
 {
 	float baseHealth = COVER_WALL_MAX_HEALTH
+	if( IsValid( owner ) && owner.HasPassive( ePassives.PAS_TAC_UPGRADE_TWO ) ) // upgrade_placable_extra_health
+		baseHealth *= GetRampartUpgradedBaseHealth()
+
 	return baseHealth
 }
 
@@ -946,11 +964,10 @@ void function DeployAmpedWall( entity baseWall, vector origin, vector angles, en
 
 	ampedWall.kv.contents = (CONTENTS_WINDOW | CONTENTS_BLOCK_PING)
 	ampedWall.kv.CollisionGroup = TRACE_COLLISION_GROUP_BLOCK_WEAPONS_AND_PHYSICS
-    //ampedWall.e.noFriendlyFireProtection = true
+	ampedWall.e.noFriendlyFireProtection = true
 	ampedWall.e.canBeDamagedFromGas = false
-	//ampedWall.e.preventStickyEnts = true
-	//ampedWall.e.blocksThermite = true
-	ampedWall.e.canBeDamagedFromGas = false
+	ampedWall.e.preventStickyEnts = true
+	ampedWall.e.blocksThermite = true
 	ampedWall.SetPassThroughFlags( PTF_ADDS_MODS | PTF_NO_DMG_ON_PASS_THROUGH )
 	ampedWall.SetBlocksRadiusDamage( true )
 	ampedWall.Hide()
@@ -970,7 +987,8 @@ void function DeployAmpedWall( entity baseWall, vector origin, vector angles, en
 	SetTeam( ampedWall, baseWall.GetTeam() )
 
 	AddEMPDamageDevice( ampedWall )
-    //AddWreckingBallEMPDamageDevice( ampedWall )
+
+	AddWreckingBallEMPDamageDevice( ampedWall )
 
 	SetVisibleEntitiesInConeQueriableEnabled( ampedWall, true )
 
@@ -1033,7 +1051,7 @@ void function DeployAmpedWall( entity baseWall, vector origin, vector angles, en
 				if ( IsValid( ampedWall ) )
 				{
 					int fxID = GetParticleSystemIndex( AMPED_WALL_PACKED_UP_FX )
-					StartParticleEffectInWorld( fxID, ampedWall.GetOrigin(), ampedWall.GetAngles() )
+					StartParticleEffectInWorldForRealms( fxID, ampedWall.GetOrigin(), ampedWall.GetAngles(), ampedWall )
 					EmitSoundAtPosition( TEAM_UNASSIGNED, ampedWall.GetOrigin(), AMPED_WALL_POWER_DOWN_SFX, ampedWall )
 					ampedWall.Destroy()
 				}
@@ -1068,6 +1086,8 @@ void function AmpedWallPassThroughFX_Thread( entity ampedWall )
 
 	#if SERVER
 		entity owner = ampedWall.GetOwner()
+		if ( IsValid( owner ) )
+			StatsHook_RampartTactical_OnBulletAmped( owner )
 	#endif
 
 	entity shieldFX = file.ampedWallEntToShieldFX[ ampedWall ]
@@ -1099,7 +1119,7 @@ void function ClientCallback_TryPickupCoverWall( entity player, entity device )
 	if ( !IsValid( device ) || device.GetScriptName() != BASE_WALL_SCRIPT_NAME )
 		return
 
-	if ( device != player.GetUseEntity() )
+	if ( device != player.GetUseEntity() || device.GetOwner() != player )
 		return
 
 	PickupCoverWall( player, device )
@@ -1112,9 +1132,9 @@ void function PickupCoverWall( entity player, entity device )
 
 	GradeFlagsSet( device, eGradeFlags.IS_BUSY )
 	if ( CoverWall_PickUp( player, device ) )
-	{
 		device.Signal( "CoverWall_PickedUp" )
-	}
+	else
+		GradeFlagsClear( device, eGradeFlags.IS_BUSY )
 }
 #endif
 
@@ -1162,9 +1182,7 @@ bool function CoverWall_IsReviveButtonDown( entity player )
 bool function CoverWall_PickUp( entity player, entity baseWall )
 {
 	entity weapon = player.GetOffhandWeapon( OFFHAND_TACTICAL )
-
-	string className = weapon.GetWeaponClassName()
-	if ( className != COVER_WALL_WEAPON_NAME )
+	if ( !IsValid( weapon ) || weapon.GetWeaponClassName() != COVER_WALL_WEAPON_NAME )
 		return false
 
 	if ( Bleedout_IsBleedingOut( player ) )
@@ -1223,6 +1241,8 @@ void function CoverWall_OnDamaged( entity wallProxy, var damageInfo )
 				default:
 					if ( IsProwler( attacker ) )
 						DamageInfo_SetDamage( damageInfo, wallProxy.GetMaxHealth() / 2 )
+					else if( IsValid( wallProxy.GetOwner() ) && wallProxy.GetOwner().HasPassive( ePassives.PAS_TAC_UPGRADE_ONE ) ) // upgrade_placable_explosive_resistance
+						DamageInfo_SetDamage( damageInfo, DamageInfo_GetDamage( damageInfo ) * GetRampartUpgradedWallDamageResilienceMultiplier() )
 			}
 		}
 
@@ -1255,7 +1275,7 @@ void function CoverWall_OnPostDamaged( entity wallProxy, var damageInfo )
 		if ( wallProxy.GetHealth() > wallProxy.GetMaxHealth()/2 )
 		{
 			thread PlayAnim( wallProxy, "prop_rampart_wall_extended_damage_alt_idle", wallProxy.GetParent() )
-			StartParticleEffectInWorld( GetParticleSystemIndex( BASE_WALL_DAMAGE_STATE_TRANSITION_FX ), wallProxy.GetOrigin(), wallProxy.GetAngles() )
+			StartParticleEffectInWorldForRealms( GetParticleSystemIndex( BASE_WALL_DAMAGE_STATE_TRANSITION_FX ), wallProxy.GetOrigin(), wallProxy.GetAngles(), wallProxy )
 			EmitSoundOnEntity( wallProxy, BASE_WALL_DAMAGE_STATE_TRANSITION_SFX )
 
 			if ( ( wallProxy in file.baseWallToPersistentDamageFX ) && !IsValid( file.baseWallToPersistentDamageFX[ wallProxy ] ) )
@@ -1272,7 +1292,7 @@ void function CoverWall_OnPostDamaged( entity wallProxy, var damageInfo )
 		}
 		else
 		{
-			StartParticleEffectInWorld( GetParticleSystemIndex( BASE_WALL_TAKE_DAMAGE_WHILE_HEALTH_LOW_FX ), wallProxy.GetOrigin(), wallProxy.GetAngles() )
+			StartParticleEffectInWorldForRealms( GetParticleSystemIndex( BASE_WALL_TAKE_DAMAGE_WHILE_HEALTH_LOW_FX ), wallProxy.GetOrigin(), wallProxy.GetAngles(), wallProxy )
 		}
 	}
 
@@ -1327,7 +1347,7 @@ void function CoverWall_OnPostDamaged( entity wallProxy, var damageInfo )
 
 void function DestroyWallFX( entity wallProxy, entity attacker )
 {
-	StartParticleEffectInWorld( GetParticleSystemIndex( BASE_WALL_DESTROYED_FX ), wallProxy.GetOrigin(), wallProxy.GetAngles() )
+	StartParticleEffectInWorldForRealms( GetParticleSystemIndex( BASE_WALL_DESTROYED_FX ), wallProxy.GetOrigin(), wallProxy.GetAngles(), wallProxy )
 	EmitSoundAtPosition( TEAM_UNASSIGNED, wallProxy.GetOrigin(), BASE_WALL_DESTROYED_SFX, wallProxy )
 
 	entity owner = wallProxy.GetOwner()
@@ -1419,7 +1439,7 @@ void function AmpedWall_OnPostDamaged( entity ampedWall, var damageInfo )
 
 	if ( ampedWallDestroyed )
 	{
-		StartParticleEffectInWorld( GetParticleSystemIndex( AMPED_WALL_DESTROYED_FX ), ampedWall.GetOrigin(), ampedWall.GetAngles())
+		StartParticleEffectInWorldForRealms( GetParticleSystemIndex( AMPED_WALL_DESTROYED_FX ), ampedWall.GetOrigin(), ampedWall.GetAngles(), ampedWall )
 
 		if ( baseWall != null && baseWall.GetScriptName() == BASE_WALL_SCRIPT_NAME )
 		{
@@ -1485,13 +1505,21 @@ bool function CoverWall_CanUse( entity player, entity ent, int useFlags )
 	if ( !IsValid( player ) || !IsValid( ent ) )
 		return false
 
-	if ( player != ent.GetOwner() )
+	if ( player != ent.GetOwner() || player.IsTitan() )
 		return false
 
-	if ( player.IsTitan() )
+	entity weapon = player.GetOffhandWeapon( OFFHAND_TACTICAL )
+	if ( !IsValid( weapon ) || weapon.GetWeaponClassName() != COVER_WALL_WEAPON_NAME )
 		return false
 
-	return SURVIVAL_PlayerAllowedToPickup( player ) && !GradeFlagsHas( ent, eGradeFlags.IS_BUSY )
+	entity activeWeapon = player.GetActiveWeapon( eActiveInventorySlot.mainHand )
+	bool currentlyInPlacementMode = IsValid( activeWeapon ) && activeWeapon.GetWeaponClassName() == COVER_WALL_WEAPON_NAME
+
+	TraceResults viewTrace = GetViewTrace( player )
+
+	return viewTrace.hitEnt == ent &&
+			( currentlyInPlacementMode || SURVIVAL_PlayerAllowedToPickup( player ) ) &&
+			!GradeFlagsHas( ent, eGradeFlags.IS_BUSY )
 }
 
 #if CLIENT

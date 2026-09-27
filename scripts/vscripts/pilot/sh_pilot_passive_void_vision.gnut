@@ -9,6 +9,7 @@ global function IsVoidVisionEnabled_PhaseBreach
       
 
 global function VoidVision_GetPostPhaseVisionTime
+global function VoidVision_ShowHealthbarsForPlayer
 
 #if SERVER
 global function VoidVisionStartPhaseShift
@@ -21,6 +22,8 @@ global function VoidVision_TakeVoidVision
 #if CLIENT
 global function VoidVision_GetHighlightModeForPlayer
 global function VoidVision_GetPlayersToHighlight
+global function VoidVision_GetPlayersToHighlightFromPoint
+global function VoidVision_GetPlayersToHighlightFromPoint_WithSettings
 global function ServerToClient_VoidVisionChanged
 #endif
 
@@ -59,9 +62,9 @@ struct
 	float maxSqrDistFromPlayerForHighlight = 0 // set automatically using above
 	float maxDistFromStructureForHighlight = 45
 	float maxSqrDistFromStructureForHighlight = 0 // set automatically using above
-	float postPhaseVisionTime = 2
-	bool showHealthbarsWithUpgrade = true
-	bool showHealthbarsPostPhaseWithUpgrade = true
+	float postPhaseVisionTime = 0.7
+	bool showHealthbarsPostPhase = true
+	bool showHealthbarsAlwaysForAlter = true
 } tuning
 
 struct
@@ -102,8 +105,8 @@ void function SetupTuning()
 	tuning.maxDistFromStructureForHighlight    = GetCurrentPlaylistVarFloat( "alter_void_vision_maxDistFromStructureForHighlight", tuning.maxDistFromStructureForHighlight ) * METERS_TO_INCHES
 	tuning.maxSqrDistFromStructureForHighlight = tuning.maxDistFromStructureForHighlight * tuning.maxDistFromStructureForHighlight
 	tuning.postPhaseVisionTime                 = GetCurrentPlaylistVarFloat( "alter_void_vision_postPhaseVisionTime", tuning.postPhaseVisionTime )
-	tuning.showHealthbarsWithUpgrade           = GetCurrentPlaylistVarBool( "alter_void_vision_postPhaseShowHealthbars", tuning.showHealthbarsWithUpgrade )
-	tuning.showHealthbarsPostPhaseWithUpgrade  = GetCurrentPlaylistVarBool( "alter_void_vision_showHealthbarsPostPhaseWithUpgrade", tuning.showHealthbarsPostPhaseWithUpgrade )
+	tuning.showHealthbarsPostPhase             = GetCurrentPlaylistVarBool( "alter_void_vision_showHealthbarsPostPhaseWithUpgrade", tuning.showHealthbarsPostPhase )
+	tuning.showHealthbarsAlwaysForAlter        = GetCurrentPlaylistVarBool( "alter_void_vision_showHealthbarsAlwaysForAlter", tuning.showHealthbarsAlwaysForAlter )
 }
 
 bool function IsVoidVisionEnabled()
@@ -124,6 +127,11 @@ bool function IsVoidVisionEnabled_PhaseBreach()
 	return GetCurrentPlaylistVarBool( "ash_void_vision_enabled", true )
 }
       
+
+bool function VoidVision_ShowHealthbarsForPlayer( entity player )
+{
+	return ( tuning.showHealthbarsAlwaysForAlter && PlayerHasPassive( player, ePassives.PAS_ALTER ) )
+}
 
 float function VoidVision_GetPostPhaseVisionTime()
 {
@@ -325,7 +333,7 @@ void function ClearNetvarOnUnphase( entity player )
 			#if VOID_VISION_DEBUG
 				printf( "VV- ClearNetvarOnUnphase not phase shifted " )
 			#endif
-			if ( PlayerHasPassive( player, ePassives.PAS_ALTER_UPGRADE_TAC_SCAN ) )
+			if ( VoidVision_ShowHealthbarsForPlayer( player ) && tuning.postPhaseVisionTime > 0.0 )
 			{
 				endTime = Time() + tuning.postPhaseVisionTime
 			}
@@ -375,7 +383,7 @@ void function PhaseHighlight_Thread( entity player )
 
 	int highlightMode = exitPortal == player ? eVoidVisionHighlightMode.self : eVoidVisionHighlightMode.structure
 
-	if ( PlayerHasPassive( player, ePassives.PAS_ALTER_UPGRADE_TAC_SCAN ) )
+	if ( VoidVision_ShowHealthbarsForPlayer( player ) )
 	{
 		showHealthbars.value = (player.GetPhaseShiftType() == PHASETYPE_DOOR)
 	}
@@ -494,7 +502,7 @@ void function PhaseHighlight_Thread( entity player )
 			#if VOID_VISION_DEBUG
 				printf("VV- PhaseHighlight_Thread not phase shifted " )
 			#endif
-			if ( PlayerHasPassive( player, ePassives.PAS_ALTER_UPGRADE_TAC_SCAN ) )
+			if ( showHealthbars.value && tuning.postPhaseVisionTime > 0.0 )
 			{
 				endTime = Time() + tuning.postPhaseVisionTime
 
@@ -507,7 +515,7 @@ void function PhaseHighlight_Thread( entity player )
 					ManageHighlightEntity( otherPlayer )
 				}
 
-				if ( tuning.showHealthbarsWithUpgrade && !tuning.showHealthbarsPostPhaseWithUpgrade )
+				if ( !tuning.showHealthbarsPostPhase )
 				{
 					foreach ( entity otherPlayer, HighlightValues handles in highlightedPlayersToHandles )
 					{
@@ -548,8 +556,6 @@ void function PhaseHighlight_Thread( entity player )
 void function VoidVision_GetPlayersToHighlight( entity player, entity exitPortal, int highlightMode,
 		array<entity> outPlayersToHighlight, array<entity> outPlayersToNotHighlight )
 {
-	int playerTeam = player.GetTeam()
-
 	if ( highlightMode == eVoidVisionHighlightMode.structure && !IsValid( exitPortal ) )
 	{
 		Warning("Void Vision trying to grant vision around invalid portal!")
@@ -559,7 +565,20 @@ void function VoidVision_GetPlayersToHighlight( entity player, entity exitPortal
 	}
 
 	vector visibilityCheckPoint = highlightMode == eVoidVisionHighlightMode.structure ? exitPortal.GetOrigin() : player.EyePosition()
-	float maxSqrDist = highlightMode == eVoidVisionHighlightMode.structure ?tuning.maxSqrDistFromStructureForHighlight : tuning.maxSqrDistFromPlayerForHighlight
+	VoidVision_GetPlayersToHighlightFromPoint( player, visibilityCheckPoint, highlightMode, outPlayersToHighlight, outPlayersToNotHighlight )
+}
+
+void function VoidVision_GetPlayersToHighlightFromPoint( entity player, vector visibilityCheckPoint, int highlightMode,
+		array<entity> outPlayersToHighlight, array<entity> outPlayersToNotHighlight )
+{
+	float maxSqrDist = highlightMode == eVoidVisionHighlightMode.structure ? tuning.maxSqrDistFromStructureForHighlight : tuning.maxSqrDistFromPlayerForHighlight
+	VoidVision_GetPlayersToHighlightFromPoint_WithSettings( player, visibilityCheckPoint, maxSqrDist, outPlayersToHighlight, outPlayersToNotHighlight )
+}
+
+void function VoidVision_GetPlayersToHighlightFromPoint_WithSettings( entity player, vector visibilityCheckPoint, float maxSqrDist,
+		array<entity> outPlayersToHighlight, array<entity> outPlayersToNotHighlight )
+{
+	int playerTeam = player.GetTeam()
 
 	array<entity> allTargets = GetPlayerArray_Alive()
 	allTargets.extend( GetEntArrayByScriptName( DECOY_SCRIPTNAME ) )
@@ -574,11 +593,14 @@ void function VoidVision_GetPlayersToHighlight( entity player, entity exitPortal
 		if ( !IsEnemyTeam( playerTeam, otherPlayer.GetTeam() ) )
 			continue
 
+		if ( otherPlayer.IsCloaked( true ) )
+			continue
+
 		vector otherPlayerEyePos = otherPlayer.EyePosition()
 
 		if ( DistanceSqr( visibilityCheckPoint, otherPlayerEyePos ) < maxSqrDist )
 		{
-			results = TraceLine( visibilityCheckPoint, otherPlayerEyePos, [player, otherPlayer], TRACE_MASK_OPAQUE, TRACE_COLLISION_GROUP_NONE )
+			results = TraceLine( visibilityCheckPoint, otherPlayerEyePos, allTargets, TRACE_MASK_OPAQUE, TRACE_COLLISION_GROUP_NONE )
 			if ( results.fraction == 1.0 )
 			{
 				outPlayersToHighlight.append( otherPlayer )

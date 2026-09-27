@@ -378,13 +378,13 @@ void function ClusterBombDamageCallback( entity victim, var damageInfo )
 			{
 				if( IsValid( attacker ) && victim != attacker && !Bleedout_IsBleedingOut( victim ) )
 				{
-					/*if( !( attacker in file.playerStatusEffects ) )
+					if( !( attacker in file.playerStatusEffects ) )
 					{
 						FollowUpStatusEffectIndexes statusEffectIndexes
-						statusEffectIndexes.speedBoostID = SE_INVALID_HANDLE
-						statusEffectIndexes.followUpVisualsID = SE_INVALID_HANDLE
+						statusEffectIndexes.speedBoostID = -1
+						statusEffectIndexes.followUpVisualsID = -1
 						file.playerStatusEffects[ attacker ] <- statusEffectIndexes
-					}*/
+					}
 
 					FollowUp_Start( attacker, CLUST_BOMB_FOLLOW_UP_SPEED_BOOST_DURATION )
 				}
@@ -429,6 +429,7 @@ void function SpawnDangerousAreaForAI( entity clusterBombLauncherProxy )
 
 	entity aiDangerTarget = CreateEntity( "info_target" )
 	DispatchSpawn( aiDangerTarget )
+	CopyRealmsFromTo( owner, aiDangerTarget )
 	aiDangerTarget.SetOrigin( clusterBombLauncherProxy.GetOrigin() )
 	SetTeam( aiDangerTarget, owner.GetTeam() )
 	AI_CreateDangerousArea_Static( aiDangerTarget, clusterBombLauncherProxy, CLUSTER_BOMB_EXPLOSION_RADIUS * 1.25, TEAM_INVALID, true, true, clusterBombLauncherProxy.GetOrigin() )
@@ -525,7 +526,7 @@ void function Cluster_Bomb_Explosion( entity player, entity inflictor, vector po
 		eDamageSourceId.mp_weapon_cluster_bomb_launcher,
 		impactTable )
 
-	StartParticleEffectInWorld( GetParticleSystemIndex( explosionFX ), pos, ZERO_VECTOR )
+	StartParticleEffectInWorldForRealms( GetParticleSystemIndex( explosionFX ), pos, ZERO_VECTOR, inflictor )
 }
 
 entity function CreateClusterBomb( entity weapon, vector origin, vector velocity )

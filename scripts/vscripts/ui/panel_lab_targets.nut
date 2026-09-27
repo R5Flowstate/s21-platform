@@ -1,4 +1,4 @@
-// Lab > Targets. Practice dummies and the aim challenge.
+// Lab > Targets. Difficulty presets, practice strafers and their settings.
 // Everything routes through dev_aimtrainer, which binds to the caller.
 
 global function InitLabTargetsPanel
@@ -20,6 +20,8 @@ struct
 	bool lastGodSent = false
 	int lastAimSent = -1
 	int lastStrafeTimeSent = -1
+	int preset = 0
+	int straferSlots = 0
 
 	bool applyingValues = false
 	bool straferListsBuilt = false
@@ -58,21 +60,29 @@ var function LabTargets_Row( string name )
 void function LabTargets_BindRows()
 {
 	array<string> names = [
-		"ButtonStrafer", "ButtonStraferFast",
-		"SwitchStraferBody", "SwitchStraferClass", "SwitchStraferLegend",
-		"SldStrafeSpeed", "SwitchBotHealth", "SwitchBotFire", "SldBotAim", "SwitchStrafeTimeMin", "SwitchStrafeTimeMax", "SwitchFixedSpawn", "ButtonSetSpawn", "SwitchDummyArmor",
-		"SwitchAimMode", "SwitchDuration", "ButtonChallengeStart", "ButtonChallengeStop",
+		"SwitchPreset", "ButtonStraferAdd", "ButtonStraferRemove", "ButtonQuitAimTrainer",
+		"SwitchStraferBody", "SwitchStraferClass", "SwitchStraferLegend", "SwitchFixedSpawn", "ButtonSetSpawn",
+		"SwitchStrafing", "SwitchStrafeTimeMin", "SwitchStrafeTimeMax", "SldStrafeSpeed", "SwitchBrain", "SwitchCrouch",
+		"SwitchDummyArmor", "SwitchBotHealth", "SwitchBotFire", "SldBotAim",
 		"SwitchReloadKill", "SwitchReloadHit", "SwitchReloadShot",
-		"SwitchDynStats", "SwitchReconBars", "SwitchHighlight", "ButtonQuitAimTrainer"
+		"SwitchDynStats", "SwitchReconBars", "SwitchHighlight"
 	]
 
 	foreach ( string name in names )
 		file.rows[ name ] <- Hud_GetChild( file.contentPanel, name )
 
-	Lab_SetupRow( LabTargets_Row( "ButtonStrafer" ), "#LAB_TARGETS_STRAFER",
-		"#LAB_TARGETS_STRAFER_DESC" )
-	Lab_SetupRow( LabTargets_Row( "ButtonStraferFast" ), "#LAB_TARGETS_STRAFERFAST",
-		"#LAB_TARGETS_STRAFERFAST_DESC" )
+	Lab_SetupRow( LabTargets_Row( "SwitchPreset" ), "#LAB_TARGETS_PRESET",
+		"#LAB_TARGETS_PRESET_DESC" )
+	Lab_SetupRow( LabTargets_Row( "ButtonStraferAdd" ), "#LAB_TARGETS_STRAFERADD",
+		"#LAB_TARGETS_STRAFERADD_DESC" )
+	Lab_SetupRow( LabTargets_Row( "ButtonStraferRemove" ), "#LAB_TARGETS_STRAFERREMOVE",
+		"#LAB_TARGETS_STRAFERREMOVE_DESC" )
+	Lab_SetupRow( LabTargets_Row( "SwitchStrafing" ), "#LAB_TARGETS_STRAFING",
+		"#LAB_TARGETS_STRAFING_DESC" )
+	Lab_SetupRow( LabTargets_Row( "SwitchBrain" ), "#LAB_TARGETS_BRAIN",
+		"#LAB_TARGETS_BRAIN_DESC" )
+	Lab_SetupRow( LabTargets_Row( "SwitchCrouch" ), "#LAB_TARGETS_CROUCH",
+		"#LAB_TARGETS_CROUCH_DESC" )
 	Lab_SetupRow( LabTargets_Row( "SwitchStraferBody" ), "#LAB_TARGETS_STRAFERBODY",
 		"#LAB_TARGETS_STRAFERBODY_DESC" )
 	Lab_SetupRow( LabTargets_Row( "SwitchStraferClass" ), "#LAB_TARGETS_STRAFERCLASS",
@@ -97,14 +107,6 @@ void function LabTargets_BindRows()
 		"#LAB_TARGETS_SETSPAWN_DESC" )
 	Lab_SetupRow( LabTargets_Row( "SwitchDummyArmor" ), "#LAB_TARGETS_ARMOR",
 		"#LAB_TARGETS_ARMOR_DESC", true )
-	Lab_SetupRow( LabTargets_Row( "SwitchAimMode" ), "#LAB_TARGETS_AIMMODE",
-		"#LAB_TARGETS_AIMMODE_DESC", true )
-	Lab_SetupRow( LabTargets_Row( "SwitchDuration" ), "#LAB_TARGETS_DURATION",
-		"#LAB_TARGETS_DURATION_DESC", true )
-	Lab_SetupRow( LabTargets_Row( "ButtonChallengeStart" ), "#LAB_TARGETS_CHALSTART",
-		"#LAB_TARGETS_CHALSTART_DESC" )
-	Lab_SetupRow( LabTargets_Row( "ButtonChallengeStop" ), "#LAB_TARGETS_CHALSTOP",
-		"#LAB_TARGETS_CHALSTOP_DESC" )
 	Lab_SetupRow( LabTargets_Row( "SwitchReloadKill" ), "#LAB_TARGETS_RELOADKILL",
 		"#LAB_TARGETS_RELOADKILL_DESC" )
 	Lab_SetupRow( LabTargets_Row( "SwitchReloadHit" ), "#LAB_TARGETS_RELOADHIT",
@@ -120,17 +122,18 @@ void function LabTargets_BindRows()
 	Lab_SetupRow( LabTargets_Row( "ButtonQuitAimTrainer" ), "#LAB_TARGETS_CLEAR",
 		"#LAB_TARGETS_CLEAR_DESC" )
 
-	LabTargets_BuildAimModeList()
-	LabTargets_BuildDurationList()
 	LabTargets_BuildArmorList()
 	LabTargets_BuildStraferBodyList()
 
-	AddButtonEventHandler( LabTargets_Row( "ButtonStrafer" ), UIE_CLICK, LabTargets_ClickStrafer )
-	AddButtonEventHandler( LabTargets_Row( "ButtonStraferFast" ), UIE_CLICK, LabTargets_ClickStraferFast )
-	AddButtonEventHandler( LabTargets_Row( "ButtonChallengeStart" ), UIE_CLICK, LabTargets_ClickStart )
-	AddButtonEventHandler( LabTargets_Row( "ButtonChallengeStop" ), UIE_CLICK, LabTargets_ClickStop )
+	AddButtonEventHandler( LabTargets_Row( "ButtonStraferAdd" ), UIE_CLICK, LabTargets_ClickStraferAdd )
+	AddButtonEventHandler( LabTargets_Row( "ButtonStraferRemove" ), UIE_CLICK, LabTargets_ClickStraferRemove )
 	AddButtonEventHandler( LabTargets_Row( "ButtonQuitAimTrainer" ), UIE_CLICK, LabTargets_ClickQuit )
 
+	AddButtonEventHandler( LabTargets_Row( "SwitchPreset" ), UIE_CHANGE, LabTargets_OnPreset )
+	AddButtonEventHandler( LabTargets_Row( "SwitchBrain" ), UIE_CHANGE, LabTargets_OnBrain )
+	AddButtonEventHandler( LabTargets_Row( "SwitchCrouch" ), UIE_CHANGE, LabTargets_OnCrouch )
+
+	AddButtonEventHandler( LabTargets_Row( "SwitchStrafing" ), UIE_CHANGE, LabTargets_OnStrafing )
 	AddButtonEventHandler( LabTargets_Row( "SldStrafeSpeed" ), UIE_CHANGE, LabTargets_OnStrafeSpeed )
 	AddButtonEventHandler( LabTargets_Row( "SwitchStraferBody" ), UIE_CHANGE, LabTargets_OnStraferBody )
 	AddButtonEventHandler( LabTargets_Row( "SwitchStraferClass" ), UIE_CHANGE, LabTargets_OnStraferClass )
@@ -143,7 +146,6 @@ void function LabTargets_BindRows()
 	AddButtonEventHandler( LabTargets_Row( "SwitchFixedSpawn" ), UIE_CHANGE, LabTargets_OnFixedSpawn )
 	AddButtonEventHandler( LabTargets_Row( "ButtonSetSpawn" ), UIE_CLICK, LabTargets_ClickSetSpawn )
 	AddButtonEventHandler( LabTargets_Row( "SwitchDummyArmor" ), UIE_CHANGE, LabTargets_OnArmor )
-	AddButtonEventHandler( LabTargets_Row( "SwitchDuration" ), UIE_CHANGE, LabTargets_OnDuration )
 	AddButtonEventHandler( LabTargets_Row( "SwitchReloadKill" ), UIE_CHANGE, LabTargets_OnReloadKill )
 	AddButtonEventHandler( LabTargets_Row( "SwitchReloadHit" ), UIE_CHANGE, LabTargets_OnReloadHit )
 	AddButtonEventHandler( LabTargets_Row( "SwitchReloadShot" ), UIE_CHANGE, LabTargets_OnReloadShot )
@@ -178,29 +180,6 @@ void function LabTargets_SliderFocus( var widget )
 	Lab_SetDetails( Localize( file.sliderTitles[ widget ] ), Localize( file.sliderDescs[ widget ] ) )
 }
 
-void function LabTargets_BuildAimModeList()
-{
-	var button = LabTargets_Row( "SwitchAimMode" )
-	Hud_DialogList_ClearList( button )
-	Hud_DialogList_AddListItem( button, Localize( "#LAB_TARGETS_MODE_TS" ), "ts" )
-	Hud_DialogList_AddListItem( button, Localize( "#LAB_TARGETS_MODE_POPCORN" ), "popcorn" )
-	Hud_DialogList_AddListItem( button, Localize( "#LAB_TARGETS_MODE_STRAFER" ), "strafer_challenge" )
-	Hud_DialogList_AddListItem( button, Localize( "#LAB_TARGETS_MODE_STRAFERFAST" ), "strafer_hard_challenge" )
-	Hud_SetDialogListSelectionValue( button, "ts" )
-}
-
-void function LabTargets_BuildDurationList()
-{
-	var button = LabTargets_Row( "SwitchDuration" )
-	Hud_DialogList_ClearList( button )
-	Hud_DialogList_AddListItem( button, Localize( "#LAB_TARGETS_DUR_30" ), "30" )
-	Hud_DialogList_AddListItem( button, Localize( "#LAB_TARGETS_DUR_60" ), "60" )
-	Hud_DialogList_AddListItem( button, Localize( "#LAB_TARGETS_DUR_90" ), "90" )
-	Hud_DialogList_AddListItem( button, Localize( "#LAB_TARGETS_DUR_120" ), "120" )
-	Hud_DialogList_AddListItem( button, Localize( "#LAB_TARGETS_DUR_INF" ), "999" )
-	Hud_SetDialogListSelectionValue( button, "60" )
-}
-
 void function LabTargets_BuildArmorList()
 {
 	var button = LabTargets_Row( "SwitchDummyArmor" )
@@ -227,6 +206,12 @@ void function LabTargets_BuildStrafeTimeList( var button )
 		"#FRSETTING_DUMMIESTRAFEDURATION_060",
 		"#FRSETTING_DUMMIESTRAFEDURATION_075",
 		"#FRSETTING_DUMMIESTRAFEDURATION_090",
+		"#FRSETTING_DUMMIESTRAFEDURATION_100",
+		"#FRSETTING_DUMMIESTRAFEDURATION_125",
+		"#FRSETTING_DUMMIESTRAFEDURATION_150",
+		"#FRSETTING_DUMMIESTRAFEDURATION_200",
+		"#FRSETTING_DUMMIESTRAFEDURATION_250",
+		"#FRSETTING_DUMMIESTRAFEDURATION_300",
 	]
 	Hud_DialogList_ClearList( button )
 	for ( int i = 0; i < labels.len(); i++ )
@@ -368,20 +353,27 @@ void function OnLabTargetsPanel_Hide( var panel )
 }
 
 // Server -> client -> UI: reconcile the toggle labels with server truth.
-void function LabTargets_SetState( bool hit, bool shot, bool kill, bool dynStats, bool reconBars, int durationSec, bool straferGod, int strafeSpeedTenth, int dummyShield, int straferBody, int straferLegendIdx, bool highlight = true, bool straferFire = false, int straferAim = 50, int strafeTime = 26, bool fixedSpawn = false )
+void function LabTargets_SetState( bool hit, bool shot, bool kill, bool dynStats, bool reconBars, int durationSec, bool straferGod, int strafeSpeedTenth, int dummyShield, int straferBody, int straferLegendIdx, bool highlight = true, bool straferFire = false, int straferAim = 50, int strafeTime = 38, bool fixedSpawn = false, bool strafing = true, bool straferHard = false, int preset = 0, int straferSlots = 0, int straferCrouch = 0 )
 {
+	// preset carries the challenge mode in its upper bits: preset + mode * 16.
+	LabChallenges_SetState( durationSec, preset / 16 )
+	preset = preset % 16
 	if ( file.rows.len() == 0 )
 		return
 
 	file.applyingValues = true
+	file.preset = preset
+	file.straferSlots = straferSlots
+	Hud_SetDialogListSelectionValue( LabTargets_Row( "SwitchPreset" ), string( preset ) )
+	Hud_SetDialogListSelectionValue( LabTargets_Row( "SwitchBrain" ), straferHard ? "1" : "0" )
+	Hud_SetDialogListSelectionValue( LabTargets_Row( "SwitchCrouch" ), string( straferCrouch ) )
+	Hud_SetDialogListSelectionValue( LabTargets_Row( "SwitchStrafing" ), strafing ? "1" : "0" )
 	Hud_SetDialogListSelectionValue( LabTargets_Row( "SwitchHighlight" ), highlight ? "1" : "0" )
 	Hud_SetDialogListSelectionValue( LabTargets_Row( "SwitchReloadKill" ), kill ? "1" : "0" )
 	Hud_SetDialogListSelectionValue( LabTargets_Row( "SwitchReloadHit" ), hit ? "1" : "0" )
 	Hud_SetDialogListSelectionValue( LabTargets_Row( "SwitchReloadShot" ), shot ? "1" : "0" )
 	Hud_SetDialogListSelectionValue( LabTargets_Row( "SwitchDynStats" ), dynStats ? "1" : "0" )
 	Hud_SetDialogListSelectionValue( LabTargets_Row( "SwitchReconBars" ), reconBars ? "1" : "0" )
-	if ( durationSec > 0 )
-		Hud_SetDialogListSelectionValue( LabTargets_Row( "SwitchDuration" ), string( durationSec ) )
 	if ( strafeSpeedTenth >= 5 && strafeSpeedTenth <= 20 )
 	{
 		file.lastSpeedSent = float( strafeSpeedTenth ) / 10.0
@@ -393,8 +385,8 @@ void function LabTargets_SetState( bool hit, bool shot, bool kill, bool dynStats
 	file.lastAimSent = straferAim
 	Hud_SliderControl_SetCurrentValue( LabTargets_Row( "SldBotAim" ), float( straferAim ) / 100.0 )
 	file.lastStrafeTimeSent = strafeTime
-	Hud_SetDialogListSelectionValue( LabTargets_Row( "SwitchStrafeTimeMin" ), string( ( strafeTime / 10 ) % 10 ) )
-	Hud_SetDialogListSelectionValue( LabTargets_Row( "SwitchStrafeTimeMax" ), string( strafeTime % 10 ) )
+	Hud_SetDialogListSelectionValue( LabTargets_Row( "SwitchStrafeTimeMin" ), string( ( strafeTime / 16 ) % 16 ) )
+	Hud_SetDialogListSelectionValue( LabTargets_Row( "SwitchStrafeTimeMax" ), string( strafeTime % 16 ) )
 	Hud_SetDialogListSelectionValue( LabTargets_Row( "SwitchFixedSpawn" ), fixedSpawn ? "1" : "0" )
 	// Selection 0 means default, which tiers as white.
 	int armorSel = dummyShield
@@ -440,13 +432,20 @@ void function LabTargets_ApplyGates()
 	foreach ( string name, var button in file.rows )
 		Lab_SetRowState( button )
 
-	bool legendLive = Lab_GetCheats() && file.straferIsLegend
+	bool cheats = Lab_GetCheats()
+	bool custom = file.preset == 3
+	bool legendLive = cheats && file.straferIsLegend
 	Hud_SetEnabled( LabTargets_Row( "SwitchStraferClass" ), legendLive )
 	Hud_SetEnabled( LabTargets_Row( "SwitchStraferLegend" ), legendLive )
-	Hud_SetEnabled( LabTargets_Row( "SwitchBotFire" ), legendLive )
-	Hud_SetEnabled( LabTargets_Row( "SldBotAim" ), legendLive )
-	Hud_SetEnabled( LabTargets_Row( "SwitchStrafeTimeMin" ), legendLive )
-	Hud_SetEnabled( LabTargets_Row( "SwitchStrafeTimeMax" ), legendLive )
+	Hud_SetEnabled( LabTargets_Row( "ButtonStraferAdd" ), cheats && file.straferSlots < 6 )
+	Hud_SetEnabled( LabTargets_Row( "ButtonStraferRemove" ), cheats && file.straferSlots > 0 )
+
+	// A preset owns these rows; they show its values until Custom is picked.
+	foreach ( string name in [ "SwitchStrafing", "SwitchStrafeTimeMin", "SwitchStrafeTimeMax", "SldStrafeSpeed", "SwitchBrain", "SwitchCrouch", "SwitchBotHealth" ] )
+		Hud_SetEnabled( LabTargets_Row( name ), cheats && custom )
+	Hud_SetEnabled( LabTargets_Row( "SwitchDummyArmor" ), cheats && custom && Lab_IsHostSeat() )
+	Hud_SetEnabled( LabTargets_Row( "SwitchBotFire" ), legendLive && custom )
+	Hud_SetEnabled( LabTargets_Row( "SldBotAim" ), legendLive && custom )
 }
 
 bool function LabTargets_Ignore()
@@ -468,10 +467,58 @@ void function LabTargets_Send( string action )
 	ClientCommand( "dev_aimtrainer " + action )
 }
 
-void function LabTargets_ClickStrafer( var button ) { LabTargets_Send( "flowstate_auto" ) }
-void function LabTargets_ClickStraferFast( var button ) { LabTargets_Send( "flowstate_hard_auto" ) }
-void function LabTargets_ClickStop( var button ) { LabTargets_Send( "stop" ) }
+void function LabTargets_ClickStraferAdd( var button ) { LabTargets_Send( "strafer_add" ) }
+void function LabTargets_ClickStraferRemove( var button ) { LabTargets_Send( "strafer_remove" ) }
 void function LabTargets_ClickQuit( var button ) { LabTargets_Send( "quit" ) }
+
+string function LabTargets_PresetDesc( int preset )
+{
+	array<string> descs = [
+		"#LAB_TARGETS_PRESET_WARMUP_DESC",
+		"#LAB_TARGETS_PRESET_STANDARD_DESC",
+		"#LAB_TARGETS_PRESET_ADVANCED_DESC",
+		"#LAB_TARGETS_PRESET_DESC",
+		"#LAB_TARGETS_PRESET_TRACKING_DESC",
+		"#LAB_TARGETS_PRESET_REACTIVE_DESC",
+		"#LAB_TARGETS_PRESET_CLOSE_DESC",
+		"#LAB_TARGETS_PRESET_FLICK_DESC",
+		"#LAB_TARGETS_PRESET_DUEL_DESC",
+	]
+	if ( preset < 0 || preset >= descs.len() )
+		return "#LAB_TARGETS_PRESET_DESC"
+	return descs[ preset ]
+}
+
+void function LabTargets_OnPreset( var button )
+{
+	if ( LabTargets_Ignore() )
+		return
+	string value = Hud_GetDialogListSelectionValue( button )
+	int preset = [ "0", "1", "2", "3", "4", "5", "6", "7", "8" ].contains( value ) ? value.tointeger() : -1
+	Lab_SetDetails( Localize( "#LAB_TARGETS_PRESET" ), Localize( LabTargets_PresetDesc( preset ) ) )
+	ClientCommand( "dev_aimtrainer preset " + value )
+}
+
+void function LabTargets_OnBrain( var button )
+{
+	if ( LabTargets_Ignore() )
+		return
+	ClientCommand( "dev_aimtrainer strafer_hard " + Hud_GetDialogListSelectionValue( button ) )
+}
+
+void function LabTargets_OnCrouch( var button )
+{
+	if ( LabTargets_Ignore() )
+		return
+	ClientCommand( "dev_aimtrainer crouch " + Hud_GetDialogListSelectionValue( button ) )
+}
+
+void function LabTargets_OnStrafing( var button )
+{
+	if ( LabTargets_Ignore() )
+		return
+	ClientCommand( "dev_aimtrainer strafing " + Hud_GetDialogListSelectionValue( button ) )
+}
 
 void function LabTargets_OnStrafeSpeed( var button )
 {
@@ -569,7 +616,7 @@ void function LabTargets_OnStrafeTime( var button )
 		return
 	int minIdx = int( Hud_GetDialogListSelectionValue( LabTargets_Row( "SwitchStrafeTimeMin" ) ) )
 	int maxIdx = int( Hud_GetDialogListSelectionValue( LabTargets_Row( "SwitchStrafeTimeMax" ) ) )
-	int packed = minIdx * 10 + maxIdx
+	int packed = minIdx * 16 + maxIdx
 	if ( packed == file.lastStrafeTimeSent )
 		return
 	file.lastStrafeTimeSent = packed
@@ -594,26 +641,6 @@ void function LabTargets_OnArmor( var button )
 	if ( setting != 1 && setting != 2 && setting != 3 && setting != 4 && setting != 10 )
 		return
 	ClientCommand( format( "dev_aimtrainer armor %d", setting ) )
-}
-
-void function LabTargets_ClickStart( var button )
-{
-	if ( !Lab_GetCheats() )
-		return
-
-	string mode = Hud_GetDialogListSelectionValue( LabTargets_Row( "SwitchAimMode" ) )
-	ClientCommand( "dev_aimtrainer " + mode )
-	ClientCommand( "dev_aimtrainer start" )
-	CloseAllMenus()
-}
-
-void function LabTargets_OnDuration( var button )
-{
-	if ( LabTargets_Ignore() )
-		return
-
-	int durationSec = int( Hud_GetDialogListSelectionValue( button ) )
-	ClientCommand( format( "dev_aimtrainer duration %d", durationSec ) )
 }
 
 void function LabTargets_OnReloadKill( var button )

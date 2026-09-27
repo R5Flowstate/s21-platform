@@ -131,6 +131,7 @@ void function DoPanicButtonHealing( entity player )
 		// AOE Heal Ring FX- Needs CP1 for radius. Model is 512 units, 256 radius, so using 5.86 for scale is about 1500, Can adjust as needed. CP1: 5.86 1 1
 		// (Radius is actually 256.)
 		entity newFx = StartParticleEffectInWorld_ReturnEntity( GetParticleSystemIndex( FX_HEAL_RADIUS ), player.GetOrigin(), <0,0,0> )
+		CopyRealmsFromTo( player, newFx )
 		const float MODEL_BASE_RADIUS = 256.0
 		float modelRadius = GetPanicRange()
 		float modelScale = (modelRadius / MODEL_BASE_RADIUS)
@@ -244,7 +245,7 @@ void function DoPanicButtonLootFountain( entity player )
 
 		vector attackOrigin = player.GetCenter() - <0,0,16>
 		vector attackVec = (player.GetForwardVector() * 2.0) + RandomVec( 0.75 ) + <0.0, 0.0, 2.0>
-		entity lootEnt = SURVIVAL_ThrowLootFromPoint( attackOrigin, attackVec, ref, countPerDrop, null, null )
+		entity lootEnt = SURVIVAL_ThrowLootFromPoint( attackOrigin, attackVec, ref, countPerDrop, null, null, player )
 	}
 
 	EmitSoundOnEntityOnlyToPlayer( player, player, "Dummie_Ultimate_Loot_Trigger_1P" )
