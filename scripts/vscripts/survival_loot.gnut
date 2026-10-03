@@ -200,11 +200,12 @@ global function DismantleModsOnWeapon
 
 global function SURVIVAL_VerifyLootProbabilitiesForAllGroups
 
+global function Dev_ForceDropDeathbox
+
 #if DEVELOPER
 global function SURVIVAL_DEV_PrintStuff
 global function SpawnAllOptics
 global function DEV_SpawnDeathBox
-global function Dev_ForceDropDeathbox
 global function DEV_SpawnDeathBoxWithRandomLoot
 global function DEV_PrintDeathBoxContents
 global function DEV_AddToDeathBox

@@ -22,6 +22,9 @@ const string REGEN_TRIGGER_AUDIO	= "Newcastle_Upgrade_Passive_ReviveReloadRegen_
 
 const float BOOP_PUSH_SPEED			= 550.0
 const float BOOP_PUSH_LIFT			= 250.0
+const float BOOP_FIRE_FX_DURATION	= 1.5
+const vector BOOP_FRIENDLY_COLOR	= < 40, 210, 255 >
+const vector BOOP_ENEMY_COLOR		= < 255, 100, 12 >
 
 struct
 {
@@ -63,20 +66,47 @@ void function PassiveNewcastle_Init()
 }
 
 #if SERVER
-void function PassiveNewcastle_StartShieldRepel( entity shieldEnt, entity owner, bool isReviveShield )
+// anchor: the entity the shield hangs from (the tactical drone, or the revive shield prop).
+// Its origin and angles place the effects and its center is the range origin.
+void function PassiveNewcastle_StartShieldRepel( entity anchor, entity owner, bool isReviveShield )
 {
-	if ( !IsValid( shieldEnt ) || !IsValid( owner ) )
+	if ( !IsValid( anchor ) || !IsValid( owner ) )
 		return
 
 	if ( !PlayerHasPassive( owner, ePassives.PAS_AXIOM ) || !PlayerHasPassive( owner, ePassives.PAS_PAS_UPGRADE_THREE ) )
 		return
 
-	thread PassiveNewcastle_ShieldRepel_Thread( shieldEnt, owner, isReviveShield )
+	thread PassiveNewcastle_ShieldRepel_Thread( anchor, owner, isReviveShield )
 }
 
-void function PassiveNewcastle_ShieldRepel_Thread( entity shieldEnt, entity owner, bool isReviveShield )
+array<entity> function PassiveNewcastle_StartRepelFx( entity anchor, entity owner, asset fx )
 {
-	shieldEnt.EndSignal( "OnDestroy" )
+	array<entity> result
+	array<int> visFlags = [ ENTITY_VISIBLE_TO_FRIENDLY | ENTITY_VISIBLE_TO_OWNER, ENTITY_VISIBLE_TO_ENEMY ]
+	array<vector> colors = [ BOOP_FRIENDLY_COLOR, BOOP_ENEMY_COLOR ]
+
+	for ( int i = 0; i < visFlags.len(); i++ )
+	{
+		entity fxEnt = StartParticleEffectOnEntityWithPos_ReturnEntity( anchor, GetParticleSystemIndex( fx ), FX_PATTACH_ABSORIGIN_FOLLOW, ATTACHMENTID_INVALID, <0,0,0>, <0,0,0> )
+		if ( !IsValid( fxEnt ) )
+			continue
+
+		fxEnt.SetOwner( owner )
+		SetTeam( fxEnt, owner.GetTeam() )
+		fxEnt.kv.VisibilityFlags = visFlags[i]
+		fxEnt.DisableHibernation()
+		fxEnt.RemoveFromAllRealms()
+		fxEnt.AddToOtherEntitysRealms( anchor )
+		EffectSetControlPointVector( fxEnt, 1, colors[i] )
+		result.append( fxEnt )
+	}
+
+	return result
+}
+
+void function PassiveNewcastle_ShieldRepel_Thread( entity anchor, entity owner, bool isReviveShield )
+{
+	anchor.EndSignal( "OnDestroy" )
 	owner.EndSignal( "OnDestroy" )
 
 	float range = isReviveShield ? tuning.knockBoopRange : tuning.tacBoopRange
@@ -84,18 +114,19 @@ void function PassiveNewcastle_ShieldRepel_Thread( entity shieldEnt, entity owne
 	asset prepFx = isReviveShield ? KNOCK_BOOP_PREP_FX : TACTICAL_BOOP_PREP_FX
 	asset fireFx = isReviveShield ? KNOCK_BOOP_FIRE_FX : TACTICAL_BOOP_FIRE_FX
 
-	entity prepFxEnt = StartParticleEffectOnEntity_ReturnEntity( shieldEnt, GetParticleSystemIndex( prepFx ), FX_PATTACH_ABSORIGIN_FOLLOW, ATTACHMENTID_INVALID )
-	if ( IsValid( prepFxEnt ) )
-	{
-		prepFxEnt.RemoveFromAllRealms()
-		prepFxEnt.AddToOtherEntitysRealms( shieldEnt )
-	}
+	array<entity> prepFxEnts = PassiveNewcastle_StartRepelFx( anchor, owner, prepFx )
+	printt( format( "[NC-BOOP] armed owner=%s revive=%d range=%.0f anchor=%s", owner.GetPlayerName(), isReviveShield ? 1 : 0, range, string( anchor.GetWorldSpaceCenter() ) ) )
+	int ticks = 0
+	int samples = 0
 
 	OnThreadEnd(
-		function() : ( prepFxEnt )
+		function() : ( prepFxEnts )
 		{
-			if ( IsValid( prepFxEnt ) )
-				EffectStop( prepFxEnt )
+			foreach ( entity fxEnt in prepFxEnts )
+			{
+				if ( IsValid( fxEnt ) )
+					EffectStop( fxEnt )
+			}
 		}
 	)
 
@@ -103,10 +134,25 @@ void function PassiveNewcastle_ShieldRepel_Thread( entity shieldEnt, entity owne
 	{
 		wait 0.1
 
-		vector shieldPos = shieldEnt.GetWorldSpaceCenter()
+		vector shieldPos = anchor.GetWorldSpaceCenter()
+		if ( ++ticks % 10 == 0 && samples < 8 )
+		{
+			samples++
+			float nearest = -1.0
+			foreach ( entity e in GetPlayerArrayOfEnemies( owner.GetTeam() ) )
+			{
+				if ( IsAlive( e ) )
+				{
+					float d = Distance( e.GetWorldSpaceCenter(), shieldPos )
+					if ( nearest < 0 || d < nearest )
+						nearest = d
+				}
+			}
+			printt( format( "[NC-BOOP] owner=%s nearest enemy %.0f (range %.0f)", owner.GetPlayerName(), nearest, range ) )
+		}
 		foreach ( entity enemy in GetPlayerArrayOfEnemies( owner.GetTeam() ) )
 		{
-			if ( !IsAlive( enemy ) || !enemy.DoesShareRealms( shieldEnt ) )
+			if ( !IsAlive( enemy ) || !enemy.DoesShareRealms( anchor ) )
 				continue
 
 			if ( enemy.IsPhaseShifted() || Bleedout_IsBleedingOut( enemy ) )
@@ -115,24 +161,26 @@ void function PassiveNewcastle_ShieldRepel_Thread( entity shieldEnt, entity owne
 			if ( DistanceSqr( enemy.GetWorldSpaceCenter(), shieldPos ) > rangeSqr )
 				continue
 
-			PassiveNewcastle_Repel( shieldEnt, owner, enemy, fireFx )
+			printt( format( "[NC-BOOP] fired owner=%s enemy=%s", owner.GetPlayerName(), enemy.GetPlayerName() ) )
+			PassiveNewcastle_Repel( anchor, owner, enemy, fireFx )
 			return
 		}
 	}
 }
 
-void function PassiveNewcastle_Repel( entity shieldEnt, entity owner, entity enemy, asset fireFx )
+void function PassiveNewcastle_Repel( entity anchor, entity owner, entity enemy, asset fireFx )
 {
-	vector shieldPos = shieldEnt.GetWorldSpaceCenter()
+	vector shieldPos = anchor.GetWorldSpaceCenter()
 	vector pushDir = FlattenVec( enemy.GetOrigin() - shieldPos )
 	if ( LengthSqr( pushDir ) < 1.0 )
-		pushDir = FlattenVec( shieldEnt.GetForwardVector() )
+		pushDir = FlattenVec( anchor.GetForwardVector() )
 	pushDir = Normalize( pushDir )
 
 	enemy.SetVelocity( pushDir * BOOP_PUSH_SPEED + <0, 0, BOOP_PUSH_LIFT> )
 	enemy.ViewPunch( shieldPos, 20, -20, 5 )
 
-	StartParticleEffectInWorldForRealms( GetParticleSystemIndex( fireFx ), shieldPos, shieldEnt.GetAngles(), shieldEnt )
+	foreach ( entity fxEnt in PassiveNewcastle_StartRepelFx( anchor, owner, fireFx ) )
+		thread PassiveNewcastle_StopFxAfterDelay( fxEnt, BOOP_FIRE_FX_DURATION )
 
 	entity hitFx = StartParticleEffectOnEntity_ReturnEntity( enemy, GetParticleSystemIndex( BOOP_3P_FX ), FX_PATTACH_POINT_FOLLOW, enemy.LookupAttachment( "CHESTFOCUS" ) )
 	if ( IsValid( hitFx ) )

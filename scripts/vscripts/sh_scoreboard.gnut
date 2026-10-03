@@ -399,6 +399,13 @@ void function UpdateScoreboardVisibility()
 	if ( shouldShow == IsScoreboardShown() )
 		return // If we're already in the correct state, do nothing.
 
+	if ( clGlobal.showScoreboardFunc == null || clGlobal.hideScoreboardFunc == null )
+	{
+		Warning( "UpdateScoreboardVisibility: this mode never set up a scoreboard" )
+		file.wantsToShowScoreboard = false
+		return
+	}
+
 	clGlobal.isScoreboardShown = shouldShow
 
 	if ( shouldShow )

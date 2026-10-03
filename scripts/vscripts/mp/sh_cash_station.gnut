@@ -473,10 +473,19 @@ void function ServerToClient_OnUseCashStationSmall( entity station, int amount )
 		delete file.worldIcons[ station ]
 	}
 
+	thread CashStationSmall_ReportSequence( station )
+
 	if( amount <= 0 )
 		return
 
 	AnnouncementMessageRight( GetLocalClientPlayer(), Localize( "#CRAFTING_HARVESTER_AWARD", amount ), "", <214,214,214>, $"", 2, "" )
+}
+
+void function CashStationSmall_ReportSequence( entity station )
+{
+	station.EndSignal( "OnDestroy" )
+	wait 1.0
+	printt( "[Arenas] canister seq client: playing", station.GetCurrentSequenceName(), "full_idle", station.LookupSequence( "source_full_idle" ), "full_to_empty", station.LookupSequence( "source_full_to_empty" ), "empty_idle", station.LookupSequence( "source_empty_idle" ) )
 }
 
 void function ServerToClient_CashStationStopUse( entity ent )

@@ -326,7 +326,7 @@ void function GibraltarShield_ShieldActiveThread( entity player, entity weapon )
 	StartGunAttachedShieldFX( gs, shieldEnt )
 
 	file.shieldActive[ shieldEnt ] <- true
-	//shieldEnt.SetCollisionAllowed( true )
+	shieldEnt.SetCollisionAllowed( true )
 	shieldEnt.SetTakeDamageType( DAMAGE_EVENTS_ONLY )
 
 	GibraltarShield_UpdateShieldHealth( player, shieldEnt )
@@ -349,7 +349,7 @@ void function GibraltarShield_ShieldActiveThread( entity player, entity weapon )
 					EffectStop( fx )
 
 				shieldEnt.e.fxControlPoints.clear()
-				//shieldEnt.SetCollisionAllowed( false )
+				shieldEnt.SetCollisionAllowed( false )
 				shieldEnt.SetTakeDamageType( DAMAGE_NO )
 			}
 
@@ -523,7 +523,7 @@ entity function GibraltarShield_CreateShieldEnt( entity player, entity weapon )
 	shieldEnt.SetBlocksLOS( false )
 	shieldEnt.EnableAttackableByAI( AI_PRIORITY_NO_THREAT, 0, AI_AP_FLAG_NONE )
 	shieldEnt.SetScriptName( GIBRALTAR_GUN_SHIELD_NAME )
-	//shieldEnt.SetCollisionAllowed( false )
+	shieldEnt.SetCollisionAllowed( false )
 	shieldEnt.SetTakeDamageType( DAMAGE_NO )
 
 	AddEntityCallback_OnPostDamaged( shieldEnt, GibraltarShield_OnDamaged )

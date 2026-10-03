@@ -47,12 +47,6 @@ const float MORTAR_RING_IN_FIRE_DAMAGE_MULTIPLIER = 1.5
 const float MORTAR_RING_COLOR_CORRECTION_BASE_SEVERITY = 0.5
 const float MORTAR_RING_COLOR_CORRECTION_LERP_TIME = 1.0
 const bool MORTAR_RING_MISSILE_DEBUG = false
-// Engine-native on S21 client. S3 dedi has no TT_MORTAR_RING_SEGMENT script const,
-// but the value is written to the networked trigger type, so it has to be the
-// client's flag and not an arbitrary one.
-#if SERVER
-const int TT_MORTAR_RING_SEGMENT = 16
-#endif
 
 //Player burn values
 const float MORTAR_RING_FIRST_TICK_DAMAGE = 35.0
@@ -583,21 +577,21 @@ void function MortarRingFireSegmentTriggerThread( entity effect, entity controlP
 	vector trigOrigin = ( effectPos + controlPointPos ) / 2.0
 	float height = fabs( effectPos.z - controlPointPos.z  ) / 2.0
 
-	entity trigger = CreateEntity( "trigger_cylinder_heavy" )
+	// On the dedicated server a trigger_cylinder_heavy never runs the enter callback for players and
+	// rejects the triggerFilter* keyvalues; a plain cylinder with spawnflags 64 admits everything.
+	entity trigger = CreateEntity( "trigger_cylinder" )
 	trigger.SetOrigin( trigOrigin )
 	trigger.SetAngles( effect.GetAngles() )
 	trigger.SetRadius( radius )
 	trigger.SetAboveHeight( height + MORTAR_RING_FIRE_SEGMENT_HEIGHT )
 	trigger.SetBelowHeight( height )
-	trigger.SetTriggerType( TT_MORTAR_RING_SEGMENT )
-	trigger.kv.triggerFilterNpc = "all"
-	trigger.kv.triggerFilterPlayer = "all"
-	trigger.kv.triggerFilterNonCharacter = 1
+	trigger.kv.spawnflags = 64
 	trigger.e.attachedEnts.append( effect )
 	trigger.e.attachedEnts.append( controlPoint )
 	trigger.e.isBusy = preburn
 	trigger.e.usePlayer = owner
 	DispatchSpawn( trigger )
+	trigger.Enable()
 
 	if ( IsValid( moveParent ) )
 	{

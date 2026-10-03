@@ -42,6 +42,7 @@ const float ARENAS_ROUND_RESTART_DELAY = 2.0
 const float ARENAS_MATCH_END_DELAY = 8.0
 const float ARENAS_PREMATCH_DELAY = 3.0
 const float ARENAS_RING_CLOSURE_DELAY = 90.0
+const string ARENAS_DEFAULT_AIRDROP_CONTENTS = "crate_weapons_earlygame control_gold_kitted_weapons control_gold_kitted_weapons"
 
 // Post-round summary duration (fade-to-black, score animation, Ash effects).
 // Client calculates summary window as: gameStartTime - shopDuration.
@@ -82,8 +83,13 @@ struct ArenaPlayerData
 	int canistersLastRound = 0
 	array<ArenasSelectedItem> selectedItems
 	string selectedOptic = ""
-	bool hasConfirmedLoadout = false
 	bool isEliminated = false
+
+	// Rounds the ultimate stays unbuyable; the value before this round's purchase restores a sale.
+	int ultCooldownRounds = 0
+	int ultCooldownBeforePurchase = 0
+	// Ultimate clip before a purchase, -1 when the player had no ultimate; a sale puts it back.
+	int ultClipBeforePurchase = -1
 }
 
 // Spawn offset pattern for spreading players around a single spawn location
@@ -142,6 +148,10 @@ struct
 	string mapName = ""
 	float mapRadius = 6000.0
 	array<float> deathfieldStagesRadius
+	array<float> deathfieldStagesMinimapZoom
+
+	// This round's care package, one item per pod door; the buy menu previews it.
+	array<string> roundAirdropContents
 } file
 
 // ============================================================================
@@ -167,8 +177,6 @@ void function Arenas_ServerGamemode_Init()
 	AddClientCommandCallback( "Arenas_Unselect", ClientCommand_Arenas_Unselect )
 	AddClientCommandCallback( "Arenas_SetOptic", ClientCommand_Arenas_SetOptic )
 	AddClientCommandCallback( "Arenas_ChangeWeaponTab", ClientCommand_Arenas_ChangeWeaponTab )
-	AddClientCommandCallback( "Arenas_OnBuyMenuOpen", ClientCommand_Arenas_OnBuyMenuOpen )
-	AddClientCommandCallback( "Arenas_OnBuyMenuClose", ClientCommand_Arenas_OnBuyMenuClose )
 	AddClientCommandCallback( "next_round", ClientCommand_Arenas_ForceNextRound )
 
 	// Register editorclass spawn callbacks for all arenas entity types
@@ -241,16 +249,28 @@ void function Arenas_OnPrematch()
 	{
 		file.deathfieldOverridesSet = true
 
+		// Arenas has no loot, so the ring end must not snap to loot: that search returns the world origin.
 		foreach ( entity endLoc in file.circleEndLocations )
 		{
 			if ( IsValid( endLoc ) )
-				SURVIVAL_AddOverrideCircleLocation( endLoc.GetOrigin(), 250.0 )
+				SURVIVAL_AddOverrideCircleLocation( endLoc.GetOrigin(), 250.0, true )
+		}
+
+		if ( IsValid( file.mapLocationEnt ) )
+		{
+			vector mapCenter = file.mapLocationEnt.GetOrigin()
+			foreach ( int realm in Survival_Loot_GetRealmsToPopulate() )
+				SURVIVAL_SetDeathFieldOverrideStartPos( realm, < mapCenter.x, mapCenter.y, 0 > )
 		}
 
 		SURVIVAL_SetDeathFieldOverrideStartRadius( file.mapRadius )
 
+		if ( file.deathfieldStagesRadius.len() == 0 )
+			file.deathfieldStagesRadius = Arenas_ScaledRingStages()
 		if ( file.deathfieldStagesRadius.len() > 0 )
 			SURVIVAL_SetDeathFieldStagesOverrideRadius( file.deathfieldStagesRadius )
+		if ( file.deathfieldStagesMinimapZoom.len() > 0 )
+			SURVIVAL_SetDeathFieldStagesOverrideMinimapZoom( file.deathfieldStagesMinimapZoom )
 
 		// Reinitialize deathfield data now that overrides are set
 		RoundBased_ResetDeathfield()
@@ -264,6 +284,29 @@ void function Arenas_OnPrematch()
 		file.mainLoopStarted = true
 		thread Arenas_MainGameLoop()
 	}
+}
+
+// The ring tuning playlist authors its radii for its own start radius; scale them to this map.
+array<float> function Arenas_ScaledRingStages()
+{
+	array<float> stages
+	string tuning = GetCurrentPlaylistVarString( "playlist_ring_tuning_override", "" )
+	if ( tuning == "" )
+		return stages
+
+	float authoredStart = GetPlaylistVarFloat( tuning, "survival_death_field_start_radius", -1.0 )
+	if ( authoredStart <= 0.0 )
+		return stages
+
+	float radius = GetPlaylistVarFloat( tuning, "deathfield_radius_0", -1.0 )
+	while ( radius >= 0.0 )
+	{
+		float scaled = radius * file.mapRadius / authoredStart
+		stages.append( scaled < 1.0 ? 1.0 : scaled )
+		radius = GetPlaylistVarFloat( tuning, "deathfield_radius_" + stages.len(), -1.0 )
+	}
+
+	return stages
 }
 
 void function Arenas_OnGameStatePlaying()
@@ -330,6 +373,14 @@ void function Arenas_OnMapLocationCreated( entity ent )
 
 	if ( ent.HasKey( "script_radius" ) )
 		file.mapRadius = ent.GetValueForKey( "script_radius" ).tofloat()
+
+	if ( ent.HasKey( "minimap_zoom_scales" ) )
+	{
+		array<string> zoomParts = split( ent.GetValueForKey( "minimap_zoom_scales" ), " " )
+		file.deathfieldStagesMinimapZoom.clear()
+		foreach ( string part in zoomParts )
+			file.deathfieldStagesMinimapZoom.append( part.tofloat() )
+	}
 
 	if ( ent.HasKey( "deathfield_stages_radius" ) )
 	{
@@ -435,7 +486,10 @@ void function Arenas_HoldWaitingView( entity player )
 void function Arenas_SetupWaitingView()
 {
 	if ( file.introCameras.len() == 0 )
+	{
+		Arenas_SetupFallbackWaitingView()
 		return
+	}
 
 	array<entity> flyThrough
 	if ( IsValid( file.mapLocationEnt ) )
@@ -452,6 +506,21 @@ void function Arenas_SetupWaitingView()
 
 	file.waitingView.origin = camera.GetOrigin()
 	file.waitingView.angles = camera.GetAngles()
+	SetIntroCameraSettings( file.waitingView )
+}
+
+// Maps without intro cameras (phase runner) get an elevated view over the map location.
+void function Arenas_SetupFallbackWaitingView()
+{
+	if ( !IsValid( file.mapLocationEnt ) )
+		return
+
+	vector center = file.mapLocationEnt.GetOrigin()
+	vector back = AnglesToForward( file.mapLocationEnt.GetAngles() ) * -( file.mapRadius * 0.5 )
+	vector origin = center + back + <0, 0, file.mapRadius * 0.35>
+
+	file.waitingView.origin = origin
+	file.waitingView.angles = VectorToAngles( center - origin )
 	SetIntroCameraSettings( file.waitingView )
 }
 
@@ -496,6 +565,7 @@ void function Arenas_LateJoinBuyPhase( entity player )
 	int canisters = 0
 
 	Remote_CallFunction_NonReplay( player, "ServerCallback_DisplayArenasPrematch", leftTeam, rightTeam, savedCash, kills, canisters )
+	Arenas_SendAirdropPreview( player )
 }
 
 // ============================================================================
@@ -588,7 +658,6 @@ void function Arenas_ResetEconomyForRound()
 		data.canistersThisRound = 0
 		data.selectedItems.clear()
 		data.selectedOptic = ""
-		data.hasConfirmedLoadout = false
 		data.isEliminated = false
 		file.playerData[player] = data
 
@@ -611,6 +680,7 @@ void function Arenas_MainGameLoop()
 	file.rightTeamScore = 0
 	file.numTies = 0
 	file.matchOver = false
+	Arenas_PublishTeamScores()
 
 	// Update networked vars
 	SetGlobalNetInt( "arenas_numties", 0 )
@@ -687,7 +757,9 @@ void function Arenas_BuyPhase()
 	SetGlobalNonRewindNetInt( "gameState", eGameState.Prematch )
 	SetGlobalNonRewindNetInt( "roundsPlayed", file.roundNumber )
 
-	// Start deathfield paused — ring visible at full size during buy phase
+	// Start deathfield paused — ring visible at full size during buy phase. The round reset
+	// regenerates the stage data on a thread; the ring must not start from a half-built set.
+	FlagWait( "DeathFieldCalculationComplete" )
 	FlagSet( "DeathCircleActive" )
 	FlagSet( "DeathFieldPaused" )
 	thread SURVIVAL_RunArenaDeathField()
@@ -783,12 +855,14 @@ void function Arenas_BuyPhase()
 	}
 	Arenas_Announce( file.roundNumber == 0 ? "MATCH_INTRO" : "ROUND_PREPARE", GetPlayerArray(), 2.5 )
 
-	// Wait for buy phase timer to expire or all players to confirm
+	file.roundAirdropContents = Arenas_PickAirdropContents()
+	foreach ( entity player in GetPlayerArray() )
+		Arenas_SendAirdropPreview( player )
+
+	// Closing the shop does not end the buy phase; it can be reopened until the timer runs out.
 	float endTime = file.buyPhaseEndTime
 	while ( Time() < endTime )
 	{
-		if ( Arenas_AllPlayersConfirmed() )
-			break
 		if ( file.forceNextRound )
 			break
 		WaitFrame()
@@ -855,6 +929,26 @@ void function Arenas_SetupCharacter( entity player )
 	SURVIVAL_SetDefaultPlayerSettings( player )
 	player.AmmoPool_SetCapacity( SURVIVAL_MAX_AMMO_PICKUPS )
 	player.DisableAutoReloadNoAmmo()
+
+	thread Arenas_RefreshSquadBuyMenus( player )
+}
+
+// Squadmate portraits and weapons in an open buy menu only redraw on a refresh.
+void function Arenas_RefreshSquadBuyMenus( entity player )
+{
+	if ( !IsValid( player ) )
+		return
+
+	int team = player.GetTeam()
+	WaitFrame()
+
+	foreach ( entity teammate in GetPlayerArrayOfTeam( team ) )
+	{
+		if ( teammate == player || !IsValid( teammate ) || teammate.IsBot() )
+			continue
+
+		Remote_CallFunction_NonReplay( teammate, "ServerCallback_RefreshMenu" )
+	}
 }
 
 const array<string> ARENAS_BOT_WEAPONS = [
@@ -891,9 +985,8 @@ void function Arenas_GiveBotLoadout( entity bot )
 		Arenas_GrantItem( bot, "arenas_full_ultimate" )
 }
 
-// The store's startingCount column: heals and one tactical charge for everyone, and a
-// larger charge count on the rows of legend tacticals that hold charges, which apply only
-// to the legend who owns that tactical.
+// Everyone starts with their tactical and its own ready charge; bought charges start empty.
+// The store's startingCount column adds any free items on top.
 void function Arenas_GrantStartingItems( entity player )
 {
 	var dataTable = GetDataTable( $"datatable/arenas/arenas_items.rpak" )
@@ -901,13 +994,7 @@ void function Arenas_GrantStartingItems( entity player )
 	int startColumn = GetDataTableColumnByName( dataTable, "startingCount" )
 	int categoryColumn = GetDataTableColumnByName( dataTable, "category" )
 
-	string tacticalClass = ""
-	if ( LoadoutSlot_IsReady( ToEHI( player ), Loadout_Character() ) )
-	{
-		ItemFlavor character = LoadoutSlot_GetItemFlavor( ToEHI( player ), Loadout_Character() )
-		tacticalClass = CharacterAbility_GetWeaponClassname( CharacterClass_GetTacticalAbility( character ) )
-	}
-	int tacticalCharges = -1
+	Arenas_EnsureTactical( player )
 
 	for ( int row = 0; row < GetDataTableRowCount( dataTable ); row++ )
 	{
@@ -916,51 +1003,100 @@ void function Arenas_GrantStartingItems( entity player )
 		if ( count <= 0 )
 			continue
 
-		if ( GetDataTableString( dataTable, row, categoryColumn ) == "skills" && ref != "tactical_upgrade" )
-		{
-			if ( ref == tacticalClass )
-				tacticalCharges = count
+		if ( GetDataTableString( dataTable, row, categoryColumn ) == "skills" )
 			continue
-		}
 
 		for ( int i = 0; i < count; i++ )
 			Arenas_GrantItem( player, ref )
 	}
-
-	if ( tacticalCharges > 0 )
-		player.SetPlayerNetInt( "passiveCharges", tacticalCharges )
-	Arenas_SetTacticalCharges( player, player.GetPlayerNetInt( "passiveCharges" ) )
 }
 
-// Tactical charges live in the ability's ammo: the clip is the ready charge, the
-// stockpile holds the rest. The buy menu reads them back the same way.
+// Bought tactical charges wait in the ability's stockpile; the buy menu counts clip plus
+// stockpile against their maximums and calls the ability maxed once the stockpile is full.
 int function Arenas_TacticalAmmoPerCharge( entity weapon )
 {
 	return maxint( 1, weapon.GetWeaponSettingInt( eWeaponVar.ammo_per_shot ) ) * maxint( 1, weapon.GetWeaponSettingInt( eWeaponVar.burst_fire_count ) )
 }
 
-int function Arenas_GetTacticalCharges( entity player )
+entity function Arenas_EnsureTactical( entity player )
+{
+	entity weapon = player.GetOffhandWeapon( OFFHAND_TACTICAL )
+	if ( IsValid( weapon ) )
+		return weapon
+
+	ItemFlavor character = LoadoutSlot_GetItemFlavor( ToEHI( player ), Loadout_Character() )
+	player.GiveOffhandWeapon( CharacterAbility_GetWeaponClassname( CharacterClass_GetTacticalAbility( character ) ), OFFHAND_TACTICAL, [] )
+	weapon = player.GetOffhandWeapon( OFFHAND_TACTICAL )
+	if ( IsValid( weapon ) && weapon.GetWeaponPrimaryAmmoCountMax( AMMOSOURCE_STOCKPILE ) > 0 )
+		weapon.SetWeaponPrimaryAmmoCount( AMMOSOURCE_STOCKPILE, 0 )
+	return weapon
+}
+
+bool function Arenas_CanAddTacticalCharge( entity player )
 {
 	entity weapon = player.GetOffhandWeapon( OFFHAND_TACTICAL )
 	if ( !IsValid( weapon ) )
-		return 0
-	int ammo = weapon.GetWeaponPrimaryClipCount() + weapon.GetWeaponPrimaryAmmoCount( AMMOSOURCE_STOCKPILE )
-	return ammo / Arenas_TacticalAmmoPerCharge( weapon )
+		return true
+
+	int room = weapon.GetWeaponPrimaryAmmoCountMax( AMMOSOURCE_STOCKPILE ) - weapon.GetWeaponPrimaryAmmoCount( AMMOSOURCE_STOCKPILE )
+	return room >= Arenas_TacticalAmmoPerCharge( weapon )
 }
 
-void function Arenas_SetTacticalCharges( entity player, int charges )
+void function Arenas_AddTacticalCharges( entity player, int charges )
 {
-	entity weapon = player.GetOffhandWeapon( OFFHAND_TACTICAL )
+	entity weapon = Arenas_EnsureTactical( player )
 	if ( !IsValid( weapon ) )
 		return
 
-	int total = maxint( charges, 0 ) * Arenas_TacticalAmmoPerCharge( weapon )
-	int clip = minint( total, weapon.GetWeaponPrimaryClipCountMax() )
-	weapon.SetWeaponPrimaryClipCount( clip )
-
 	int stockpileMax = weapon.GetWeaponPrimaryAmmoCountMax( AMMOSOURCE_STOCKPILE )
-	if ( stockpileMax > 0 )
-		weapon.SetWeaponPrimaryAmmoCount( AMMOSOURCE_STOCKPILE, minint( total - clip, stockpileMax ) )
+	int stock = weapon.GetWeaponPrimaryAmmoCount( AMMOSOURCE_STOCKPILE ) + charges * Arenas_TacticalAmmoPerCharge( weapon )
+	weapon.SetWeaponPrimaryAmmoCount( AMMOSOURCE_STOCKPILE, minint( maxint( stock, 0 ), stockpileMax ) )
+}
+
+// Tactical cooldown only refills from bought charges (the ammo_regen_takes_from_stockpile
+// behaviour, which the server engine does not implement): every unit the cooldown adds is paid
+// from the stockpile, and with the stockpile empty the clip stays where the player left it.
+void function Arenas_TacticalChargeFeed_Thread()
+{
+	table<entity, int> lastClip
+
+	while ( file.currentPhase == eArenaPhase.COMBAT && !file.matchOver )
+	{
+		foreach ( entity player in GetPlayerArray_Alive() )
+		{
+			entity weapon = player.GetOffhandWeapon( OFFHAND_TACTICAL )
+			if ( !IsValid( weapon ) )
+				continue
+
+			int clip = weapon.GetWeaponPrimaryClipCount()
+			if ( !( weapon in lastClip ) )
+			{
+				lastClip[ weapon ] <- clip
+				continue
+			}
+
+			int gained = clip - lastClip[ weapon ]
+			if ( gained > 0 )
+			{
+				int stock = weapon.GetWeaponPrimaryAmmoCount( AMMOSOURCE_STOCKPILE )
+				int paid = minint( gained, stock )
+				weapon.SetWeaponPrimaryAmmoCount( AMMOSOURCE_STOCKPILE, stock - paid )
+				if ( paid < gained )
+				{
+					clip = lastClip[ weapon ] + paid
+					weapon.SetWeaponPrimaryClipCount( clip )
+				}
+			}
+			lastClip[ weapon ] = clip
+		}
+
+		foreach ( entity weapon, int clipSeen in clone lastClip )
+		{
+			if ( !IsValid( weapon ) )
+				delete lastClip[ weapon ]
+		}
+		wait 0.1
+	}
 }
 
 void function Arenas_ResetPlayerForRound( entity player )
@@ -1005,11 +1141,18 @@ void function Arenas_ResetPlayerForRound( entity player )
 	// Shields fill after the armor sets their capacity.
 	player.SetShieldHealth( player.GetShieldHealthMax() )
 
-	// Nothing bought yet; the store's starting items (one tactical charge, the free heals)
-	// are granted on top.
+	// Nothing bought yet: the tactical with its own charge, plus any free starting items.
 	player.SetPlayerNetInt( "passiveCharges", 0 )
-	player.SetPlayerNetInt( "ultimateCooldown", 1 )
 	Arenas_GrantStartingItems( player )
+
+	if ( player in file.playerData )
+	{
+		ArenaPlayerData cooldownData = file.playerData[player]
+		player.SetPlayerNetInt( "ultimateCooldown", cooldownData.ultCooldownRounds )
+		cooldownData.ultCooldownBeforePurchase = maxint( 0, cooldownData.ultCooldownRounds - 1 )
+		cooldownData.ultCooldownRounds = cooldownData.ultCooldownBeforePurchase
+		file.playerData[player] = cooldownData
+	}
 
 	// Reset elimination state (economy/selections cleared by Arenas_ResetEconomyForRound)
 	if ( player in file.playerData )
@@ -1122,18 +1265,6 @@ vector function Arenas_GroundedSpawnPos( entity player, vector pos )
 	if ( result.startSolid || result.fraction >= 1.0 )
 		return pos
 	return result.endPos + <0, 0, 1>
-}
-
-bool function Arenas_AllPlayersConfirmed()
-{
-	foreach ( entity player, ArenaPlayerData data in file.playerData )
-	{
-		if ( !IsValid( player ) || player.IsBot() )
-			continue
-		if ( !data.hasConfirmedLoadout )
-			return false
-	}
-	return true
 }
 
 void function Arenas_SetStartZoneWalls( bool enabled )
@@ -1311,15 +1442,34 @@ void function Arenas_AirdropTimer()
 	Arenas_SpawnAirdrops()
 }
 
+array<string> function Arenas_PickAirdropContents()
+{
+	// One loot group or ref per pod door: a care package weapon and two fully kitted gold weapons.
+	string contentList = GetCurrentPlaylistVarString( "arenas_airdrop_contents", ARENAS_DEFAULT_AIRDROP_CONTENTS )
+	array<string> tokens = split( contentList, WHITESPACE_CHARACTERS )
+	if ( tokens.len() != 3 )
+		tokens = split( ARENAS_DEFAULT_AIRDROP_CONTENTS, WHITESPACE_CHARACTERS )
+
+	array<string> contents
+	foreach ( array<string> door in DetermineAirdropContents( [ [ tokens[0] ], [ tokens[1] ], [ tokens[2] ] ] ) )
+		contents.append( door.len() > 0 ? door[0] : "" )
+	return contents
+}
+
+void function Arenas_SendAirdropPreview( entity player )
+{
+	if ( !IsValid( player ) || file.airdropLocations.len() == 0 || file.roundAirdropContents.len() < 3 )
+		return
+
+	array<int> ids
+	foreach ( string ref in file.roundAirdropContents )
+		ids.append( SURVIVAL_Loot_IsRefValid( ref ) ? SURVIVAL_Loot_GetLootDataByRef( ref ).index : 0 )
+
+	Remote_CallFunction_NonReplay( player, "ServerCallback_Arenas_UpdateAirdropPreview", ids[0], ids[1], ids[2] )
+}
+
 void function Arenas_SpawnAirdrops()
 {
-	// Loot pool for arenas care packages: high-tier healing and shields
-	array< array<string> > airdropLootPool = [
-		[ "health_pickup_combo_full", "health_pickup_combo_large", "health_pickup_combo_large" ],
-		[ "health_pickup_combo_full", "health_pickup_health_large", "health_pickup_combo_large" ],
-		[ "health_pickup_combo_large", "health_pickup_combo_large", "health_pickup_health_large" ]
-	]
-
 	foreach ( entity locationEnt in file.airdropLocations )
 	{
 		if ( !IsValid( locationEnt ) )
@@ -1328,12 +1478,9 @@ void function Arenas_SpawnAirdrops()
 		vector origin = locationEnt.GetOrigin()
 		vector angles = locationEnt.GetAngles()
 
-		// Pick random loot loadout for this care package
-		array<string> contents = airdropLootPool[ RandomInt( airdropLootPool.len() ) ]
-
 		// One list per pod door (L, R, C); each door gets one item.
 		array< array<string> > doorContents
-		foreach ( string item in contents )
+		foreach ( string item in file.roundAirdropContents )
 			doorContents.append( [ item ] )
 
 		AirdropItemsOptionalInfo optionInfo
@@ -1356,13 +1503,27 @@ void function Arenas_SpawnAirdrops()
 	}
 }
 
+// Round wins ride team score 2, which every client score readout reads (Arenas_GetTeamWins).
+void function Arenas_PublishTeamScores()
+{
+	foreach ( int team in [ file.leftTeam, file.rightTeam ] )
+	{
+		if ( team <= 0 )
+			continue
+		int wins = team == file.leftTeam ? file.leftTeamScore : file.rightTeamScore
+		GameRules_SetTeamScore( team, wins )
+		GameRules_SetTeamScore2( team, wins )
+	}
+}
+
 void function Arenas_CleanupAirdrops()
 {
-	// Care packages spawned by AirdropItems are tracked in the global array
-	array<entity> carePackages = ReturnCarePackagesNewArray()
-	for ( int i = carePackages.len() - 1; i >= 0; i-- )
+	// The Pathfinder scan markers are only linked to their pod and would outlive it.
+	DeleteCarepackagePerkLinks()
+
+	// Includes pods still falling: destroying one ends its AirdropItems thread.
+	foreach ( entity pod in GetEntArrayByScriptName( CARE_PACKAGE_SCRIPTNAME ) )
 	{
-		entity pod = carePackages[i]
 		if ( IsValid( pod ) )
 			pod.Destroy()
 	}
@@ -1395,9 +1556,8 @@ void function Arenas_OnCanisterUsed( entity canister, entity player, int useInpu
 	data.canistersThisMatch++
 	file.playerData[player] = data
 
-	// Prevent double-use
+	// Prevent double-use; the emptied canister stays until the round cleanup
 	canister.UnsetUsable()
-	file.activeCanisters.fastremovebyvalue( canister )
 
 	// Play collection sounds
 	EmitSoundOnEntityOnlyToPlayer( canister, player, "Crafting_Extractor_Collect_1P" )
@@ -1409,53 +1569,21 @@ void function Arenas_OnCanisterUsed( entity canister, entity player, int useInpu
 	Remote_CallFunction_NonReplay( player, "ServerToClient_OnUseCashStationSmall", canister, reward )
 
 
-	// Play collection animation then destroy
 	thread Arenas_CanisterCollectedAnim( canister )
 }
 
 void function Arenas_CanisterCollectedAnim( entity canister )
 {
-	if ( !IsValid( canister ) )
-		return
+	canister.EndSignal( "OnDestroy" )
 
+	printt( "[Arenas] canister seq server: full_idle", canister.LookupSequence( "source_full_idle" ), "full_to_empty", canister.LookupSequence( "source_full_to_empty" ), "empty_idle", canister.LookupSequence( "source_empty_idle" ) )
 	waitthread PlayAnim( canister, "source_full_to_empty" )
-
-	if ( IsValid( canister ) )
-	{
-		thread PlayAnim( canister, "source_empty_idle" )
-		wait 2.0
-	}
-
-	if ( IsValid( canister ) )
-		canister.Destroy()
+	thread PlayAnim( canister, "source_empty_idle" )
 }
 
 // ============================================================================
 // LOADOUT GRANTING
 // ============================================================================
-
-// Strips all weapons and inventory from a player to prepare for loadout grant.
-// Follows the same pattern as TakeLoadoutRelatedWeapons + TakeAllWeapons.
-void function Arenas_StripPlayerLoadout( entity player )
-{
-	// Strip primary weapon slots
-	if ( IsValid( player.GetNormalWeapon( WEAPON_INVENTORY_SLOT_PRIMARY_0 ) ) )
-		player.TakeNormalWeaponByIndexNow( WEAPON_INVENTORY_SLOT_PRIMARY_0 )
-	if ( IsValid( player.GetNormalWeapon( WEAPON_INVENTORY_SLOT_PRIMARY_1 ) ) )
-		player.TakeNormalWeaponByIndexNow( WEAPON_INVENTORY_SLOT_PRIMARY_1 )
-
-	// Strip ordnance (BR grenades use ANTI_TITAN slot, not OFFHAND_ORDNANCE)
-	entity ordnance = player.GetNormalWeapon( WEAPON_INVENTORY_SLOT_ANTI_TITAN )
-	if ( IsValid( ordnance ) )
-		player.TakeWeaponByEnt( ordnance )
-
-	// Strip consumable slot
-	if ( IsValid( player.GetOffhandWeapon( OFFHAND_SLOT_FOR_CONSUMABLES ) ) )
-		player.TakeOffhandWeapon( OFFHAND_SLOT_FOR_CONSUMABLES )
-
-	// Clear survival inventory (heals, ammo, etc.)
-	SetPlayerInventory( player, [] )
-}
 
 // Determines if a loot ref is a main weapon (not ordnance, melee, or attachment).
 // Uses the survival loot data system for proper classification.
@@ -1524,216 +1652,6 @@ array<string> function Arenas_GetWeaponModsFromRef( string ref )
 	return []
 }
 
-// Main loadout granting function. Called at the end of each buy phase.
-// Grants weapons based on selectedItems, following CTF/WinterExpress patterns.
-void function Arenas_GrantPurchasedLoadout( entity player )
-{
-	printt( "[Arenas Grant] ENTER" )
-
-	if ( !IsValid( player ) || !IsAlive( player ) )
-	{
-		printt( "[Arenas Grant] BAIL - invalid or dead" )
-		return
-	}
-
-	if ( !( player in file.playerData ) )
-	{
-		printt( "[Arenas Grant] BAIL - not in playerData" )
-		return
-	}
-
-	ArenaPlayerData data = file.playerData[player]
-	printt( "[Arenas Grant] selections:", data.selectedItems.len(), "materials:", data.materials )
-
-	// Save unspent materials as carryover for next round
-	data.materialsCarryover = data.materials
-
-	// Strip primary weapon slots only (melee, abilities, consumable already set by ResetPlayerForRound)
-	printt( "[Arenas Grant] Stripping primary weapons" )
-	if ( IsValid( player.GetNormalWeapon( WEAPON_INVENTORY_SLOT_PRIMARY_0 ) ) )
-		player.TakeNormalWeaponByIndexNow( WEAPON_INVENTORY_SLOT_PRIMARY_0 )
-	if ( IsValid( player.GetNormalWeapon( WEAPON_INVENTORY_SLOT_PRIMARY_1 ) ) )
-		player.TakeNormalWeaponByIndexNow( WEAPON_INVENTORY_SLOT_PRIMARY_1 )
-
-	Survival_SetInventoryEnabled( player, true )
-	Inventory_SetPlayerEquipment( player, "backpack_pickup_lv3", "backpack" )
-	Inventory_SetPlayerEquipment( player, "helmet_pickup_lv3", "helmet" )
-	Inventory_SetPlayerEquipment( player, "armor_pickup_lv3", "armor" )
-
-	printt( "[Arenas Grant] Base equipment given, granting purchases" )
-
-	// Deduplicate weapon selections: when a player buys a base weapon then upgrades it,
-	// both the base and upgrade refs are in selectedItems. Only grant the highest tier.
-	table<string, string> highestWeaponByBase
-	for ( int i = 0; i < data.selectedItems.len(); i++ )
-	{
-		string ref = data.selectedItems[i].ref
-		if ( ref.find( "mp_weapon_" ) != 0 )
-			continue
-		if ( !SURVIVAL_Loot_IsRefValid( ref ) )
-			continue
-		LootData wData = SURVIVAL_Loot_GetLootDataByRef( ref )
-		if ( wData.lootType != eLootType.MAINWEAPON )
-			continue
-		string baseRef = wData.baseWeapon != "" ? wData.baseWeapon : ref
-		highestWeaponByBase[baseRef] <- ref
-	}
-
-	int weaponSlot = 0
-
-	for ( int i = 0; i < data.selectedItems.len(); i++ )
-	{
-		string ref = data.selectedItems[i].ref
-		printt( "[Arenas Grant] Item", i, "ref:", ref )
-
-		// Ability purchases - grant weapon and apply charges/cooldown
-		if ( ref == "tactical_upgrade" )
-		{
-			// Give tactical weapon if not already given this round
-			entity existingTactical = player.GetOffhandWeapon( OFFHAND_TACTICAL )
-			if ( !IsValid( existingTactical ) )
-			{
-				ItemFlavor character = LoadoutSlot_GetItemFlavor( ToEHI( player ), Loadout_Character() )
-				ItemFlavor tacticalAbility = CharacterClass_GetTacticalAbility( character )
-				player.GiveOffhandWeapon( CharacterAbility_GetWeaponClassname( tacticalAbility ), OFFHAND_TACTICAL, [] )
-				printt( "[Arenas Grant] Tactical weapon given" )
-			}
-			int currentCharges = player.GetPlayerNetInt( "passiveCharges" )
-			player.SetPlayerNetInt( "passiveCharges", currentCharges + 1 )
-			printt( "[Arenas Grant] Tactical upgrade applied, charges now:", currentCharges + 1 )
-			continue
-		}
-		if ( ref == "arenas_full_ultimate" )
-		{
-			// Give ultimate weapon if not already given this round
-			entity existingUlt = player.GetOffhandWeapon( OFFHAND_ULTIMATE )
-			if ( !IsValid( existingUlt ) )
-			{
-				ItemFlavor character = LoadoutSlot_GetItemFlavor( ToEHI( player ), Loadout_Character() )
-				ItemFlavor ultimateAbility = CharacterClass_GetUltimateAbility( character )
-				player.GiveOffhandWeapon( CharacterAbility_GetWeaponClassname( ultimateAbility ), OFFHAND_ULTIMATE, [] )
-				printt( "[Arenas Grant] Ultimate weapon given" )
-			}
-			// Set ultimate to ready (0 = not on cooldown = ready to use)
-			player.SetPlayerNetInt( "ultimateCooldown", 0 )
-			// Charge the ultimate weapon to full
-			entity ultWeapon = player.GetOffhandWeapon( OFFHAND_ULTIMATE )
-			if ( IsValid( ultWeapon ) )
-			{
-				ultWeapon.SetWeaponPrimaryClipCount( ultWeapon.GetWeaponPrimaryClipCountMax() )
-			}
-			printt( "[Arenas Grant] Full ultimate applied" )
-			continue
-		}
-		if ( ref == "buy_passive" )
-		{
-			// Passive ability purchase - increment passive charges
-			int currentCharges = player.GetPlayerNetInt( "passiveCharges" )
-			player.SetPlayerNetInt( "passiveCharges", currentCharges + 1 )
-			printt( "[Arenas Grant] Passive upgrade applied, charges now:", currentCharges + 1 )
-			continue
-		}
-
-		// Check if it's a weapon by prefix
-		if ( ref.find( "mp_weapon_" ) == 0 && weaponSlot < 2 )
-		{
-			// Skip lower tiers of same weapon (only grant highest purchased tier)
-			if ( SURVIVAL_Loot_IsRefValid( ref ) )
-			{
-				LootData skipCheck = SURVIVAL_Loot_GetLootDataByRef( ref )
-				string skipBase = skipCheck.baseWeapon != "" ? skipCheck.baseWeapon : ref
-				if ( skipBase in highestWeaponByBase && highestWeaponByBase[skipBase] != ref )
-				{
-					printt( "[Arenas Grant] Skipping lower tier:", ref, "highest:", highestWeaponByBase[skipBase] )
-					continue
-				}
-			}
-
-			// Get base weapon and mods from loot data if available
-			string baseWeapon = ref
-			array<string> mods = []
-			if ( SURVIVAL_Loot_IsRefValid( ref ) )
-			{
-				LootData lootData = SURVIVAL_Loot_GetLootDataByRef( ref )
-				if ( lootData.baseWeapon != "" )
-					baseWeapon = lootData.baseWeapon
-				mods = clone lootData.baseMods
-			}
-
-			int slot = WEAPON_INVENTORY_SLOT_PRIMARY_0 + weaponSlot
-			printt( "[Arenas Grant] GiveWeapon:", baseWeapon, "slot:", slot, "mods:", mods.len() )
-			entity weapon = player.GiveWeapon( baseWeapon, slot, mods )
-
-			if ( IsValid( weapon ) )
-			{
-				GetWeaponClassNameWithLockedSet( weapon ) // Initialize locked set entity var for client replication
-				// Fill clip and give ammo
-				if ( weapon.UsesClipsForAmmo() )
-					weapon.SetWeaponPrimaryClipCount( weapon.GetWeaponPrimaryClipCountMax() )
-				player.AmmoPool_SetCapacity( 999 )
-				SetupPlayerReserveAmmo( player, weapon )
-				printt( "[Arenas Grant] Weapon given successfully:", baseWeapon )
-			}
-			else
-			{
-				printt( "[Arenas Grant] GiveWeapon FAILED for:", baseWeapon )
-			}
-
-			weaponSlot++
-			continue
-		}
-
-		// Ordnance (grenades) - uses WEAPON_INVENTORY_SLOT_ANTI_TITAN with survival_finite_ordnance mod
-		if ( Arenas_IsOrdnanceRef( ref ) )
-		{
-			string ordWeapon = Arenas_GetBaseWeaponFromRef( ref )
-			SURVIVAL_AddToPlayerInventory( player, ref, 1 )
-
-			entity existingOrd = player.GetNormalWeapon( WEAPON_INVENTORY_SLOT_ANTI_TITAN )
-			if ( IsValid( existingOrd ) && existingOrd.GetWeaponClassName() == ordWeapon )
-			{
-				int count = SURVIVAL_CountItemsInInventory( player, ref )
-				existingOrd.SetWeaponPrimaryClipCount( minint( count, existingOrd.GetWeaponPrimaryClipCountMax() ) )
-			}
-			else
-			{
-				if ( IsValid( existingOrd ) )
-					player.TakeWeaponByEnt( existingOrd )
-				player.GiveWeapon( ordWeapon, WEAPON_INVENTORY_SLOT_ANTI_TITAN, ["survival_finite_ordnance"] )
-				entity newOrd = player.GetNormalWeapon( WEAPON_INVENTORY_SLOT_ANTI_TITAN )
-				if ( IsValid( newOrd ) )
-				{
-					int count = SURVIVAL_CountItemsInInventory( player, ref )
-					newOrd.SetWeaponPrimaryClipCount( minint( count, newOrd.GetWeaponPrimaryClipCountMax() ) )
-				}
-			}
-			printt( "[Arenas Grant] Ordnance given:", ordWeapon )
-			continue
-		}
-
-		// Healing items
-		if ( ref.find( "health_pickup_" ) == 0 )
-		{
-			SURVIVAL_AddToPlayerInventory( player, ref, 1 )
-			printt( "[Arenas Grant] Heal given:", ref )
-			continue
-		}
-
-		// Everything else - try adding to inventory
-		printt( "[Arenas Grant] Unknown ref:", ref )
-		if ( SURVIVAL_Loot_IsRefValid( ref ) )
-			SURVIVAL_AddToPlayerInventory( player, ref, 1 )
-	}
-
-	// Set active weapon
-	if ( weaponSlot > 0 && IsValid( player.GetNormalWeapon( WEAPON_INVENTORY_SLOT_PRIMARY_0 ) ) )
-		player.SetActiveWeaponBySlot( eActiveInventorySlot.mainHand, WEAPON_INVENTORY_SLOT_PRIMARY_0 )
-
-	file.playerData[player] = data
-
-	printt( "[Arenas Grant] DONE - weapons:", weaponSlot )
-}
-
 // ============================================================================
 // IMMEDIATE GRANT / REVOKE (called on buy/sell during buy phase)
 // ============================================================================
@@ -1750,16 +1668,7 @@ void function Arenas_GrantItem( entity player, string ref )
 	// Tactical ability upgrade
 	if ( ref == "tactical_upgrade" )
 	{
-		entity existingTactical = player.GetOffhandWeapon( OFFHAND_TACTICAL )
-		if ( !IsValid( existingTactical ) )
-		{
-			ItemFlavor character = LoadoutSlot_GetItemFlavor( ToEHI( player ), Loadout_Character() )
-			ItemFlavor tacticalAbility = CharacterClass_GetTacticalAbility( character )
-			player.GiveOffhandWeapon( CharacterAbility_GetWeaponClassname( tacticalAbility ), OFFHAND_TACTICAL, [] )
-		}
-		int currentCharges = player.GetPlayerNetInt( "passiveCharges" )
-		player.SetPlayerNetInt( "passiveCharges", currentCharges + 1 )
-		Arenas_SetTacticalCharges( player, Arenas_GetTacticalCharges( player ) + 1 )
+		Arenas_AddTacticalCharges( player, 1 )
 		return
 	}
 
@@ -1826,7 +1735,6 @@ void function Arenas_GrantItem( entity player, string ref )
 	if ( Arenas_IsWeaponRef( ref ) )
 	{
 		string baseWeapon = Arenas_GetBaseWeaponFromRef( ref )
-		array<string> mods = Arenas_GetWeaponModsFromRef( ref )
 
 		// Check if player already has same base weapon (upgrade scenario)
 		for ( int slot = WEAPON_INVENTORY_SLOT_PRIMARY_0; slot <= WEAPON_INVENTORY_SLOT_PRIMARY_1; slot++ )
@@ -1835,22 +1743,13 @@ void function Arenas_GrantItem( entity player, string ref )
 			if ( !IsValid( existing ) )
 				continue
 
-			string existingClass = existing.GetWeaponClassName()
-			// Check if existing weapon matches this base weapon
-			if ( existingClass == baseWeapon )
+			// Same upgrade line (a single and an akimbo pistol are different lines)
+			if ( Arenas_WeaponLineRef( GetWeaponClassNameWithLockedSet( existing ) ) == Arenas_WeaponLineRef( ref ) )
 			{
 				// Same base weapon - upgrade in place: take old, give new with mods
-				player.TakeNormalWeaponByIndexNow( slot )
-				entity weapon = player.GiveWeapon( baseWeapon, slot, mods )
-				if ( IsValid( weapon ) )
-				{
-					GetWeaponClassNameWithLockedSet( weapon ) // Initialize locked set entity var for client replication
-					if ( weapon.UsesClipsForAmmo() )
-						weapon.SetWeaponPrimaryClipCount( weapon.GetWeaponPrimaryClipCountMax() )
-					player.AmmoPool_SetCapacity( 999 )
-					SetupPlayerReserveAmmo( player, weapon )
-				}
-				player.SetActiveWeaponBySlot( eActiveInventorySlot.mainHand, slot )
+				Arenas_TakeStoreWeapon( player, slot )
+				Arenas_GiveStoreWeapon( player, ref, slot, false )
+				Arenas_SelectStoreWeapon( player, slot )
 				printt( "[Arenas GrantItem] Weapon upgraded in slot", slot )
 				return
 			}
@@ -1863,16 +1762,8 @@ void function Arenas_GrantItem( entity player, string ref )
 			if ( IsValid( existing ) )
 				continue
 
-			entity weapon = player.GiveWeapon( baseWeapon, slot, mods )
-			if ( IsValid( weapon ) )
-			{
-				GetWeaponClassNameWithLockedSet( weapon ) // Initialize locked set entity var for client replication
-				if ( weapon.UsesClipsForAmmo() )
-					weapon.SetWeaponPrimaryClipCount( weapon.GetWeaponPrimaryClipCountMax() )
-				player.AmmoPool_SetCapacity( 999 )
-				SetupPlayerReserveAmmo( player, weapon )
-			}
-			player.SetActiveWeaponBySlot( eActiveInventorySlot.mainHand, slot )
+			Arenas_GiveStoreWeapon( player, ref, slot, true )
+			Arenas_SelectStoreWeapon( player, slot )
 			printt( "[Arenas GrantItem] Weapon given to slot", slot )
 			return
 		}
@@ -1884,6 +1775,83 @@ void function Arenas_GrantItem( entity player, string ref )
 	// Fallback
 	if ( SURVIVAL_Loot_IsRefValid( ref ) )
 		SURVIVAL_AddToPlayerInventory( player, ref, 1 )
+}
+
+// A store weapon ref is a base weapon or one of its locked sets; the set is a weapon property
+// both VMs read back as the tier, not a mod. A new purchase also brings its reserve ammo.
+entity function Arenas_GiveStoreWeapon( entity player, string ref, int slot, bool giveAmmo )
+{
+	entity weapon = player.GiveWeapon( Arenas_GetBaseWeaponFromRef( ref ), slot, Arenas_GetWeaponModsFromRef( ref ) )
+	if ( !IsValid( weapon ) )
+		return null
+
+	if ( SURVIVAL_Loot_IsRefValid( ref ) )
+		SetWeaponLockedSetFromLootTags( SURVIVAL_Loot_GetLootDataByRef( ref ).lootTags, weapon )
+
+	if ( weapon.UsesClipsForAmmo() )
+		weapon.SetWeaponPrimaryClipCount( weapon.GetWeaponPrimaryClipCountMax() )
+	player.AmmoPool_SetCapacity( 999 )
+	if ( giveAmmo )
+		Arenas_ChangeReserveAmmo( player, weapon, Arenas_GetWeaponStartingAmmo( ref ) )
+
+	if ( Arenas_IsAkimboLine( ref ) && CanWeaponAkimbo( weapon.GetWeaponClassName() ) )
+		Arenas_GiveAkimboPartner( player, weapon, ref )
+	return weapon
+}
+
+// The partner hand is a second copy in the dual-primary slot with the same mods and set.
+void function Arenas_GiveAkimboPartner( entity player, entity weapon, string ref )
+{
+	int dualSlot = weapon.GetInventoryIndex() + WEAPON_INVENTORY_SLOT_DUALPRIMARY_0
+	if ( IsValid( player.GetNormalWeapon( dualSlot ) ) )
+		player.TakeNormalWeaponByIndexNow( dualSlot )
+
+	entity partner = player.GiveWeapon( weapon.GetWeaponClassName(), dualSlot, weapon.GetMods(), false )
+	if ( !IsValid( partner ) )
+		return
+
+	if ( SURVIVAL_Loot_IsRefValid( ref ) )
+		SetWeaponLockedSetFromLootTags( SURVIVAL_Loot_GetLootDataByRef( ref ).lootTags, partner )
+	if ( partner.UsesClipsForAmmo() )
+		partner.SetWeaponPrimaryClipCount( partner.GetWeaponPrimaryClipCountMax() )
+}
+
+void function Arenas_TakeStoreWeapon( entity player, int slot )
+{
+	int dualSlot = slot + WEAPON_INVENTORY_SLOT_DUALPRIMARY_0
+	if ( IsValid( player.GetNormalWeapon( dualSlot ) ) )
+		player.TakeNormalWeaponByIndexNow( dualSlot )
+	player.TakeNormalWeaponByIndexNow( slot )
+}
+
+void function Arenas_SelectStoreWeapon( entity player, int slot )
+{
+	player.SetActiveWeaponBySlot( eActiveInventorySlot.mainHand, slot )
+
+	int dualSlot = slot + WEAPON_INVENTORY_SLOT_DUALPRIMARY_0
+	if ( IsValid( player.GetNormalWeapon( dualSlot ) ) )
+	{
+		player.ClearFirstDeployForAllWeapons()
+		player.SetActiveWeaponBySlot( eActiveInventorySlot.altHand, dualSlot )
+	}
+}
+
+void function Arenas_ChangeReserveAmmo( entity player, entity weapon, int delta )
+{
+	int ammoType = weapon.GetWeaponAmmoPoolType()
+	if ( ammoType < 0 || delta == 0 )
+		return
+
+	string ammoRef = AmmoType_GetRefFromIndex( ammoType )
+	if ( !SURVIVAL_Loot_IsRefValid( ammoRef ) )
+		return
+
+	if ( delta > 0 )
+		SURVIVAL_AddToPlayerInventory( player, ammoRef, delta )
+	else
+		SURVIVAL_RemoveFromPlayerInventory( player, ammoRef, minint( -delta, SURVIVAL_CountItemsInInventory( player, ammoRef ) ) )
+
+	player.AmmoPool_SetCount( ammoType, SURVIVAL_CountItemsInInventory( player, ammoRef ) )
 }
 
 // Revokes a single item immediately when sold during buy phase.
@@ -1898,24 +1866,23 @@ void function Arenas_RevokeItem( entity player, string ref, ArenaPlayerData data
 	// Tactical ability
 	if ( ref == "tactical_upgrade" )
 	{
-		int currentCharges = player.GetPlayerNetInt( "passiveCharges" )
-		player.SetPlayerNetInt( "passiveCharges", maxint( 0, currentCharges - 1 ) )
-		if ( currentCharges <= 1 )
-		{
-			entity tactical = player.GetOffhandWeapon( OFFHAND_TACTICAL )
-			if ( IsValid( tactical ) )
-				player.TakeOffhandWeapon( OFFHAND_TACTICAL )
-		}
+		Arenas_AddTacticalCharges( player, -1 )
 		return
 	}
 
 	// Full ultimate
+	// Selling restores the state from before the purchase; the purchase was only allowed off cooldown.
 	if ( ref == "arenas_full_ultimate" )
 	{
-		player.SetPlayerNetInt( "ultimateCooldown", 1 )
+		player.SetPlayerNetInt( "ultimateCooldown", 0 )
 		entity ult = player.GetOffhandWeapon( OFFHAND_ULTIMATE )
 		if ( IsValid( ult ) )
-			player.TakeOffhandWeapon( OFFHAND_ULTIMATE )
+		{
+			if ( data.ultClipBeforePurchase < 0 )
+				player.TakeOffhandWeapon( OFFHAND_ULTIMATE )
+			else
+				ult.SetWeaponPrimaryClipCount( minint( data.ultClipBeforePurchase, ult.GetWeaponPrimaryClipCountMax() ) )
+		}
 		return
 	}
 
@@ -1963,27 +1930,19 @@ void function Arenas_RevokeItem( entity player, string ref, ArenaPlayerData data
 			entity existing = player.GetNormalWeapon( slot )
 			if ( !IsValid( existing ) )
 				continue
-			if ( existing.GetWeaponClassName() != baseWeapon )
+			if ( Arenas_WeaponLineRef( GetWeaponClassNameWithLockedSet( existing ) ) != Arenas_WeaponLineRef( ref ) )
 				continue
-
-			// Found the weapon in this slot - take it
-			player.TakeNormalWeaponByIndexNow( slot )
 
 			// Check if there's a lower tier still purchased for same base weapon
 			string remainingRef = Arenas_GetHighestRemainingTier( data, baseWeapon, ref )
+			if ( remainingRef == "" )
+				Arenas_ChangeReserveAmmo( player, existing, -Arenas_GetWeaponStartingAmmo( ref ) )
+
+			Arenas_TakeStoreWeapon( player, slot )
 			if ( remainingRef != "" )
 			{
-				string remainBase = Arenas_GetBaseWeaponFromRef( remainingRef )
-				array<string> remainMods = Arenas_GetWeaponModsFromRef( remainingRef )
-				entity weapon = player.GiveWeapon( remainBase, slot, remainMods )
-				if ( IsValid( weapon ) )
-				{
-					GetWeaponClassNameWithLockedSet( weapon ) // Initialize locked set entity var for client replication
-					if ( weapon.UsesClipsForAmmo() )
-						weapon.SetWeaponPrimaryClipCount( weapon.GetWeaponPrimaryClipCountMax() )
-					player.AmmoPool_SetCapacity( 999 )
-					SetupPlayerReserveAmmo( player, weapon )
-				}
+				Arenas_GiveStoreWeapon( player, remainingRef, slot, false )
+				Arenas_SelectStoreWeapon( player, slot )
 				printt( "[Arenas RevokeItem] Downgraded to:", remainingRef )
 			}
 			else
@@ -2014,8 +1973,7 @@ string function Arenas_GetHighestRemainingTier( ArenaPlayerData data, string bas
 		if ( !Arenas_IsWeaponRef( item.ref ) )
 			continue
 
-		string itemBase = Arenas_GetBaseWeaponFromRef( item.ref )
-		if ( itemBase != baseWeapon )
+		if ( Arenas_WeaponLineRef( item.ref ) != Arenas_WeaponLineRef( excludeRef ) )
 			continue
 
 		// Determine tier from loot data
@@ -2078,6 +2036,8 @@ void function Arenas_CombatPhase()
 
 	// Round start battle chatter
 	Arenas_AnnounceRoundStart()
+
+	thread Arenas_TacticalChargeFeed_Thread()
 
 	// Activate ring shrink after delay
 	thread Arenas_ActivateRing()
@@ -2191,9 +2151,7 @@ void function Arenas_RoundEnd( int winningTeam )
 		file.lastWonTeam = winningTeam
 		SetGlobalNetInt( "arenas_lastWonTeam", winningTeam )
 
-		// Update team scores in game rules (used by scoreboard and win detection)
-		GameRules_SetTeamScore( file.leftTeam, file.leftTeamScore )
-		GameRules_SetTeamScore( file.rightTeam, file.rightTeamScore )
+		Arenas_PublishTeamScores()
 	}
 
 	// Determine round won descriptor
@@ -2377,7 +2335,12 @@ void function Arenas_MatchEnd()
 		Arenas_Announce( "INTRO_CHAMPION_CARD", [ player ], 1.0 )
 	}
 
-	// End the match via game state transition
+	// End the match via game state transition. The map change below ends it; the stock
+	// round-based winner think would otherwise send everyone back to legend select.
+	SetCustomWinnerDeterminedLength( 9999.0 )
+	// Arenas runs its own rounds; the stock round-based WinnerDetermined branch would score and
+	// eliminate for another round. The match is over, so end it as a single-round match.
+	SetRoundBased( false )
 	SetGameState( eGameState.WinnerDetermined )
 	SetGlobalNonRewindNetInt( "gameState", eGameState.WinnerDetermined )
 
@@ -2712,33 +2675,54 @@ void function Arenas_SendRoundStartAnnouncement()
 // ============================================================================
 // CLIENT COMMAND HANDLERS (Buy System)
 // ============================================================================
+// Client-sent numbers; anything that is not a plain non-negative integer is -1.
+int function Arenas_ParseClientInt( string arg )
+{
+	if ( arg == "" || arg.len() > 9 )
+		return -1
+
+	for ( int i = 0; i < arg.len(); i++ )
+	{
+		if ( "0123456789".find( arg.slice( i, i + 1 ) ) == -1 )
+			return -1
+	}
+
+	return arg.tointeger()
+}
+
+// The client marks an item bought before it asks; every answer releases its click lock, and a
+// refusal also drops that optimistic selection.
 void function ClientCommand_Arenas_Select( entity player, array<string> args )
 {
 	// Expected args: <index> <cost> <ref>
 	if ( !IsValid( player ) || args.len() < 3 )
 		return
 
-	if ( file.currentPhase != eArenaPhase.BUY_PHASE )
-		return
+	if ( !Arenas_TrySelect( player, args[2] ) )
+	{
+		int clientIndex = Arenas_ParseClientInt( args[0] )
+		if ( clientIndex >= 0 && clientIndex <= ARENAS_MAX_STORE_INDEX )
+			Remote_CallFunction_NonReplay( player, "ServerCallback_Arenas_SelectRejected", clientIndex )
+	}
 
-	if ( !( player in file.playerData ) )
-		return
+	Remote_CallFunction_NonReplay( player, "ServerCallback_FinishedProcessingClickEvent" )
+}
 
-	string ref = args[2]
+bool function Arenas_TrySelect( entity player, string ref )
+{
+	if ( file.currentPhase != eArenaPhase.BUY_PHASE || !( player in file.playerData ) )
+		return false
+
 	string storeRef = Arenas_FindStoreRef( player, ref )
 	if ( storeRef == "" || DoesPlayerOwnMaxItems( player, storeRef ) || !Arenas_HasUpgradePrereq( player, storeRef ) )
-	{
-		Remote_CallFunction_NonReplay( player, "ServerCallback_FinishedProcessingClickEvent" )
-		return
-	}
+		return false
 
 	int cost = Arenas_GetItemCostByRef( player, ref )
 	if ( cost < 0 || cost > ARENAS_MAX_CASH )
-		return
+		return false
 
 	ArenaPlayerData data = file.playerData[player]
 
-	// Enforce ability purchase limits server-side
 	if ( ref == "tactical_upgrade" || ref == "arenas_full_ultimate" || ref == "buy_passive" )
 	{
 		int refCount = 0
@@ -2751,37 +2735,44 @@ void function ClientCommand_Arenas_Select( entity player, array<string> args )
 			maxCount = GetCurrentPlaylistVarInt( "arenas_max_tactical_upgrades", 2 )
 
 		if ( refCount >= maxCount )
+			return false
+
+		if ( ref == "tactical_upgrade" && !Arenas_CanAddTacticalCharge( player ) )
+			return false
+
+		if ( ref == "arenas_full_ultimate" )
 		{
-			Remote_CallFunction_NonReplay( player, "ServerCallback_FinishedProcessingClickEvent" )
-			return
+			if ( player.GetPlayerNetInt( "ultimateCooldown" ) > 0 )
+				return false
+			entity ult = player.GetOffhandWeapon( OFFHAND_ULTIMATE )
+			if ( IsValid( ult ) && ult.GetWeaponPrimaryClipCount() >= ult.GetWeaponPrimaryClipCountMax() )
+				return false
 		}
 	}
 
-	// Check if player can afford it
 	if ( data.materials < cost )
-	{
-		Remote_CallFunction_NonReplay( player, "ServerCallback_FinishedProcessingClickEvent" )
-		return
-	}
+		return false
 
-	// Deduct materials and track selection
 	data.materials -= cost
 	ArenasSelectedItem selection
 	selection.ref = ref
 	selection.cost = cost
 	data.selectedItems.append( selection )
+	if ( ref == "arenas_full_ultimate" )
+	{
+		data.ultCooldownRounds = Arenas_GetItemMaxCount( player, ref )
+		entity ultBefore = player.GetOffhandWeapon( OFFHAND_ULTIMATE )
+		data.ultClipBeforePurchase = IsValid( ultBefore ) ? ultBefore.GetWeaponPrimaryClipCount() : -1
+	}
 	file.playerData[player] = data
 
-	// Immediately grant the purchased item
-	Arenas_GrantItem( player, ref )
+	for ( int i = Arenas_GetItemCountToGive( player, ref ); i > 0; i-- )
+		Arenas_GrantItem( player, ref )
 
-	// Sync cash to client (triggers OnCurrentCashChanged -> UI refresh)
+	// Syncing cash refreshes the buyer's menu through OnCurrentCashChanged.
 	Arenas_SyncCashToClient( player )
-
-	// Tell client we finished processing
-	Remote_CallFunction_NonReplay( player, "ServerCallback_FinishedProcessingClickEvent" )
-
-	return
+	thread Arenas_RefreshSquadBuyMenus( player )
+	return true
 }
 
 void function ClientCommand_Arenas_Unselect( entity player, array<string> args )
@@ -2790,53 +2781,41 @@ void function ClientCommand_Arenas_Unselect( entity player, array<string> args )
 	if ( !IsValid( player ) || args.len() < 3 )
 		return
 
-	if ( file.currentPhase != eArenaPhase.BUY_PHASE )
+	Arenas_TryUnselect( player, args[2] )
+	Remote_CallFunction_NonReplay( player, "ServerCallback_FinishedProcessingClickEvent" )
+}
+
+void function Arenas_TryUnselect( entity player, string ref )
+{
+	if ( file.currentPhase != eArenaPhase.BUY_PHASE || !( player in file.playerData ) )
 		return
 
-	if ( !( player in file.playerData ) )
-		return
-
-	int itemIndex = args[0].tointeger()
-	int cost = args[1].tointeger()
-	string ref = args[2]
-
-	if ( cost < 0 || cost > ARENAS_MAX_CASH )
-		return
-
-	// Find and remove the matching item from selections
+	// The refund is what the server charged, never what the client sends.
 	ArenaPlayerData data = file.playerData[player]
-	bool found = false
+	int cost = -1
 	for ( int i = 0; i < data.selectedItems.len(); i++ )
 	{
 		if ( data.selectedItems[i].ref == ref )
 		{
-			cost = data.selectedItems[i].cost // Use server-tracked cost for refund
+			cost = data.selectedItems[i].cost
 			data.selectedItems.remove( i )
-			found = true
 			break
 		}
 	}
 
-	if ( !found )
-	{
-		Remote_CallFunction_NonReplay( player, "ServerCallback_FinishedProcessingClickEvent" )
+	if ( cost < 0 )
 		return
-	}
 
-	// Refund materials
 	data.materials = minint( data.materials + cost, ARENAS_MAX_CASH )
+	if ( ref == "arenas_full_ultimate" )
+		data.ultCooldownRounds = data.ultCooldownBeforePurchase
 	file.playerData[player] = data
 
-	// Immediately revoke the sold item
-	Arenas_RevokeItem( player, ref, data )
+	for ( int i = Arenas_GetItemCountToGive( player, ref ); i > 0; i-- )
+		Arenas_RevokeItem( player, ref, data )
 
-	// Sync cash to client
 	Arenas_SyncCashToClient( player )
-
-	// Tell client we finished processing
-	Remote_CallFunction_NonReplay( player, "ServerCallback_FinishedProcessingClickEvent" )
-
-	return
+	thread Arenas_RefreshSquadBuyMenus( player )
 }
 
 void function ClientCommand_Arenas_SetOptic( entity player, array<string> args )
@@ -2847,12 +2826,12 @@ void function ClientCommand_Arenas_SetOptic( entity player, array<string> args )
 	if ( file.currentPhase != eArenaPhase.BUY_PHASE )
 		return
 
-	int weaponIndex = args[0].tointeger()
-	int opticIndex = args[1].tointeger()
+	int weaponIndex = Arenas_ParseClientInt( args[0] )
 	if ( !SURVIVAL_Loot_IsLootIndexValid( weaponIndex ) )
 		return
 
 	// -1 clears the sight; otherwise it must be a sight attachment.
+	int opticIndex = args[1] == "-1" ? -1 : Arenas_ParseClientInt( args[1] )
 	string optic = ""
 	if ( opticIndex != -1 )
 	{
@@ -2884,6 +2863,10 @@ void function ClientCommand_Arenas_SetOptic( entity player, array<string> args )
 		if ( optic != "" )
 			mods.append( optic )
 		weapon.SetMods( mods )
+
+		entity partner = player.GetNormalWeapon( slot + WEAPON_INVENTORY_SLOT_DUALPRIMARY_0 )
+		if ( IsValid( partner ) )
+			partner.SetMods( mods )
 		return
 	}
 }
@@ -2894,26 +2877,6 @@ void function ClientCommand_Arenas_ChangeWeaponTab( entity player, array<string>
 		return
 
 	// Tab change is client-side only, server just acknowledges
-	return
-}
-
-void function ClientCommand_Arenas_OnBuyMenuOpen( entity player, array<string> args )
-{
-	if ( !IsValid( player ) )
-		return
-
-	return
-}
-
-void function ClientCommand_Arenas_OnBuyMenuClose( entity player, array<string> args )
-{
-	if ( !IsValid( player ) )
-		return
-
-	// Track that the player has closed/confirmed their buy menu
-	if ( player in file.playerData )
-		file.playerData[player].hasConfirmedLoadout = true
-
 	return
 }
 

@@ -80,6 +80,7 @@ global const table<string, string> MAP_DISPLAY_NAMES = {
 	[ "mp_rr_angel_city" ]              = "Angel City",
 	[ "mp_rr_boneyard" ]                = "Boneyard",
 	[ "mp_rr_crashsite" ]               = "Crash Site",
+	[ "mp_rr_terminal" ]                = "Terminal",
 	[ "mp_lobby" ]                      = "Lobby"
 }
 #endif
@@ -1702,6 +1703,12 @@ string function GetMapDisplayName( string levelName )
 	if ( stem in MAP_DISPLAY_NAMES )
 		return MAP_DISPLAY_NAMES[stem]
 
+	#if CLIENT || UI
+		string localized = Localize( "#" + stem )
+		if ( localized != "" && localized.slice( 0, 1 ) != "#" && localized.tolower() != stem )
+			return localized
+	#endif
+
 	return PrettifyLevelName( stem )
 }
 
@@ -1723,6 +1730,12 @@ string function GetCurrentMapDisplayName()
 string function PrettifyLevelName( string levelName )
 {
 	string stem = levelName
+
+	// Mod maps are mp_<author>_<mod>__<map>; only <map> is the name players know.
+	int modSep = stem.find( "__" )
+	if ( modSep >= 0 && modSep + 2 < stem.len() )
+		return PrettifyLevelName( stem.slice( modSep + 2 ) )
+
 	if ( stem.len() > 6 && stem.slice( 0, 6 ) == "mp_rr_" )
 		stem = stem.slice( 6 )
 	else if ( stem.len() > 3 && stem.slice( 0, 3 ) == "mp_" )

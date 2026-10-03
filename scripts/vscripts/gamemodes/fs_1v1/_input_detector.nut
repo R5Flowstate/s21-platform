@@ -117,6 +117,10 @@ void function Thread_CheckInput( entity player )
 						player.p.lastInputChangeTime = Time()
 						player.Signal( "InputChanged" )
 					}
+					// Publish now: the leaderboard reads p.input directly and must never disagree with the HUD flag.
+					FS_1v1_PublishInputState( player )
+					previousMnkState = ( player.p.input == 0 )
+					mnkStateInitialized = true
 					continue
 				}
 				timesCheckedForNewInput++

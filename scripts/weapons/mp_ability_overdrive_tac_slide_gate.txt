@@ -153,11 +153,11 @@
 
 		"upgrade_core_tac_cooldown_reduction"
 		{
-			"ammo_stockpile_max" "60"
-			"ammo_clip_size" "60"
-			"ammo_default_total" "60"
-			"ammo_per_shot" "30"
-			"ammo_min_to_fire" "30"
+			"ammo_stockpile_max" "20"
+			"ammo_clip_size" "20"
+			"ammo_default_total" "20"
+			"ammo_per_shot" "20"
+			"ammo_min_to_fire" "20"
 
 		}
 

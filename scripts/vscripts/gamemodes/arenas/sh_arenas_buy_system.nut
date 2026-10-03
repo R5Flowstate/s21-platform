@@ -1,9 +1,14 @@
 global function ShGamemodeArenasBuySystemV2_Init
 global function ShArenasBuy_RegisterNetworkingV2
 global function Arenas_GetItemCostByRef
+global function Arenas_GetItemCountToGive
+global function Arenas_GetItemMaxCount
+global function Arenas_GetWeaponStartingAmmo
 global function Arenas_FindStoreRef
 global function DoesPlayerOwnMaxItems
 global function Arenas_HasUpgradePrereq
+global function Arenas_WeaponLineRef
+global function Arenas_IsAkimboLine
 
 #if(CLIENT)
 global function UICallback_Arenas_BindWeaponTab
@@ -20,6 +25,7 @@ global function UICallback_Arenas_OpticSelectDialogueClose
 global function UICallback_Arenas_BindUtilityTitle
 global function ServerCallback_RefreshMenu
 global function ServerCallback_FinishedProcessingClickEvent
+global function ServerCallback_Arenas_SelectRejected
 global function OnCurrentCashChanged
 global function Arenas_OpenBuyMenu
 
@@ -44,6 +50,7 @@ global const int ARENAS_ROUND_PER_LOSE_CASH = 200
 global const int ARENAS_KILL_REWARD = 75
 global const int ARENAS_CANISTER_REWARD = 200
 global const int ARENAS_MAX_CASH = 3500
+global const int ARENAS_MAX_STORE_INDEX = 1023
 
 const int		 ARENAS_MAX_ORDNANCE = 3
 const int		 ARENAS_MAX_SYRINGES = 8
@@ -91,6 +98,7 @@ struct ArenasPurchaseData
 struct
 {
 	table<string, ArenasStoreItem> storeData
+	table<string, bool> unsoldAbilityWarned
 	array<ArenasStoreItem> storeDataArray
 
 	#if(false)
@@ -108,6 +116,7 @@ struct
 	array<string> primaryWeapons
 	table<string, array<string> > weaponUpgrades
 	table<string, array<string> > weaponOptics
+	table<string, int> weaponStartingAmmo
 	array<ArenasWeaponTab>	weaponTabs
 	table<entity, int>	playerSelectedTabs
 
@@ -147,6 +156,9 @@ void function ShGamemodeArenasBuySystemV2_Init()
 		AddCallback_GameStateEnter( eGameState.PickLoadout, OnPickLoadout_Client )
 
 		AddCallback_OnWeaponStatusUpdate( Arenas_OnWeaponStatusUpdate )
+		AddCreateCallback( "weaponx", Arenas_OnWeaponEntityChanged )
+		AddDestroyCallback( "weaponx", Arenas_OnWeaponEntityChanged )
+		AddCallback_OnPlayerConsumableInventoryChanged( Arenas_OnConsumableInventoryChanged )
 	#endif
 }
 
@@ -292,6 +304,7 @@ void function Arenas_InitStoreData()
 
 		item.startingCount = GetDataTableInt( dataTable, i, GetDataTableColumnByName( dataTable, "startingCount" ) )
 		item.maxCount = GetDataTableInt( dataTable, i, GetDataTableColumnByName( dataTable, "maxCount" ) )
+		item.maxCount = GetCurrentPlaylistVarInt( "arenas_" + item.ref + "_cooldown", item.maxCount )
 
 		item.category = GetDataTableString( dataTable, i, GetDataTableColumnByName( dataTable, "category" ) )
 
@@ -304,30 +317,48 @@ void function Arenas_InitStoreData()
 	printt( "[Arenas BuySystem] InitStoreData COMPLETE - total store items:", file.storeDataArray.len(), "(weapons + equipment)" )
 }
 
+bool function Arenas_IsAkimboLine( string weaponRef )
+{
+	return weaponRef.find( WEAPON_SUFFIX_AKIMBO ) != -1
+}
+
+// The weapon an upgrade line is built on. Akimbo pairs are their own line
+// (mp_weapon_semipistol_akimbo_whiteset -> _akimbo_blueset -> _akimbo_purpleset).
+string function Arenas_WeaponLineRef( string weaponRef )
+{
+	string line = GetBaseWeaponRef( weaponRef )
+	if ( Arenas_IsAkimboLine( weaponRef ) && !Arenas_IsAkimboLine( line ) )
+		line += WEAPON_SUFFIX_AKIMBO
+	return line
+}
+
 string function GetNextUpgradedWeaponRef( string weaponRef )
 {
+	string line = Arenas_WeaponLineRef( weaponRef )
 	if ( weaponRef.find( WEAPON_LOCKEDSET_SUFFIX_GOLD ) != -1 )
-		return GetBaseWeaponRef( weaponRef ) + WEAPON_LOCKEDSET_SUFFIX_PURPLESET
+		return line + WEAPON_LOCKEDSET_SUFFIX_PURPLESET
 	else if( weaponRef.find( WEAPON_LOCKEDSET_SUFFIX_PURPLESET ) != -1 )
 		return weaponRef
 	else if( weaponRef.find( WEAPON_LOCKEDSET_SUFFIX_BLUESET ) != -1 )
-		return GetBaseWeaponRef( weaponRef ) + WEAPON_LOCKEDSET_SUFFIX_PURPLESET
+		return line + WEAPON_LOCKEDSET_SUFFIX_PURPLESET
 	else if( weaponRef.find( WEAPON_LOCKEDSET_SUFFIX_WHITESET ) != -1 )
-		return GetBaseWeaponRef( weaponRef ) + WEAPON_LOCKEDSET_SUFFIX_BLUESET
+		return line + WEAPON_LOCKEDSET_SUFFIX_BLUESET
 
-	return weaponRef + WEAPON_LOCKEDSET_SUFFIX_WHITESET
+	return line + WEAPON_LOCKEDSET_SUFFIX_WHITESET
 }
 
+// An akimbo line has no base item: its white set is the entry, and its "previous" ref is not sold.
 string function GetPrevUpgradedWeaponRef( string weaponRef )
 {
+	string line = Arenas_WeaponLineRef( weaponRef )
 	if ( weaponRef.find( WEAPON_LOCKEDSET_SUFFIX_GOLD ) != -1 )
-		return GetBaseWeaponRef( weaponRef ) + WEAPON_LOCKEDSET_SUFFIX_PURPLESET
+		return line + WEAPON_LOCKEDSET_SUFFIX_PURPLESET
 	else if( weaponRef.find( WEAPON_LOCKEDSET_SUFFIX_PURPLESET ) != -1 )
-		return GetBaseWeaponRef( weaponRef ) + WEAPON_LOCKEDSET_SUFFIX_BLUESET
+		return line + WEAPON_LOCKEDSET_SUFFIX_BLUESET
 	else if( weaponRef.find( WEAPON_LOCKEDSET_SUFFIX_BLUESET ) != -1 )
-		return GetBaseWeaponRef( weaponRef ) + WEAPON_LOCKEDSET_SUFFIX_WHITESET
+		return line + WEAPON_LOCKEDSET_SUFFIX_WHITESET
 
-	return GetBaseWeaponRef( weaponRef )
+	return line
 }
 
 const asset ARENAS_WEAPON_DATA_DATATABLE = $"datatable/arenas/arenas_weapon_data.rpak"
@@ -368,6 +399,9 @@ void function Arenas_InitWeaponData()
 			}
 			else
 				Warning( "Arenas_InitWeaponUpgradeData - weapon upgrades for %s already exists!", weaponRef )
+
+			if ( !(weaponRef in file.weaponStartingAmmo) )
+				file.weaponStartingAmmo[ weaponRef ] <- GetDataTableInt( dataTable, i, col_startAmmo )
 
 			if ( !(weaponRef in file.weaponOptics) )
 				file.weaponOptics[ weaponRef ] <- split( GetDataTableString( dataTable, i, col_optics ), " " )
@@ -501,6 +535,13 @@ void function Arenas_InitWeaponTabs()
 		if( file.weaponTabs[ i ].name == "" || file.weaponTabs[ i ].weaponRefs.len() == 0 )
 			file.weaponTabs.fastremove( i )
 	}
+
+	int slots = GetAvailableWeaponColumns() * GetAvailableWeaponRows()
+	foreach ( tab in file.weaponTabs )
+	{
+		if ( tab.weaponRefs.len() > slots )
+			Warning( "[Arenas BuySystem] weapon tab %s has %d weapons but the grid shows %d", tab.name, tab.weaponRefs.len(), slots )
+	}
 }
 
 bool function IsAvailableWeapon( entity player, string weaponRef )
@@ -574,6 +615,17 @@ string function Arenas_FindStoreRef( entity player, string itemRef )
 			return storeRef
 	}
 
+	// The generic ability rows are buttons, not prices: a legend whose ability has no row is not for sale.
+	if ( refToUse != itemRef )
+	{
+		if ( !( refToUse in file.unsoldAbilityWarned ) )
+		{
+			file.unsoldAbilityWarned[ refToUse ] <- true
+			Warning( "[Arenas BuySystem] %s resolves to %s, which has no store row", itemRef, refToUse )
+		}
+		return ""
+	}
+
 	return itemRef in file.storeData ? itemRef : ""
 }
 
@@ -583,12 +635,36 @@ int function Arenas_GetItemCostByRef( entity player, string itemRef )
 	return storeRef == "" ? 0 : file.storeData[ storeRef ].cost
 }
 
+// Heal packs give more than one item per purchase.
+int function Arenas_GetItemCountToGive( entity player, string itemRef )
+{
+	string storeRef = Arenas_FindStoreRef( player, itemRef )
+	return storeRef == "" ? 1 : maxint( 1, file.storeData[ storeRef ].countToGive )
+}
+
+// Reserve ammo a newly bought weapon comes with (arenas_weapon_data startingAmmo).
+int function Arenas_GetWeaponStartingAmmo( string weaponRef )
+{
+	string ref = weaponRef.tolower()
+	return ref in file.weaponStartingAmmo ? file.weaponStartingAmmo[ ref ] : 0
+}
+
+// For an ultimate this is its cooldown in rounds.
+int function Arenas_GetItemMaxCount( entity player, string itemRef )
+{
+	string storeRef = Arenas_FindStoreRef( player, itemRef )
+	return storeRef == "" ? 0 : maxint( 0, file.storeData[ storeRef ].maxCount )
+}
+
 bool function Arenas_HasUpgradePrereq( entity player, string storeRef )
 {
 	if ( !WeaponLootRefIsLockedSet( storeRef ) )
 		return true
 
 	string prevRef = GetPrevUpgradedWeaponRef( storeRef )
+	if ( !( prevRef in file.storeData ) )
+		return true
+
 	foreach ( int slot in [ WEAPON_INVENTORY_SLOT_PRIMARY_0, WEAPON_INVENTORY_SLOT_PRIMARY_1 ] )
 	{
 		entity weapon = player.GetNormalWeapon( slot )
@@ -796,7 +872,7 @@ ArenasStoreItem ornull function GetWeaponDataForButtonIndex( entity player, int 
 	for( int i = 0; i < weapons.len(); ++i )
 	{
 		if( IsValid( weapons[ i ] ) )
-			baseWeaponRefs[i] = weapons[ i ].GetWeaponClassName()
+			baseWeaponRefs[i] = Arenas_WeaponLineRef( GetWeaponClassNameWithLockedSet( weapons[ i ] ) )
 	}
 
 	// Build map of base weapon -> highest selected tier from buy phase selections.
@@ -812,7 +888,7 @@ ArenasStoreItem ornull function GetWeaponDataForButtonIndex( entity player, int 
 		LootData selData = SURVIVAL_Loot_GetLootDataByRef( selectedItem.ref )
 		if( selData.lootType != eLootType.MAINWEAPON )
 			continue
-		string selBase = selData.baseWeapon != "" ? selData.baseWeapon : selectedItem.ref
+		string selBase = Arenas_WeaponLineRef( selectedItem.ref )
 		// Items are appended in purchase order (base -> white -> blue -> purple),
 		// so the last match for each base weapon is the highest purchased tier.
 		selectedHighestByBase[selBase] <- selectedItem.ref
@@ -825,12 +901,13 @@ ArenasStoreItem ornull function GetWeaponDataForButtonIndex( entity player, int 
 			continue
 
 		ArenasStoreItem item = file.storeData[ ref ]
+		string line = Arenas_WeaponLineRef( ref )
 
 		// Check physically equipped weapons (post-grant / combat phase)
 		bool foundPhysical = false
 		for ( int i=0; i<baseWeaponRefs.len(); i++ )
 		{
-			if ( baseWeaponRefs[i] == ref )
+			if ( baseWeaponRefs[i] == line )
 			{
 				string newRef = GetNextUpgradedWeaponRef( GetWeaponClassNameWithLockedSet( weapons[ i ] ) )
 				if( newRef in file.storeData )
@@ -841,9 +918,9 @@ ArenasStoreItem ornull function GetWeaponDataForButtonIndex( entity player, int 
 		}
 
 		// Check buy phase selections (weapons purchased but not yet granted)
-		if( !foundPhysical && ref in selectedHighestByBase )
+		if( !foundPhysical && line in selectedHighestByBase )
 		{
-			string highestRef = selectedHighestByBase[ref]
+			string highestRef = selectedHighestByBase[line]
 			string nextRef = GetNextUpgradedWeaponRef( highestRef )
 			if( nextRef in file.storeData )
 				item = file.storeData[ nextRef ]
@@ -991,7 +1068,6 @@ void function _Arenas_BindWeaponButton( entity player, var button, var rui, int 
 	if ( SURVIVAL_Loot_IsRefValid( item.lootOrPerkRef ) )
 	{
 		LootData data = SURVIVAL_Loot_GetLootDataByRef( item.lootOrPerkRef )
-		LootData prevData = SURVIVAL_Loot_GetLootDataByRef( prevRef )
 		RuiSetInt( rui, "lootTier", WeaponLootRefIsLockedSet( item.lootOrPerkRef ) ? data.tier : 0 )
 		RuiSetBool( rui, "isLockedSet", WeaponLootRefIsLockedSet( item.lootOrPerkRef ) )
 
@@ -1122,12 +1198,12 @@ array<string> function GetAvailableOptics( int index, bool unlockedOnly = false 
 	if ( !SURVIVAL_Loot_IsRefValid( weaponItem.lootOrPerkRef ) )
 		return availableOptics
 
-	LootData weaponData = SURVIVAL_Loot_GetLootDataByRef( weaponItem.lootOrPerkRef )
+	string line = Arenas_WeaponLineRef( weaponItem.lootOrPerkRef )
 
 	array<string> suffixes = [ "", WEAPON_LOCKEDSET_SUFFIX_WHITESET, WEAPON_LOCKEDSET_SUFFIX_BLUESET, WEAPON_LOCKEDSET_SUFFIX_PURPLESET ]
 	foreach ( suffix in suffixes )
 	{
-		string weaponRef = weaponData.baseWeapon + suffix
+		string weaponRef = line + suffix
 		if ( weaponRef in file.weaponOptics )
 			availableOptics.extend( file.weaponOptics[ weaponRef ] )
 
@@ -1692,7 +1768,7 @@ void function UICallback_Arenas_OnBuyButtonRightClick( var button )
 		for( int i = 0; i < 2; ++i )
 		{
 			entity weapon = player.GetNormalWeapon( WEAPON_INVENTORY_SLOT_PRIMARY_0 + i )
-			if( IsValid( weapon ) && weapon.GetWeaponClassName() == GetBaseWeaponRef( item.ref ) )
+			if( IsValid( weapon ) && Arenas_WeaponLineRef( GetWeaponClassNameWithLockedSet( weapon ) ) == Arenas_WeaponLineRef( item.ref ) )
 			{
 				if( GetWeaponClassNameWithLockedSet( weapon ) == item.ref )
 					unselectRef = item.ref
@@ -1883,6 +1959,8 @@ bool function PlayerHasRequiredWeapon( entity player, string ref )
 		if ( WeaponLootRefIsLockedSet( lootRef ) )
 		{
 			string prevRef = GetPrevUpgradedWeaponRef( lootRef )
+			if ( !( prevRef in file.storeData ) )
+				return true
 
 			// Check physically equipped weapons (combat phase / post-grant)
 			array<entity> weapons = [ player.GetNormalWeapon( WEAPON_INVENTORY_SLOT_PRIMARY_0 ), player.GetNormalWeapon( WEAPON_INVENTORY_SLOT_PRIMARY_1 ) ]
@@ -1922,48 +2000,13 @@ bool function DoesPlayerHavePreReq( entity player, string ref, string entVar )
 
 int function GetArenasStoreItemPurchaseLimit( entity player, string ref )
 {
-	string refToUse = ref
-	if ( ref == "tactical_upgrade" || ref == "arenas_full_ultimate" )
-		refToUse = GetOffhandWeaponRef( player, ref )
-	else if ( ref == "buy_passive" )
-	{
-		ItemFlavor character = LoadoutSlot_GetItemFlavor( ToEHI( player ), Loadout_Character() )
-
-		ItemFlavor passive = CharacterClass_GetPassiveAbilities( character )[0]
-
-		refToUse = GetGlobalSettingsString( ItemFlavor_GetAsset( passive ), "passiveScriptRef" )
-	}
-
-	if( !( refToUse in file.storeData ) )
-	{
-		Warning( "GetArenasStoreItemCost - ref %s not found in store", ref )
-		return 0
-	}
-
-	return file.storeData[ refToUse ].maxCount
+	string storeRef = Arenas_FindStoreRef( player, ref )
+	return storeRef == "" ? 0 : file.storeData[ storeRef ].maxCount
 }
 
 int function GetArenasStoreItemCost( entity player, string ref )
 {
-	string refToUse = ref
-	if ( ref == "tactical_upgrade" || ref == "arenas_full_ultimate" )
-		refToUse = GetOffhandWeaponRef( player, ref )
-	else if ( ref == "buy_passive" )
-	{
-		ItemFlavor character = LoadoutSlot_GetItemFlavor( ToEHI( player ), Loadout_Character() )
-
-		ItemFlavor passive = CharacterClass_GetPassiveAbilities( character )[0]
-
-		refToUse = GetGlobalSettingsString( ItemFlavor_GetAsset( passive ), "passiveScriptRef" )
-	}
-
-	if( !( refToUse in file.storeData ) )
-	{
-		Warning( "GetArenasStoreItemCost - ref %s not found in store", refToUse )
-		return 0
-	}
-
-	return file.storeData[ refToUse ].cost
+	return Arenas_GetItemCostByRef( player, ref )
 }
 
 
@@ -2068,6 +2111,49 @@ bool function PlayerHasCharacterPassive( entity player )
 void function ServerCallback_RefreshMenu( )
 {
 	RunUIScript( "ClientToUI_Arenas_RefreshBuyMenu" )
+}
+
+// A bought or sold weapon arrives after the purchase answer; owned/selected state must be
+// redrawn once it has, or a sold gun still reads as owned and locks its button.
+void function Arenas_OnWeaponEntityChanged( entity weapon )
+{
+	if ( !Arenas_BuyStoreLoaded() || GetGameState() != eGameState.Prematch )
+		return
+
+	entity owner = weapon.GetWeaponOwner()
+	if ( IsValid( owner ) && owner != GetLocalClientPlayer() )
+		return
+
+	thread Arenas_RefreshBuyMenuNextFrame()
+}
+
+// Bought heals and ordnance land in the inventory after the purchase answer.
+void function Arenas_OnConsumableInventoryChanged( entity player )
+{
+	if ( !Arenas_BuyStoreLoaded() || GetGameState() != eGameState.Prematch )
+		return
+	if ( player != GetLocalClientPlayer() )
+		return
+
+	thread Arenas_RefreshBuyMenuNextFrame()
+}
+
+void function Arenas_RefreshBuyMenuNextFrame()
+{
+	WaitFrame()
+	RunUIScript( "ClientToUI_Arenas_RefreshBuyMenu" )
+}
+
+void function ServerCallback_Arenas_SelectRejected( int index )
+{
+	for ( int i = file.selectedItems.len() - 1; i >= 0; --i )
+	{
+		if ( file.selectedItems[ i ] == index )
+		{
+			file.selectedItems.remove( i )
+			break
+		}
+	}
 }
 
 void function ServerCallback_FinishedProcessingClickEvent()

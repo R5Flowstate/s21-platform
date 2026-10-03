@@ -14,6 +14,7 @@ struct
 	var menu
 	var buyInfo
 	var airdropPreview
+	array<int> airdropContents
 	var playerLoadout
 	var squadMateLoadout0
 	var squadMateLoadout1
@@ -148,7 +149,11 @@ void function ClientToUI_Arenas_CloseBuyMenu()
 void function ClientToUI_Arenas_RefreshBuyMenu()
 {
 	if ( GetActiveMenu() != file.menu )
+	{
+		if ( MenuStack_Contains( file.menu ) )
+			printt( "[Arenas BuySystem] refresh skipped: buy menu is under", Hud_GetHudName( GetActiveMenu() ) )
 		return
+	}
 
 	if ( !IsFullyConnected() )
 		return
@@ -157,6 +162,7 @@ void function ClientToUI_Arenas_RefreshBuyMenu()
 		return
 
 	Arenas_UpdateCash( file.buyInfo )
+	Arenas_ApplyAirdropPreview()
 
 	foreach ( button in file.weaponTabButtons )
 	{
@@ -349,17 +355,29 @@ void function ClientToUI_Arenas_SetRoundNumber( int roundNum )
 	RuiSetString( Hud_GetRui( file.roundLabel ), "labelText", Localize( "#ARENAS_ROUND_NUM", roundNum ) )
 }
 
+// Kept so a panel shown after the server's preview still gets it on the next refresh.
 void function ClientToUI_Arenas_UpdateAirdropPreview( int contentsID0, int contentsID1, int contentsID2 )
 {
+	file.airdropContents = [ contentsID0, contentsID1, contentsID2 ]
+	Arenas_ApplyAirdropPreview()
+}
+
+void function Arenas_ApplyAirdropPreview()
+{
+	if ( file.airdropPreview == null || file.airdropContents.len() == 0 )
+		return
+
 	var rui = Hud_GetRui( file.airdropPreview )
-	array<int> contentIDs = [ contentsID0, contentsID1, contentsID2 ]
+	array<int> contentIDs = file.airdropContents
 	for( int i = 0; i < contentIDs.len(); ++i )
 	{
 		if ( SURVIVAL_Loot_IsLootIndexValid( contentIDs[i] ) )
 		{
 			LootData data = SURVIVAL_Loot_GetLootDataByIndex( contentIDs[i] )
-			RuiSetString( rui, "contentsName" + i, data.pickupString )
+			// This RUI draws its name args verbatim; a raw token shows as "#SURVIVAL_PICKUP_...".
+			RuiSetString( rui, "contentsName" + i, Localize( data.pickupString ) )
 			RuiSetImage( rui, "contentsImage" + i, data.hudIcon)
+			RuiSetFloat2( rui, "fullIconSize" + i, GetImageSize( data.hudIcon ) )
 			RuiSetInt( rui, "contentsTier" + i, data.tier )
 		}
 	}

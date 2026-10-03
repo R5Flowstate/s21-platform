@@ -37,8 +37,7 @@ playlists
 
                 //======= Hide from Normal Use =======
                 character_dummie hide
-                character_valkyrie hide
-                character_newcastle hide
+                role_override_assault character_revenant
 
                 ///////////////////////////////////////////////////////////////////////////////////
                 //// Character Balance Changes
@@ -753,6 +752,41 @@ playlists
 		        deathfield_circleDeviation_4        1.0
 		        deathfield_circleDeviation_5        0.0
 		        deathfield_circleDeviation_6        0.0
+		    }
+		}
+
+		// Arenas: the script scales these radii to each map's play area.
+		arenas_ring
+		{
+		    vars
+		    {
+		        survival_death_field_start_radius   7500
+
+		        deathfield_preShrinkDuration_0      15
+		        deathfield_preShrinkDuration_1      15
+		        deathfield_preShrinkDuration_2      10
+		        deathfield_preShrinkDuration_3      10
+
+		        deathfield_radius_0                 4500
+		        deathfield_radius_1                 2500
+		        deathfield_radius_2                 1000
+		        deathfield_radius_3                 1
+		        deathfield_radius_4                 -1
+
+		        deathfield_shrinkSpeed_0            60
+		        deathfield_shrinkSpeed_1            50
+		        deathfield_shrinkSpeed_2            40
+		        deathfield_shrinkSpeed_3            30
+
+		        deathfield_damagePercent_0          0.05
+		        deathfield_damagePercent_1          0.10
+		        deathfield_damagePercent_2          0.15
+		        deathfield_damagePercent_3          0.25
+
+		        deathfield_circleDeviation_0        0.5
+		        deathfield_circleDeviation_1        0.5
+		        deathfield_circleDeviation_2        0.3
+		        deathfield_circleDeviation_3        0.0
 		    }
 		}
 
@@ -4997,6 +5031,7 @@ playlists
                 // Can change loadouts:
                 dev_loadout_changeable_at_any_time 1
                 sur_dev_unrestricted_character_changes 1
+                all_characters_unlocked 1
                 character_valkyrie enable
                 character_newcastle enable
                 // Bots:
@@ -5141,8 +5176,6 @@ playlists
                 description                             "1v1"
                 abbreviation                            "1v1"
                 lobbytitle                              "1v1"
-                character_valkyrie hide
-                character_newcastle hide
                 // Empty map_name: load screen names the level being loaded.
                 map_name                                ""
                 gamemode_logo                           BATTLE_ROYALE
@@ -5365,8 +5398,6 @@ playlists
                 description                             "LG Duels"
                 abbreviation                            "LG"
                 lobbytitle                              "LG Duels"
-                character_valkyrie hide
-                character_newcastle hide
                 map_name                                ""
                 gamemode_logo                           BATTLE_ROYALE
                 emblem                                  emblem_fs_1v1
@@ -5549,8 +5580,6 @@ playlists
                 description                             "Zone Wars"
                 abbreviation                            "ZW"
                 lobbytitle                              "Zone Wars"
-                character_valkyrie hide
-                character_newcastle hide
                 map_name                                ""
                 gamemode_logo                           BATTLE_ROYALE
                 emblem                                  emblem_fs_scenarios
@@ -5782,8 +5811,6 @@ playlists
                 description                             "Instagib"
                 abbreviation                            "Instagib"
                 lobbytitle                              "Instagib"
-                character_valkyrie hide
-                character_newcastle hide
                 map_name                                "Instagib"
                 gamemode_logo                           BATTLE_ROYALE
                 emblem                                  emblem_fs_instagib
@@ -5904,10 +5931,20 @@ playlists
                 // Every arenas script gates on this var; IsArenaMode() reads it.
                 arenas_mode                             1
                 deathfield_enforced_ring_lethality_enabled    0
+                playlist_ring_tuning_override           arenas_ring
+                // survival_dev is the Free Roam playlist; none of its dev switches belong in arenas.
+                sur_dev_unrestricted_character_changes  0
+                dev_loadout_changeable_at_any_time      0
+                sur_bots_spawn_with_random_weapons      0
+                loot_drones_spawn_count                 0
+                loot_drones_vault_key_count             0
                 arenas_shop_duration                    30.0
                 arenas_kill_reward                      75
+                // Must match the arenas_available_weapon_<row>_<col> grid in arenas_buy.menu.
                 arenas_available_weapon_rows            4
-                arenas_available_weapon_columns         5
+                arenas_available_weapon_columns         3
+                // Integrated hop-ups would arm on the grey tier only; the tier sets carry none.
+                disable_dormant_hopups                  1
 
                 max_team_size                           3
                 max_players                             6
@@ -5922,7 +5959,7 @@ playlists
                 player_collision_enabled                0
 
                 waiting_for_players_spawning_enabled    0
-                waiting_for_players_countdown_seconds   0
+                waiting_for_players_countdown_seconds   5
                 waiting_for_players_timeout_seconds     1
                 waiting_for_players_timeout_force       0
                 character_select_time_min               3
@@ -6001,8 +6038,6 @@ playlists
                 // Every editor system self-gates on this var; without it the mode is
                 // an ordinary free-roam match.
                 mapeditor_enabled                       1
-                character_valkyrie hide
-                character_newcastle hide
 
                 // Loot is off so the entity budget belongs to placed props.
                 survival_loot_enabled                   0
@@ -6074,8 +6109,6 @@ playlists
                 sur_circle_start_paused                 1
                 jump_from_plane_enabled                 0
                 match_ending_enabled                    0
-                character_valkyrie hide
-                character_newcastle hide
             }
             gamemodes { survival { maps {
                 mp_rr_salham                            1

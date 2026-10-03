@@ -124,10 +124,9 @@ void function PassiveMantleBoost_ShowHint_Thread()
 
 			if ( mantleBoostState == MANTLE_BOOST_STATE_UNBUFFERED && isMantling )
 			{
-				// Progress only ever moves forward within one climb. Raw traversal
-				// progress, not the anim fraction: the sweet-spot window is derived
-				// in the raw domain, and the ring must move through the same one.
-				float curProgress = MantleBoost_GetTraversalProgress()
+				// Progress only ever moves forward within one climb. The sweet-spot
+				// window is measured on the traversal animation, so the ring follows it.
+				float curProgress = MantleBoost_GetTraversalAnimFrac()
 				if ( curProgress > traversalProgress )
 				{
 					RuiSetFloat( file.mantleBoostRui, "progress", curProgress )

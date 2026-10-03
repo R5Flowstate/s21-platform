@@ -259,16 +259,19 @@ const vector ARENAS_ASH_COLOR_DEFAULT = <206, 255, 245>
 const vector ARENAS_ASH_COLOR_COOL = <120, 199, 255>
 const vector ARENAS_ASH_COLOR_WARM = <240, 70, 70>
 const float ARENAS_ASH_SHOP_UP_OFFSET = 55.0
-const float ARENAS_ASH_SUMMARY_UP_OFFSET = 68.0
-const float ARENAS_ASH_SHOP_SIDE_OFFSET = -65.0
+const float ARENAS_ASH_SHOP_SIDE_OFFSET = -32.0
 const float ARENAS_ASH_SHOP_ROTATE = -30.0
+const float ARENAS_ASH_FORWARD_OFFSET = -20.0
+const float ARENAS_ASH_SUMMARY_UP_OFFSET = 70
+const float ARENAS_ASH_SUMMARY_SIDE_OFFSET = 37
+const float ARENAS_ASH_SUMMARY_FORWARD_OFFSET = 0
+const float ARENAS_ASH_SUMMARY_ROTATE = 5.0
 
 const asset HOLOGRAM_FX_LOGO = $"P_holospray_arenas_logo"
 const asset HOLOGRAM_FX_ASH = $"P_holo_ash_readyroom"
 const asset HOLOGRAM_FX_PROJECTOR = $"P_arenas_holo_projector"
 
-// The Ash ready-room and logo effects are not in this build's paks yet.
-const bool ARENAS_MENU_FX_AVAILABLE = false
+const bool ARENAS_MENU_FX_AVAILABLE = true
 
 void function ShGamemodeArenas_Init()
 {
@@ -592,6 +595,12 @@ void function Arenas_ServerInit()
 	foreach ( string flag in [ "PlaneStartMoving", "PlaneDoorOpen", "PlaneAtLaunchPoint", "DeathCircleActive",
 		"BeginCharacterSelect", "PlayersSpawnedInArena", "staging_fx_enabled" ] )
 		FlagInit( flag )
+	// With deathfield_start_enabled the ring only damages after the dropship door opens; arenas has no dropship.
+	FlagSet( "PlaneDoorOpen" )
+	// Loot bins wait on this before they become usable; arenas places its own loot and never runs the survival populate that sets it.
+	if ( !FlagExists( "Survival_LootSpawned" ) )
+		FlagInit( "Survival_LootSpawned" )
+	FlagSet( "Survival_LootSpawned" )
 
 	// Loads the host dialogue tables that ring and round commentary look lines up in.
 	SurvivalCommentary_Init()
@@ -2301,7 +2310,7 @@ void function _UpdateRoundSummaryAshEffect( bool roundWon )
 
 	wait ROUND_SUMMARY_FADE_FROM_BLACK_DURATION
 
-	SpawnAsh( roundWon ? ARENAS_ASH_COLOR_COOL : ARENAS_ASH_COLOR_WARM, ARENAS_ASH_SUMMARY_UP_OFFSET, 0.0, 0.0 )
+	SpawnAsh( roundWon ? ARENAS_ASH_COLOR_COOL : ARENAS_ASH_COLOR_WARM, ARENAS_ASH_SUMMARY_UP_OFFSET, ARENAS_ASH_SUMMARY_SIDE_OFFSET, ARENAS_ASH_SUMMARY_ROTATE, ARENAS_ASH_SUMMARY_FORWARD_OFFSET )
 
 	wait ASH_ROUND_SUMMARY_ASH_HOLD_TIME
 
@@ -2397,10 +2406,22 @@ void function Arenas_PopulateSquadmateWeapons( var rui, entity player )
 	}
 }
 
+ItemFlavor function Arenas_GetPortraitCharacter( entity player )
+{
+	ItemFlavor ornull character = FS_Hud_TryGetCharacterFlavor( player )
+	if ( character != null )
+		return expect ItemFlavor( character )
+
+	return LoadoutSlot_GetItemFlavor( ToEHI( player ), Loadout_Character() )
+}
+
 void function Arenas_PopulatePlayerLoadouts( var playerRui, array<var> squadmateRuis )
 {
 	entity player = GetLocalClientPlayer()
-	ItemFlavor character = LoadoutSlot_GetItemFlavor( ToEHI( player ), Loadout_Character() )
+	if ( !IsValid( player ) )
+		return
+
+	ItemFlavor character = Arenas_GetPortraitCharacter( player )
 
 	RuiSetBool( playerRui, "show", true )
 	RuiSetBool( playerRui, "isLocalPlayer", true )
@@ -2413,6 +2434,7 @@ void function Arenas_PopulatePlayerLoadouts( var playerRui, array<var> squadmate
 
 	array<entity> squadmateArray = GetPlayerArrayOfTeam( player.GetTeam() )
 	squadmateArray.fastremovebyvalue( player )
+	squadmateArray.sort( int function( entity a, entity b ) : () { return a.GetTeamMemberIndex() - b.GetTeamMemberIndex() } )
 
 	for( int i = 0; i < squadmateRuis.len(); ++i )
 	{
@@ -2423,7 +2445,7 @@ void function Arenas_PopulatePlayerLoadouts( var playerRui, array<var> squadmate
 			continue
 		}
 
-		character = LoadoutSlot_GetItemFlavor( ToEHI( squadmateArray[i] ), Loadout_Character() )
+		character = Arenas_GetPortraitCharacter( squadmateArray[i] )
 
 		RuiSetBool( squadmateRuis[i], "show", true )
 		RuiSetBool( squadmateRuis[i], "isLocalPlayer", false )
@@ -3274,20 +3296,20 @@ void function TestAshRoom()
 }
 #endif
 
-void function SpawnAsh( vector ashColor, float heightOffset, float sideOffset, float zRotation )
+void function SpawnAsh( vector ashColor, float heightOffset, float sideOffset, float zRotation, float forwardOffset = ARENAS_ASH_FORWARD_OFFSET )
 {
 	if ( !ARENAS_MENU_FX_AVAILABLE )
 		return
 
-	entity backgroundModel = GetEntByScriptName( "target_char_sel_bg_new" )
+	array<entity> backgrounds = GetEntArrayByScriptName( "target_char_sel_bg_new" )
+	if ( backgrounds.len() == 0 )
+		return
+	entity backgroundModel = backgrounds[0]
 
 	vector up = <0,0,1>
 	vector fwd = AnglesToForward( backgroundModel.GetAngles() )
 	vector side = CrossProduct( fwd, up )
 
-	float forwardOffset = -20.0
-	float forwardOffsetNX = 35.0
-	
 	vector origin = backgroundModel.GetOrigin() + ( heightOffset * up) + ( forwardOffset * fwd ) + ( sideOffset * side )
 	vector newFwd = VectorRotateAxis( fwd, up, zRotation )
 	

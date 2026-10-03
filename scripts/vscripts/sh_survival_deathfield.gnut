@@ -1674,9 +1674,16 @@ void function DeathFieldDamage( DeathFieldData data, entity deathField )
 {
 	deathField.EndSignal( "OnDestroy" )
 
-	while ( ShouldDeathFieldDamage() )
+	// Arenas spawns each round's ring during the buy phase and freezes it at round end; wait instead of exiting.
+	while ( ShouldDeathFieldDamage() || IsArenaMode() )
 	{
-		                               
+		if ( !ShouldDeathFieldDamage() || ( IsArenaMode() && Flag( "DeathFieldPaused" ) ) )
+		{
+			WaitFrame()
+			continue
+		}
+
+
 		if ( Deathfield_GetDoesDeathfieldStartEnabled() )
 		{
 			FlagWait( "PlaneDoorOpen" )

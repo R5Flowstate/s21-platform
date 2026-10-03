@@ -24,9 +24,7 @@ global function Perks_CarePackageInsight_CreateCarePackageInsightPing
 global function DEV_SpawnCarePackageInsight
 global function DEV_CarePackageInsightMarkLooted
 
-#if DEVELOPER
 global function DeleteCarepackagePerkLinks
-#endif
 
 struct CarePackageData
 {
@@ -1259,7 +1257,6 @@ void function DEV_CarePackageInsightMarkLooted()
 	printt( "DEV_CarePackageInsightMarkLooted: flagged", n, "care package(s)" )
 }
 
-#if DEVELOPER
 void function DeleteCarepackagePerkLinks()
 {
 	foreach( ent, carePackageData in file.carePackageArray )
@@ -1278,5 +1275,4 @@ void function DeleteCarepackagePerkLinks()
 
 	file.carePackageArray.clear()
 }
-#endif
 #endif

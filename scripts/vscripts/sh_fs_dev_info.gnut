@@ -3,6 +3,6 @@ global function R5F_GetProductVersion
 
 string function R5F_GetProductVersion()
 {
-	return "1.2"
+	return "1.35"
 }
 #endif

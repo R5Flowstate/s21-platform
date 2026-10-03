@@ -63,7 +63,8 @@ void function LabRecorder_BindRows()
 	array<string> names = [
 		"SwitchLegendGroup", "SwitchLegend",
 		"ButtonRecord", "ButtonRename", "ButtonDelete", "ButtonPlayAll", "ButtonClearAll",
-		"SwitchHints", "SwitchLoop", "SwitchRespawn", "SldRate", "SwitchRecordMode"
+		"SwitchHints", "SwitchLoop", "SwitchRespawn", "SwitchGhostHealth", "SwitchGhostShield",
+		"SldRate", "SwitchRecordMode"
 	]
 
 	foreach ( string name in names )
@@ -89,6 +90,10 @@ void function LabRecorder_BindRows()
 		"#LAB_RECORDER_LOOP_DESC" )
 	Lab_SetupRow( LabRecorder_Row( "SwitchRespawn" ), "#LAB_RECORDER_RESPAWN",
 		"#LAB_RECORDER_RESPAWN_DESC" )
+	Lab_SetupRow( LabRecorder_Row( "SwitchGhostHealth" ), "#LAB_RECORDER_GHOST_HEALTH",
+		"#LAB_RECORDER_GHOST_HEALTH_DESC" )
+	Lab_SetupRow( LabRecorder_Row( "SwitchGhostShield" ), "#LAB_RECORDER_GHOST_SHIELD",
+		"#LAB_RECORDER_GHOST_SHIELD_DESC" )
 	LabRecorder_SetupSlider( LabRecorder_Row( "SldRate" ), "#LAB_RECORDER_RATE" )
 	Lab_SetupRow( LabRecorder_Row( "SwitchRecordMode" ), "#LAB_RECORDER_RECMODE",
 		"#LAB_RECORDER_RECMODE_DESC" )
@@ -109,11 +114,14 @@ void function LabRecorder_BindRows()
 	LabRecorder_BuildHintsList()
 	LabRecorder_BuildLoopList()
 	LabRecorder_BuildRespawnList()
+	LabRecorder_BuildGhostLists()
 	LabRecorder_BuildModeLists()
 
 	AddButtonEventHandler( LabRecorder_Row( "SwitchLegendGroup" ), UIE_CHANGE, LabRecorder_OnLegendGroup )
 	AddButtonEventHandler( LabRecorder_Row( "SwitchLegend" ), UIE_CHANGE, LabRecorder_OnLegend )
 	AddButtonEventHandler( LabRecorder_Row( "SwitchRespawn" ), UIE_CHANGE, LabRecorder_OnRespawn )
+	AddButtonEventHandler( LabRecorder_Row( "SwitchGhostHealth" ), UIE_CHANGE, LabRecorder_OnGhostHealth )
+	AddButtonEventHandler( LabRecorder_Row( "SwitchGhostShield" ), UIE_CHANGE, LabRecorder_OnGhostShield )
 	AddButtonEventHandler( LabRecorder_Row( "SwitchHints" ), UIE_CHANGE, LabRecorder_OnHints )
 	AddButtonEventHandler( LabRecorder_Row( "SwitchLoop" ), UIE_CHANGE, LabRecorder_OnLoop )
 	AddButtonEventHandler( LabRecorder_Row( "SldRate" ), UIE_CHANGE, LabRecorder_OnRate )
@@ -243,6 +251,36 @@ void function LabRecorder_BuildRespawnList()
 void function LabRecorder_OnRespawn( var button )
 {
 	LabRecorder_Send( "respawn " + Hud_GetDialogListSelectionValue( button ) )
+}
+
+void function LabRecorder_BuildGhostLists()
+{
+	var health = LabRecorder_Row( "SwitchGhostHealth" )
+	Hud_DialogList_ClearList( health )
+	Hud_DialogList_AddListItem( health, Localize( "#LAB_RECORDER_AS_RECORDED" ), "recorded" )
+	Hud_DialogList_AddListItem( health, Localize( "#LAB_RECORDER_GHOST_FULL" ), "full" )
+	Hud_DialogList_AddListItem( health, Localize( "#LAB_RECORDER_GHOST_INFINITE" ), "infinite" )
+	Hud_SetDialogListSelectionValue( health, "recorded" )
+
+	var shield = LabRecorder_Row( "SwitchGhostShield" )
+	Hud_DialogList_ClearList( shield )
+	Hud_DialogList_AddListItem( shield, Localize( "#LAB_RECORDER_AS_RECORDED" ), "recorded" )
+	Hud_DialogList_AddListItem( shield, Localize( "#SETTING_OFF" ), "0" )
+	Hud_DialogList_AddListItem( shield, Localize( "#LAB_TARGETS_ARMOR_WHITE" ), "1" )
+	Hud_DialogList_AddListItem( shield, Localize( "#LAB_TARGETS_ARMOR_BLUE" ), "2" )
+	Hud_DialogList_AddListItem( shield, Localize( "#LAB_TARGETS_ARMOR_PURPLE" ), "3" )
+	Hud_DialogList_AddListItem( shield, Localize( "#LAB_TARGETS_ARMOR_RED" ), "4" )
+	Hud_SetDialogListSelectionValue( shield, "recorded" )
+}
+
+void function LabRecorder_OnGhostHealth( var button )
+{
+	LabRecorder_Send( "ghosthp " + Hud_GetDialogListSelectionValue( button ) )
+}
+
+void function LabRecorder_OnGhostShield( var button )
+{
+	LabRecorder_Send( "ghostshield " + Hud_GetDialogListSelectionValue( button ) )
 }
 
 void function LabRecorder_BuildHintsList()

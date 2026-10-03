@@ -44,7 +44,6 @@ void function UIToClient_ArenasBuyMenuOpen()
 
 	EmitSoundOnEntity( localPlayer, SOUND_STORE_OPEN )
 	Arenas_OnBuyMenuOpen()
-	localPlayer.ClientCommand( "Arenas_OnBuyMenuOpen" )
 }
 
 void function UIToClient_ArenasBuyMenuClose()
@@ -55,7 +54,6 @@ void function UIToClient_ArenasBuyMenuClose()
 
 	EmitSoundOnEntity( localPlayer, SOUND_STORE_CLOSE )
 	thread Arenas_OnBuyMenuClose()
-	localPlayer.ClientCommand( "Arenas_OnBuyMenuClose" )
 }
 
 
@@ -63,6 +61,10 @@ void function UIToClient_ArenasBuyMenuClose()
 void function Arenas_PopulateTeamRuis( var rui, int team, array<entity> teamPlayers, string side, bool hasPortraitBackground = false )
 {
 	int INTRO_MAX_SLOTS = 3
+
+	// The intro RUI's default for the enemy side is the raw token "#ARENAS_ENEMY_SQUAD".
+	if ( side == "R" )
+		RuiSetString( rui, "teamName_R", Localize( "#ARENAS_ENEMY_SQUAD" ) )
 
 	if ( side == "L" )
 	{
@@ -88,10 +90,12 @@ void function Arenas_PopulateTeamRuis( var rui, int team, array<entity> teamPlay
 
 void function PopulateCharacterRui( var rui, entity player, int i, string side, bool hasPortraitBackground )
 {
-	bool loadoutReady = LoadoutSlot_IsReady( ToEHI( player ), Loadout_Character() )
-	if ( loadoutReady )
+	ItemFlavor ornull characterOrNull = null
+	if ( IsValid( player ) )
+		characterOrNull = FS_Hud_TryGetCharacterFlavor( player )
+	if ( characterOrNull != null )
 	{
-		ItemFlavor character = LoadoutSlot_GetItemFlavor( ToEHI( player ), Loadout_Character() )
+		ItemFlavor character = expect ItemFlavor( characterOrNull )
 		RuiSetImage( rui, "portraitImage_" + side + (i+1), CharacterClass_GetGalleryPortrait( character ) )
 		RuiSetBool( rui, "portraitImageVisible_" + side + (i+1), true )
 		if ( hasPortraitBackground )

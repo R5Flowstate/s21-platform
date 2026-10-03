@@ -370,6 +370,8 @@ void function DamageFlyout( float damageAmount, vector damagePosition, entity vi
 		return
 	if ( !IsValid( victim ) )
 		return
+	if ( Demo_IsPlaying() && Demo_GetHud() == 2 )
+		return
 
 	bool showHitIndicator = GetConVarInt( "hud_setting_damageIndicatorStyle" ) > 0
 	if ( showHitIndicator && !victim.IsPlayer() && IsSurvivalFiringRange() && !ShouldShowTrainingHitIndicators() )

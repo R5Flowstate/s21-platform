@@ -1197,7 +1197,8 @@ entity function CreatePortalExtension( vector startPos, vector endPos, entity po
 	vector maxes = -mins
 	vector upVec = diff / length
 	vector angles = <0,0,0>
-	if ( (1 - upVec.z) > FLT_EPSILON )
+	// A rope straight up or down keeps the identity angles; the cross products below degenerate there.
+	if ( fabs( upVec.z ) < 0.999 )
 	{
 		vector rightVec = CrossProduct( upVec, <0,0,1> )
 		vector forwardVec = CrossProduct( upVec, rightVec )

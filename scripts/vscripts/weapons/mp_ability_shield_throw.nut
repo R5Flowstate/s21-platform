@@ -804,6 +804,7 @@ void function DeployMobileShield( entity projectile )
 	entity topShield = CreateMobileShieldWall( mobileShield, owner, velocity, MOBILE_SHIELD_TOP_MODEL, MOBILE_SHIELD_TOP_FX )
 	entity bottomShield = CreateMobileShieldWall( mobileShield, owner, velocity, MOBILE_SHIELD_MODEL, MOBILE_SHIELD_FX )
 	bottomShield.SetLocalAngles( AnglesCompose( bottomShield.GetLocalAngles(), <180,180,0> ) )
+	PassiveNewcastle_StartShieldRepel( mobileShield, owner, false )
 	///////////////////////////////////////
 
 	const float MOBILE_SHIELD_WAYPOINT_OFFSET_Z = 10
@@ -1330,8 +1331,6 @@ entity function CreateMobileShieldWall( entity mobileShield, entity owner, vecto
 
 	AddEntityCallback_OnDamaged( shieldEnt, MobileShieldWall_OnDamaged )
 	AddEntityCallback_OnPostDamaged( shieldEnt, MobileShieldWall_OnPostDamaged )
-
-	PassiveNewcastle_StartShieldRepel( shieldEnt, owner, false )
 
 	return shieldEnt
 }

@@ -269,6 +269,10 @@ array<ItemFlavor> function GetWeaponsInCategory( ItemFlavor category )
 		if ( !ItemFlavor_ShouldBeVisible( weapon, player ) )
 			continue
 
+		// Loot-only variants cloned from another flavor; they have no locker page of their own.
+		if ( DISK_WEAPON_FLAVORS.contains( ItemFlavor_GetAsset( weapon ) ) )
+			continue
+
 		if ( WeaponItemFlavor_GetCategory( weapon ) == category )
 			categoryWeapons.append( weapon )
 	}

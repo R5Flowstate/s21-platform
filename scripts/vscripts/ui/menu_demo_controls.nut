@@ -1,6 +1,6 @@
-// Mouse layer for the replay bar. The client opens it while a replay is
-// paused; clicks and keys go back to client/cl_demo_overlay.gnut, which owns
-// the layout and every action.
+// Mouse layer for the replay HUD. The client opens it while the pointer is up;
+// presses, drags, releases and keys go back to client/cl_demo_overlay.gnut,
+// which owns the layout and every action.
 
 global function InitDemoControlsMenu
 global function DemoControls_Open
@@ -10,13 +10,14 @@ struct
 {
 	var menu
 	bool keysRegistered = false
+	bool polling = false
 } file
 
 void function InitDemoControlsMenu( var newMenuArg )
 {
 	file.menu = newMenuArg
 	// Leave the gamepad cursor off: it takes over the mouse and hides the pointer.
-	Hud_AddEventHandler( Hud_GetChild( file.menu, "Hitbox" ), UIE_CLICK, DemoControls_OnClick )
+	// The Hitbox only holds the cursor; the button is polled so sliders can be dragged.
 	AddMenuEventHandler( file.menu, eUIEvent.MENU_OPEN, DemoControls_OnOpen )
 	AddMenuEventHandler( file.menu, eUIEvent.MENU_CLOSE, DemoControls_OnClose )
 	AddMenuEventHandler( file.menu, eUIEvent.MENU_NAVIGATE_BACK, DemoControls_OnNavBack )
@@ -39,6 +40,8 @@ void function DemoControls_OnOpen()
 {
 	SetMenuNavigationDisabled( false )
 	SetCursorPosition( <1920.0 * 0.5, 1080.0 * 0.5, 0> )
+	if ( !file.polling )
+		thread DemoControls_PointerThread()
 	if ( file.keysRegistered )
 		return
 	file.keysRegistered = true
@@ -56,6 +59,7 @@ void function DemoControls_OnOpen()
 	RegisterButtonPressedCallback( KEY_B, DemoControls_Bookmark )
 	RegisterButtonPressedCallback( KEY_X, DemoControls_Clip )
 	RegisterButtonPressedCallback( KEY_H, DemoControls_Hud )
+	RegisterButtonPressedCallback( KEY_G, DemoControls_Clean )
 	RegisterButtonPressedCallback( KEY_LALT, DemoControls_Mouse )
 	RegisterButtonPressedCallback( KEY_V, DemoControls_Cursor )
 	RegisterButtonPressedCallback( KEY_1, DemoControls_View1 )
@@ -85,6 +89,7 @@ void function DemoControls_OnClose()
 	DeregisterButtonPressedCallback( KEY_B, DemoControls_Bookmark )
 	DeregisterButtonPressedCallback( KEY_X, DemoControls_Clip )
 	DeregisterButtonPressedCallback( KEY_H, DemoControls_Hud )
+	DeregisterButtonPressedCallback( KEY_G, DemoControls_Clean )
 	DeregisterButtonPressedCallback( KEY_LALT, DemoControls_Mouse )
 	DeregisterButtonPressedCallback( KEY_V, DemoControls_Cursor )
 	DeregisterButtonPressedCallback( KEY_1, DemoControls_View1 )
@@ -101,14 +106,41 @@ void function DemoControls_OnNavBack()
 	RunClientScript( "DemoOverlay_Back" )
 }
 
-void function DemoControls_OnClick( var button )
+// Press, drag and release of the left button, while this menu is on top.
+void function DemoControls_PointerThread()
 {
-	vector pos = GetCursorPosition()
-	RunClientScript( "DemoOverlay_Click", pos.x, pos.y )
+	file.polling = true
+	OnThreadEnd(
+		function() : ()
+		{
+			file.polling = false
+		}
+	)
+
+	bool wasDown = InputIsButtonDown( MOUSE_LEFT )
+	vector last = GetCursorPosition()
+	while ( file.menu != null && GetActiveMenu() == file.menu )
+	{
+		bool down = InputIsButtonDown( MOUSE_LEFT )
+		vector pos = GetCursorPosition()
+		if ( down && !wasDown )
+			RunClientScript( "DemoOverlay_Click", pos.x, pos.y )
+		else if ( down && ( pos.x != last.x || pos.y != last.y ) )
+			RunClientScript( "DemoOverlay_Drag", pos.x, pos.y )
+		else if ( !down && wasDown )
+			RunClientScript( "DemoOverlay_Release", pos.x, pos.y )
+		wasDown = down
+		last = pos
+		WaitFrame()
+	}
+	if ( wasDown )
+		RunClientScript( "DemoOverlay_Release", last.x, last.y )
 }
 
 void function DemoControls_Send( int key )
 {
+	if ( Demo_InputDiag() )
+		printt( "[DEMO-INPUT] forwarded key", key )
 	RunClientScript( "DemoOverlay_Key", key, InputIsButtonDown( KEY_LSHIFT ) || InputIsButtonDown( KEY_RSHIFT ) )
 }
 
@@ -126,6 +158,7 @@ void function DemoControls_Moments( var button ) { DemoControls_Send( KEY_M ) }
 void function DemoControls_Bookmark( var button ) { DemoControls_Send( KEY_B ) }
 void function DemoControls_Clip( var button ) { DemoControls_Send( KEY_X ) }
 void function DemoControls_Hud( var button ) { DemoControls_Send( KEY_H ) }
+void function DemoControls_Clean( var button ) { DemoControls_Send( KEY_G ) }
 void function DemoControls_Mouse( var button ) { DemoControls_Send( KEY_LALT ) }
 void function DemoControls_Cursor( var button ) { DemoControls_Send( KEY_V ) }
 void function DemoControls_View1( var button ) { DemoControls_Send( KEY_1 ) }

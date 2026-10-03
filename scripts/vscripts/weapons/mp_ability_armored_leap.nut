@@ -3912,6 +3912,7 @@ void function ArmoredLeap_ImpactShieldRegen_Thread( entity player )
 	float endTime = Time() + duration
 	float lastTime = Time()
 	float pending = 0.0
+	printt( format( "[NC-REGEN] start %s shield=%d/%d sinceDamage=%.2f rate=%.1f max=%d", player.GetPlayerName(), player.GetShieldHealth(), player.GetShieldHealthMax(), Time() - player.GetLastTimeDamaged(), regenPerSec, regenLeft ) )
 	while ( Time() < endTime && regenLeft > 0 )
 	{
 		WaitFrame()
@@ -3945,6 +3946,7 @@ void function ArmoredLeap_ImpactShieldRegen_Thread( entity player )
 		if ( shield + add >= shieldMax )
 			EmitSoundOnEntityOnlyToPlayer( player, player, ARMORED_LEAP_UPGRADE_SHIELDS_CHARGE_FULL_1P )
 	}
+	printt( format( "[NC-REGEN] end %s shield=%d/%d left=%d", player.GetPlayerName(), player.GetShieldHealth(), player.GetShieldHealthMax(), regenLeft ) )
 }
 #endif //SERVER
 

@@ -782,7 +782,7 @@ bool function CanOpenInventoryInCurrentGameState( )
 
 bool function CanOpenInventory( entity player )
 {
-	if ( IsWatchingReplay() )
+	if ( IsWatchingReplay() || Demo_IsPlaying() )
 		return false
 
 	if ( !IsAlive( player ) )

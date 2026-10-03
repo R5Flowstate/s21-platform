@@ -2239,7 +2239,20 @@ int function GetLoadoutSlotContentsIndexFromNetworkVar( EHI playerEHI, LoadoutEn
 		entity player = FromEHI( playerEHI )
 		return player.GetPlayerNetInt( expect string( entry.networkVarName ) )
 	#elseif CLIENT
-		return GetEHIScriptStruct( playerEHI ).netVarsLastSeenValuesMap[entry.nvIndex]
+		int lastSeen = GetEHIScriptStruct( playerEHI ).netVarsLastSeenValuesMap[entry.nvIndex]
+
+		// The change callback does not always deliver a remote player's value; a slot that never
+		// changes again would then read as the VM default. The replicated netvar is the truth.
+		entity player = FromEHI( playerEHI )
+		if ( !IsValid( player ) )
+			return lastSeen
+
+		string varName = expect string( entry.networkVarName )
+		int live = player.GetPlayerNetInt( varName )
+		if ( live != lastSeen && live != SLOT_CONTENTS_SENTINEL_NOTREADY )
+			return live
+
+		return lastSeen
 	#endif
 }
 #endif

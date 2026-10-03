@@ -7033,6 +7033,19 @@ void function GameSummary_MatchStart( entity player )
 		OnPlayerMatchParticipationStarted( player )
 }
 
+// lastGameMode is a persistence enum (survival, arenas, control, freedm); a mode id outside it
+// is a script error that ends the match on the server.
+string function GameSummary_PersistentGameMode()
+{
+	string mode = GameRules_GetGameMode()
+	if ( mode == "fs_arenas" )
+		return "arenas"
+	array<string> pdefModes = [ "survival", "arenas", "control", "freedm" ]
+	if ( pdefModes.contains( mode ) )
+		return mode
+	return "survival"
+}
+
 void function GameSummary_FinalizeData( entity player )
 {
 	WaitFrame() // Need to wait a frame so kill callbacks and complete (game goes into WinnerDetermined gamestate before kill callback is even finished)
@@ -7048,7 +7061,7 @@ void function GameSummary_FinalizeData( entity player )
 	player.SetPersistentVar( "lastGameRank", rank )
 	player.SetPersistentVar( "lastGameTime", GetUnixTimestamp() )
 	player.SetPersistentVar( "lastGameBattlePassBoost", player.p.battlePassBoost )
-	player.SetPersistentVar( "lastGameMode", GameRules_GetGameMode() )
+	player.SetPersistentVar( "lastGameMode", GameSummary_PersistentGameMode() )
 	player.SetPersistentVar( "lastGameResultFlags", file.gameResultFlags )
 	player.SetPersistentVar( "lastGameScoreFlags", file.gameScoreFlags )
 	player.SetPersistentVar( "lastGameUIRules", GetPlaylistVarString( GetCurrentPlaylistName(), "ui_rules", "" ) )

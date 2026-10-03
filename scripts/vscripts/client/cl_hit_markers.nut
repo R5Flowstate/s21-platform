@@ -103,6 +103,8 @@ void function CreateTrainingHitDot( vector pos, entity hitEnt, bool isCritical, 
 {
 	if ( !ShouldShowTrainingHitIndicators() )
 		return
+	if ( Demo_IsPlaying() && Demo_GetHud() == 2 )
+		return
 
 	var hitDotRui = RuiCreate( $"ui/training_target_hit_dot.rpak", clGlobal.topoFullScreen, RUI_DRAW_HUD, 0 )
 	RuiSetResolutionToScreenSize( hitDotRui )

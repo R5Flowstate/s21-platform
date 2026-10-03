@@ -74,7 +74,6 @@ const float SLIDEGATE_LAUNCH_SPEED		= 750.0
 const float SLIDEGATE_BOOST_MIN_TIME	= 0.25
 const float SLIDEGATE_BOOST_STOP_SPEED	= 100.0
 const float SLIDEGATE_DUMMIE_HOP		= 120.0
-const float SLIDEGATE_MOVE_DIR_MIN_SPEED	= 50.0
 const string SLIDEGATE_COOLDOWN_MOD		= "upgrade_core_tac_cooldown_reduction"
 #endif
 
@@ -404,14 +403,20 @@ void function SlideGate_OnEnter_Server( entity trigger, entity ent )
 	if ( !ent.IsPlayer() )
 		return
 
-	ent.SetVelocity( SlideGate_GetLaunchDir( ent ) * SLIDEGATE_LAUNCH_SPEED )
-	int stanceHandle = ent.PushForcedStance( FORCE_STANCE_CROUCH )
 	StatusEffect_StopAllOfType( ent, eStatusEffect.move_slow )
 
 	GivePlayerSettingsMods( ent, [ SLIDEGATE_BOOSTED_SLIDE_PASSIVE ] )
 	bool gaveJump = DoesPlayerHaveJumpGate( ent ) && !Bleedout_IsBleedingOut( ent )
 	if ( gaveJump )
 		GivePlayerSettingsMods( ent, [ OVERDRIVE_SLIDE_JUMP_PASSIVE ] )
+
+	if ( !ent.ApplySlideGateLaunch( SLIDEGATE_LAUNCH_SPEED ) )
+	{
+		TakePlayerSettingsMods( ent, [ SLIDEGATE_BOOSTED_SLIDE_PASSIVE ] )
+		if ( gaveJump )
+			TakePlayerSettingsMods( ent, [ OVERDRIVE_SLIDE_JUMP_PASSIVE ] )
+		return
+	}
 
 	float duration = SlideGate_GetMaxSlideTime( ent )
 	StatusEffect_AddTimed( ent, eStatusEffect.slide_gate_boosting, 1.0, duration, 0.0 )
@@ -424,19 +429,7 @@ void function SlideGate_OnEnter_Server( entity trigger, entity ent )
 
 	Remote_CallFunction_NonReplay( ent, "ServerToClient_SlideGateEnter", gate )
 
-	thread SlideGate_BoostThink( ent, gate, duration, gaveJump, stanceHandle, boostFX )
-}
-
-vector function SlideGate_GetLaunchDir( entity player )
-{
-	vector moveDir = player.GetVelocity()
-	moveDir.z = 0.0
-	if ( Length( moveDir ) > SLIDEGATE_MOVE_DIR_MIN_SPEED )
-		return Normalize( moveDir )
-
-	vector eyeAngles = player.EyeAngles()
-	eyeAngles.x = 0.0
-	return FlattenNormalizeVec( AnglesToForward( eyeAngles ) )
+	thread SlideGate_BoostThink( ent, gate, duration, gaveJump, boostFX )
 }
 
 void function SlideGate_LaunchDummie( entity npc, entity gate, vector fwd )
@@ -502,7 +495,7 @@ void function SlideGate_PlayTriggerAnim( entity gate )
 	gate.Anim_PlayOnly( SLIDEGATE_IDLE_ANIM )
 }
 
-void function SlideGate_BoostThink( entity player, entity gate, float duration, bool gaveJump, int stanceHandle, array<entity> boostFX )
+void function SlideGate_BoostThink( entity player, entity gate, float duration, bool gaveJump, array<entity> boostFX )
 {
 	player.Signal( SLIDEGATE_BOOST_END )
 	player.EndSignal( SLIDEGATE_BOOST_END )
@@ -512,7 +505,7 @@ void function SlideGate_BoostThink( entity player, entity gate, float duration, 
 	EmitSoundOnEntityExceptToPlayer( player, player, SLIDEGATE_EFFECT_ACTIVE_3P )
 
 	OnThreadEnd(
-		function() : ( player, gaveJump, stanceHandle, boostFX )
+		function() : ( player, gaveJump, boostFX )
 		{
 			foreach ( entity fx in boostFX )
 			{
@@ -523,7 +516,6 @@ void function SlideGate_BoostThink( entity player, entity gate, float duration, 
 			if ( !IsValid( player ) )
 				return
 
-			player.RemoveForcedStance( stanceHandle )
 			TakePlayerSettingsMods( player, [ SLIDEGATE_BOOSTED_SLIDE_PASSIVE ] )
 			if ( gaveJump )
 				TakePlayerSettingsMods( player, [ OVERDRIVE_SLIDE_JUMP_PASSIVE ] )

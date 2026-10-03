@@ -19,6 +19,12 @@ const float MREC_BOT_READY_TIMEOUT = 8.0
 const float MREC_BOT_PARK_SECONDS = 45.0
 const float MREC_START_PLACE_TOLERANCE = 4.0
 
+const int MREC_GHOST_HEALTH_RECORDED = 0
+const int MREC_GHOST_HEALTH_FULL = 1
+const int MREC_GHOST_HEALTH_INFINITE = 2
+const int MREC_GHOST_SHIELD_RECORDED = -1
+const int MREC_GHOST_SHIELD_MAX_LEVEL = 4
+
 struct MRecRecording
 {
 	int cmdRecId
@@ -59,6 +65,8 @@ struct MRecPlayerState
 	string legendOverride = ""
 	string recordMode = "input"
 	float respawnDelay = 0.0
+	int ghostHealth = MREC_GHOST_HEALTH_RECORDED
+	int ghostShield = MREC_GHOST_SHIELD_RECORDED
 	array<entity> programBots
 	MRecSnapshot pendingSnap
 	bool pendingAnimRecording = false
@@ -87,6 +95,7 @@ void function MovementRecorder_ServerInit()
 	RegisterSignal( MREC_SIGNAL_STOP_PLAYBACK )
 	AddClientCommandCallback( "mrec", MRec_ClientCommand )
 	AddCallback_OnPlayerAddedToRealm( MRec_OnPlayerAddedToRealm )
+	AddDamageCallback( "player", MRec_OnGhostDamaged )
 	printt( "[MRec] ServerInit" )
 }
 
@@ -109,6 +118,8 @@ MRecPlayerState function MRec_GetState( entity player )
 		st.legendOverride = ""
 		st.recordMode = "input"
 		st.respawnDelay = 0.0
+		st.ghostHealth = MREC_GHOST_HEALTH_RECORDED
+		st.ghostShield = MREC_GHOST_SHIELD_RECORDED
 		st.programBots = []
 		file.states[key] <- st
 	}
@@ -283,6 +294,16 @@ void function MRec_ClientCommandImpl( entity player, array<string> args )
 	if ( action == "respawn" )
 	{
 		MRec_CmdRespawn( player, st, args )
+		return
+	}
+	if ( action == "ghosthp" )
+	{
+		MRec_CmdGhostHealth( player, st, args )
+		return
+	}
+	if ( action == "ghostshield" )
+	{
+		MRec_CmdGhostShield( player, st, args )
 		return
 	}
 	if ( action == "name" )
@@ -1076,6 +1097,112 @@ void function MRec_CmdRespawn( entity player, MRecPlayerState st, array<string> 
 		v = 10.0
 	st.respawnDelay = v
 	Message( player, format( "#MREC_MSG_RESPAWN_DELAY|%.1f", v ), "#MREC_MSG_ZERO_INSTANT" )
+}
+
+// mrec ghosthp recorded|full|infinite
+void function MRec_CmdGhostHealth( entity player, MRecPlayerState st, array<string> args )
+{
+	if ( args.len() < 2 )
+		return
+	string v = args[1].tolower()
+	if ( v == "recorded" )
+		st.ghostHealth = MREC_GHOST_HEALTH_RECORDED
+	else if ( v == "full" )
+		st.ghostHealth = MREC_GHOST_HEALTH_FULL
+	else if ( v == "infinite" )
+		st.ghostHealth = MREC_GHOST_HEALTH_INFINITE
+	else
+		return
+	MRec_ApplyGhostVitalsAll( st )
+}
+
+// mrec ghostshield recorded|0..4 (0 = none, 1-4 = white/blue/purple/red)
+void function MRec_CmdGhostShield( entity player, MRecPlayerState st, array<string> args )
+{
+	if ( args.len() < 2 )
+		return
+	string v = args[1].tolower()
+	if ( v == "recorded" )
+	{
+		st.ghostShield = MREC_GHOST_SHIELD_RECORDED
+		return
+	}
+	int level = MRec_ParseNonNegativeInt( v )
+	if ( level < 0 || level > MREC_GHOST_SHIELD_MAX_LEVEL )
+		return
+	st.ghostShield = level
+	MRec_ApplyGhostVitalsAll( st )
+}
+
+void function MRec_ApplyGhostVitalsAll( MRecPlayerState st )
+{
+	foreach ( MRecPlayback pb in st.playbacks )
+	{
+		if ( IsValid( pb.dummy ) && IsAlive( pb.dummy ) )
+			MRec_ApplyGhostVitals( pb.dummy, st )
+	}
+}
+
+// Runs after the recorded snapshot, so a setting overrides what the clip captured.
+void function MRec_ApplyGhostVitals( entity bot, MRecPlayerState st )
+{
+	if ( !IsValid( bot ) || !IsAlive( bot ) )
+		return
+	if ( st.ghostShield == 0 )
+	{
+		try
+		{
+			Inventory_SetPlayerEquipment( bot, "", "armor" )
+		}
+		catch ( eEq )
+		{
+		}
+		bot.SetShieldHealth( 0 )
+	}
+	else if ( st.ghostShield > 0 )
+	{
+		LegendBot_ApplyArmor( bot, st.ghostShield )
+	}
+	if ( st.ghostHealth != MREC_GHOST_HEALTH_RECORDED )
+	{
+		bot.SetHealth( bot.GetMaxHealth() )
+		bot.SetShieldHealth( bot.GetShieldHealthMax() )
+	}
+}
+
+void function MRec_ApplyGhostVitalsFor( entity owner, entity bot )
+{
+	MRecPlayerState ornull st = MRec_TryGetState( owner )
+	if ( st != null )
+		MRec_ApplyGhostVitals( bot, expect MRecPlayerState( st ) )
+}
+
+bool function MRec_IsGhostOf( entity bot, MRecPlayerState st )
+{
+	foreach ( MRecPlayback pb in st.playbacks )
+	{
+		if ( pb.dummy == bot )
+			return true
+	}
+	return false
+}
+
+// Infinite ghosts take every hit (hit markers and damage numbers stay real); a lethal
+// hit refills them before it lands instead of killing them.
+void function MRec_OnGhostDamaged( entity victim, var damageInfo )
+{
+	if ( !IsValid( victim ) || !victim.IsBot() || !IsAlive( victim ) )
+		return
+	int eh = victim.GetEncodedEHandle()
+	if ( !( eh in file.realmOwner ) )
+		return
+	MRecPlayerState ornull stOrNull = MRec_TryGetState( file.realmOwner[eh] )
+	if ( stOrNull == null )
+		return
+	MRecPlayerState st = expect MRecPlayerState( stOrNull )
+	if ( st.ghostHealth != MREC_GHOST_HEALTH_INFINITE || !MRec_IsGhostOf( victim, st ) )
+		return
+	AimTrainerStrafer_AbsorbLethal( victim, damageInfo )
 }
 
 // Cycle order: same as recording, then every selectable legend.
@@ -2548,6 +2675,7 @@ void function MRec_BeginPlayback( entity player, MRecPlayerState st, entity npc,
 		MRec_ApplySnapshot( npc, rec.snapshot )
 		if ( !IsValid( npc ) )
 			return
+		MRec_ApplyGhostVitalsFor( player, npc )
 		npc.EndSignal( "OnDeath" )
 		int lastLoop = 0
 		try
@@ -2607,6 +2735,7 @@ void function MRec_BeginPlayback( entity player, MRecPlayerState st, entity npc,
 				// Inputs replay from frame 0, so the loadout must match frame 0 too:
 				// slots, active weapon, clips, offhands and health as recorded.
 				MRec_ApplySnapshot( npc, rec.snapshot, false )
+				MRec_ApplyGhostVitalsFor( player, npc )
 				MRec_HudBot( player, npc, slot, MREC_HUD_BOT_PLAYING, loops, Time() )
 				continue
 			}

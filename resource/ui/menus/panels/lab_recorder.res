@@ -187,6 +187,45 @@
                 childGroupAlways        MultiChoiceButtonAlways
             }
 
+            SwitchGhostHealth
+            {
+                ControlName				RuiButton
+                InheritProperties		SwitchButton
+                className               "SettingScrollSizer"
+                style					DialogListButton
+                list
+                {
+                    "#LAB_RECORDER_AS_RECORDED"	recorded
+                    "#LAB_RECORDER_GHOST_FULL"	full
+                    "#LAB_RECORDER_GHOST_INFINITE"	infinite
+                }
+                pin_to_sibling			SwitchRespawn
+                pin_corner_to_sibling	TOP_LEFT
+                pin_to_sibling_corner	BOTTOM_LEFT
+                childGroupAlways        MultiChoiceButtonAlways
+            }
+
+            SwitchGhostShield
+            {
+                ControlName				RuiButton
+                InheritProperties		SwitchButton
+                className               "SettingScrollSizer"
+                style					DialogListButton
+                list
+                {
+                    "#LAB_RECORDER_AS_RECORDED"	recorded
+                    "#SETTING_OFF"	0
+                    "#LAB_TARGETS_ARMOR_WHITE"	1
+                    "#LAB_TARGETS_ARMOR_BLUE"	2
+                    "#LAB_TARGETS_ARMOR_PURPLE"	3
+                    "#LAB_TARGETS_ARMOR_RED"	4
+                }
+                pin_to_sibling			SwitchGhostHealth
+                pin_corner_to_sibling	TOP_LEFT
+                pin_to_sibling_corner	BOTTOM_LEFT
+                childGroupAlways        MultiChoiceButtonAlways
+            }
+
             SldRate
             {
                 ControlName				SliderControl
@@ -196,7 +235,7 @@
                 maxValue				2.0
                 stepSize				0.25
                 showLabel               3
-                pin_to_sibling			SwitchRespawn
+                pin_to_sibling			SwitchGhostShield
                 pin_corner_to_sibling	TOP_LEFT
                 pin_to_sibling_corner	BOTTOM_LEFT
             }

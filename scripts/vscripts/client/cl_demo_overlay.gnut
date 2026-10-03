@@ -1,53 +1,73 @@
-// Replay player: the bar along the bottom while a replay plays. Timeline with
-// fights / rounds shaded won or lost, moment markers, clock, chapter, and the
-// speed / camera / moments / bookmark / clip controls. Keys work while it
-// plays; pausing opens a mouse layer (ui/menu_demo_controls.nut) whose clicks
-// come back here through DemoOverlay_Click.
+// Replay player HUD, three RUIs from SERE tools/gen_fs_demo.py:
+//   bar   transport bar along the bottom (timeline, transport, speed / camera /
+//         actions / HUD groups) and the moments popup
+//   info  replay tag, player buttons, toast, watched player card
+//   cam   free camera panel (roll / FOV / focus sliders, camera path)
+// Keys work while it plays; the mouse layer (ui/menu_demo_controls.nut) sends
+// presses, drags and releases back here in 1920x1080 space.
 
 global function DemoOverlay_Start
 global function DemoOverlay_Click
+global function DemoOverlay_Drag
+global function DemoOverlay_Release
 global function DemoOverlay_Key
 global function DemoOverlay_Back
 
-const float DEMO_OVERLAY_TICK = 0.1
-const int DEMO_MARKERS = 24
+const float DEMO_OVERLAY_TICK = 0.05
+const int DEMO_MARKS = 24
 const int DEMO_SEGMENTS = 8
-const int DEMO_BADGES = 6
+const int DEMO_KEYS = 12
 const int DEMO_POP_ROWS = 8
+const int DEMO_POV_SLOTS = 6
+const int DEMO_SHIELD_CELLS = 5
+const int DEMO_KEY_ROWS = 4
 
 // Layout: must match SERE tools/gen_fs_demo.py.
 const float DEMO_TRACK_X = 56.0
-const float DEMO_TRACK_Y = 970.0
-const float DEMO_TRACK_W = 1808.0
-const float DEMO_TRACK_H = 6.0
-const float DEMO_ROW2_Y = 1020.0
-const float DEMO_CHIP_H = 36.0
-const float DEMO_CHIP_GAP = 10.0
-// Right edge of the chip row: BAR_X + BAR_W - 24.
-const float DEMO_CHIP_RIGHT = 1864.0
-const int DEMO_CAMERAS = 3
-const float DEMO_POP_X = 1468.0
-const float DEMO_POP_Y = 624.0
+const float DEMO_TRACK_W = 1792.0
+const float DEMO_TRACK_Y = 956.0
+const float DEMO_TRACK_CY = 959.0
+const float DEMO_BTN_Y = 990.0
+const float DEMO_BTN_H = 44.0
+const float DEMO_POP_X = 32.0
+const float DEMO_POP_Y = 484.0
 const float DEMO_POP_W = 420.0
-const float DEMO_POP_H = 308.0
 const float DEMO_POP_ROW_H = 36.0
-const float DEMO_BADGE_X = 1848.0
-const float DEMO_BADGE_Y = 48.0
-const float DEMO_BADGE_STEP = 64.0
+const float DEMO_POV_W = 236.0
+const float DEMO_POV_H = 56.0
+const float DEMO_POV_TOP = 28.0
+const float DEMO_CP_L = 1508.0
+const float DEMO_CP_R = 1868.0
+const float DEMO_RANGE_X = 1598.0
+const float DEMO_RANGE_W = 206.0
+const float DEMO_RANGE_Y = 410.0
+const float DEMO_TABLE_Y = 530.0
+const float DEMO_ROW_H = 40.0
+const float DEMO_KBTN_Y = 700.0
+const float DEMO_KBTN_W = 84.0
+const float DEMO_KBTN_H = 58.0
+const float DEMO_PATH_Y = 768.0
+const float DEMO_PATH_H = 44.0
 
 const float DEMO_MOMENT_LEAD = 5.0
 const float DEMO_CLIP_LEN = 15.0
 const float DEMO_TOAST_TIME = 2.5
-const float DEMO_HINT_TIME = 10.0
 
 const vector DEMO_COL_ACCENT = <61, 218, 138>
+const vector DEMO_COL_TEXT = <233, 241, 236>
+const vector DEMO_COL_SUB = <195, 208, 200>
+const vector DEMO_COL_MUTED = <159, 176, 166>
+const vector DEMO_COL_DIM = <125, 140, 132>
+const vector DEMO_COL_INK = <11, 15, 13>
+const vector DEMO_COL_PANEL = <10, 14, 12>
+const vector DEMO_COL_BLUE = <92, 196, 250>
 const vector DEMO_COL_KNOCK = <224, 194, 90>
+const vector DEMO_COL_KNOCK_T = <240, 217, 138>
 const vector DEMO_COL_DEATH = <217, 80, 96>
+const vector DEMO_COL_DEATH_M = <229, 107, 121>
+const vector DEMO_COL_DEATH_T = <241, 154, 164>
 const vector DEMO_COL_RING = <183, 156, 240>
-const vector DEMO_COL_MARK = <233, 241, 236>
-const vector DEMO_COL_WON = <30, 90, 58>
-const vector DEMO_COL_LOST = <110, 36, 48>
-const vector DEMO_COL_OPEN = <52, 70, 60>
+const vector DEMO_COL_OFF = <86, 98, 91>
 
 struct DemoMoment
 {
@@ -55,6 +75,7 @@ struct DemoMoment
 	string kind
 	string label
 	vector color
+	int keyIndex = -1  // camera path keyframe
 }
 
 struct DemoSegment
@@ -65,25 +86,41 @@ struct DemoSegment
 	string label
 }
 
+struct DemoSlider
+{
+	float lo
+	float hi
+	float x
+	float w
+	float cy
+}
+
 struct
 {
-	var rui
+	var bar = null
+	var info = null
+	var cam = null
 	bool started = false
 	int hudMode = -1
 	bool popup = false
 	bool controlsOpen = false
 	bool mouse = true
 	var seekRui = null
-	// Wraith comms line while the game HUD stands in for the replay HUD.
 	var returnHintRui = null
 	array<DemoMoment> moments
 	array<DemoSegment> segments
+	array<int> povKills
+	array<int> povKnocks
 	string toast
 	vector toastColor = DEMO_COL_ACCENT
 	float toastUntil = 0.0
-	float startedAt = 0.0
-	float hintFrom = 0.0
 	string chapterWord = "#DEMO_R_FIGHT"
+	int hudBeforeClean = 1
+	int lastKey = -1
+	float lastKeyTime = -1.0
+	float lastFocus = 450.0
+	string drag = ""
+	int keyRowFirst = 0
 } file
 
 void function DemoOverlay_Start()
@@ -96,7 +133,6 @@ void function DemoOverlay_Start()
 		return
 	}
 	file.started = true
-	file.startedAt = Time()
 
 	DemoOverlay_LoadMoments()
 
@@ -114,6 +150,7 @@ void function DemoOverlay_Start()
 	RegisterButtonPressedCallback( KEY_B, DemoOverlay_OnKeyBookmark )
 	RegisterButtonPressedCallback( KEY_X, DemoOverlay_OnKeyClip )
 	RegisterButtonPressedCallback( KEY_H, DemoOverlay_OnKeyHud )
+	RegisterButtonPressedCallback( KEY_G, DemoOverlay_OnKeyClean )
 	RegisterButtonPressedCallback( KEY_LALT, DemoOverlay_OnKeyMouse )
 	RegisterButtonPressedCallback( KEY_V, DemoOverlay_OnKeyCursor )
 	RegisterButtonPressedCallback( KEY_1, DemoOverlay_OnKey1 )
@@ -128,7 +165,7 @@ void function DemoOverlay_Start()
 }
 
 //////////////////////////////////////////////////////////////////////////////
-// Moments and chapters
+// Moments, chapters, per-player tallies
 
 string function DemoOverlay_PovName( int pov )
 {
@@ -155,10 +192,24 @@ void function DemoOverlay_AddMoment( float time, string kind, string label, vect
 	file.moments.append( m )
 }
 
+void function DemoOverlay_Tally( array<int> counts, array<string> p )
+{
+	int pov = p.len() > 2 ? p[2].tointeger() : -1
+	if ( pov >= 0 && pov < counts.len() )
+		counts[ pov ]++
+}
+
 void function DemoOverlay_LoadMoments()
 {
 	file.moments.clear()
 	file.segments.clear()
+	file.povKills.clear()
+	file.povKnocks.clear()
+	for ( int i = 0; i < DEMO_POV_SLOTS; i++ )
+	{
+		file.povKills.append( 0 )
+		file.povKnocks.append( 0 )
+	}
 
 	DemoSegment ornull open = null
 	int count = 0
@@ -178,21 +229,23 @@ void function DemoOverlay_LoadMoments()
 		{
 			case "kill":
 				DemoOverlay_AddMoment( t, kind, Localize( "#DEMO_R_M_KILL", victim ), DEMO_COL_ACCENT )
+				DemoOverlay_Tally( file.povKills, p )
 				break
 			case "knock":
 				DemoOverlay_AddMoment( t, kind, Localize( "#DEMO_R_M_KNOCK", victim ), DEMO_COL_KNOCK )
+				DemoOverlay_Tally( file.povKnocks, p )
 				break
 			case "death":
-				DemoOverlay_AddMoment( t, kind, attacker != "" ? Localize( "#DEMO_R_M_DEATH", attacker ) : Localize( "#DEMO_R_M_DIED" ), DEMO_COL_DEATH )
+				DemoOverlay_AddMoment( t, kind, attacker != "" ? Localize( "#DEMO_R_M_DEATH", attacker ) : Localize( "#DEMO_R_M_DIED" ), DEMO_COL_DEATH_M )
 				break
 			case "knocked":
-				DemoOverlay_AddMoment( t, kind, Localize( "#DEMO_R_M_KNOCKED", attacker ), DEMO_COL_DEATH )
+				DemoOverlay_AddMoment( t, kind, Localize( "#DEMO_R_M_KNOCKED", attacker ), DEMO_COL_DEATH_M )
 				break
 			case "ring":
 				DemoOverlay_AddMoment( t, kind, Localize( "#DEMO_R_M_RING" ), DEMO_COL_RING )
 				break
 			case "bookmark":
-				DemoOverlay_AddMoment( t, kind, Localize( "#DEMO_R_M_BOOKMARK" ), DEMO_COL_MARK )
+				DemoOverlay_AddMoment( t, kind, Localize( "#DEMO_R_M_BOOKMARK" ), DEMO_COL_TEXT )
 				break
 			case "fight":
 			case "round":
@@ -253,18 +306,29 @@ string function DemoOverlay_Chapter( float t )
 	return file.segments.len() > 0 ? Localize( "#DEMO_R_BETWEEN" ) : ""
 }
 
+// The latest moment at or before t, as "<label> at <time>".
+string function DemoOverlay_LastEvent( float t )
+{
+	for ( int i = file.moments.len() - 1; i >= 0; i-- )
+	{
+		if ( file.moments[ i ].time <= t && file.moments[ i ].kind != "bookmark" )
+			return Localize( "#DEMO_R_EVENT_AT", file.moments[ i ].label, DemoOverlay_Clock( file.moments[ i ].time ) )
+	}
+	return ""
+}
+
 // Markers: every non-bookmark moment first, then bookmarks, capped at the slots.
 array<DemoMoment> function DemoOverlay_MarkerSet()
 {
 	array<DemoMoment> out
 	foreach ( DemoMoment m in file.moments )
 	{
-		if ( m.kind != "bookmark" && out.len() < DEMO_MARKERS )
+		if ( m.kind != "bookmark" && out.len() < DEMO_MARKS )
 			out.append( m )
 	}
 	foreach ( DemoMoment m in file.moments )
 	{
-		if ( m.kind == "bookmark" && out.len() < DEMO_MARKERS )
+		if ( m.kind == "bookmark" && out.len() < DEMO_MARKS )
 			out.append( m )
 	}
 	return out
@@ -284,52 +348,35 @@ int function DemoOverlay_PopupFirst( float t )
 }
 
 //////////////////////////////////////////////////////////////////////////////
-// RUI
+// RUI helpers
 
-var function DemoOverlay_Create()
+var function DemoOverlay_CreateRui( string path, int sortKey )
 {
 	var rui = null
 	try
 	{
-		asset a = GetKeyValueAsAsset( { kn = "ui/fs_demo_overlay.rpak" }, "kn" )
-		rui = RuiCreate( a, clGlobal.topoFullScreen, RUI_DRAW_POSTEFFECTS, 100 )
+		asset a = GetKeyValueAsAsset( { kn = path }, "kn" )
+		rui = RuiCreate( a, clGlobal.topoFullScreen, RUI_DRAW_POSTEFFECTS, sortKey )
 	}
 	catch ( eCreate )
 	{
-		printt( "[DemoOverlay] create failed: " + string( eCreate ) )
+		printt( "[DemoOverlay] create failed: " + path + " " + string( eCreate ) )
 		return null
 	}
-
-	DemoOverlay_Col( rui, "edgeColor", DEMO_COL_ACCENT, 1.0 )
-	DemoOverlay_Col( rui, "progColor", DEMO_COL_ACCENT, 1.0 )
-	DemoOverlay_Col( rui, "playColor", DEMO_COL_ACCENT, 1.0 )
-	DemoOverlay_Col( rui, "popEdge", DEMO_COL_ACCENT, 1.0 )
-	for ( int i = 0; i < DEMO_MARKERS; i++ )
-		DemoOverlay_Park( rui, "m" + i + "Pos" )
-	for ( int i = 0; i < DEMO_SEGMENTS; i++ )
-	{
-		DemoOverlay_Park( rui, "s" + i + "A" )
-		DemoOverlay_Park( rui, "s" + i + "B" )
-		DemoOverlay_Park( rui, "s" + i + "C" )
-	}
-	for ( int i = 0; i < DEMO_BADGES; i++ )
-		DemoOverlay_Park( rui, "b" + i + "Pos" )
-	DemoOverlay_SetPopup( rui, false )
 	return rui
 }
 
-void function DemoOverlay_Destroy()
+void function DemoOverlay_DestroyRui( var rui )
 {
-	if ( file.rui == null )
+	if ( rui == null )
 		return
 	try
 	{
-		RuiDestroyIfAlive( file.rui )
+		RuiDestroyIfAlive( rui )
 	}
 	catch ( eDestroy )
 	{
 	}
-	file.rui = null
 }
 
 void function DemoOverlay_Col( var rui, string name, vector rgb255, float a )
@@ -344,77 +391,27 @@ void function DemoOverlay_Px( var rui, string name, float x, float y )
 
 void function DemoOverlay_Park( var rui, string name )
 {
-	DemoOverlay_Px( rui, name, -3840.0, -2160.0 )
+	RuiSetFloat2( rui, name, < -2.0, -2.0, 0 > )
 }
 
-void function DemoOverlay_SetPopup( var rui, bool open )
+void function DemoOverlay_Quad( var rui, string prefix, float x0, float x1, float y0, float y1 )
 {
-	if ( !open )
-	{
-		foreach ( string c in [ "TL", "TR", "BL", "BR", "TL1", "BL1", "BR1", "TR1", "TL3" ] )
-			DemoOverlay_Park( rui, "pop" + c )
-		for ( int i = 0; i < DEMO_POP_ROWS; i++ )
-		{
-			DemoOverlay_Park( rui, "r" + i + "Dot" )
-			RuiSetString( rui, "r" + i + "Text", "" )
-		}
-		return
-	}
-	float l = DEMO_POP_X
-	float r = DEMO_POP_X + DEMO_POP_W
-	float top = DEMO_POP_Y
-	float bot = DEMO_POP_Y + DEMO_POP_H
-	DemoOverlay_Px( rui, "popTL", l, top )
-	DemoOverlay_Px( rui, "popTR", r, top )
-	DemoOverlay_Px( rui, "popBL", l, bot )
-	DemoOverlay_Px( rui, "popBR", r, bot )
-	DemoOverlay_Px( rui, "popTL1", l, top + 1.0 )
-	DemoOverlay_Px( rui, "popBL1", l, bot - 1.0 )
-	DemoOverlay_Px( rui, "popBR1", r, bot - 1.0 )
-	DemoOverlay_Px( rui, "popTR1", r - 1.0, top )
-	DemoOverlay_Px( rui, "popTL3", l + 3.0, top )
+	DemoOverlay_Px( rui, prefix + "A", x0, y0 )
+	DemoOverlay_Px( rui, prefix + "B", x1, y0 )
+	DemoOverlay_Px( rui, prefix + "C", x0, y1 )
+}
+
+void function DemoOverlay_ParkQuad( var rui, string prefix )
+{
+	DemoOverlay_Park( rui, prefix + "A" )
+	DemoOverlay_Park( rui, prefix + "B" )
+	DemoOverlay_Park( rui, prefix + "C" )
 }
 
 string function DemoOverlay_Clock( float t )
 {
 	int s = int( max( t, 0.0 ) )
 	return format( "%d:%02d", s / 60, s % 60 )
-}
-
-string function DemoOverlay_InputLine( float t )
-{
-	int pov = Demo_GetView() >= 0 ? Demo_GetView() : Demo_GetPov()
-	string line = DemoOverlay_PovName( pov )
-
-	foreach ( entity p in GetPlayerArray() )
-	{
-		if ( IsValid( p ) && p.GetPlayerName() == Demo_GetPovName( pov ) )
-		{
-			line += format( "   %d HP   %d u/s", p.GetHealth(), int( Length2D( p.GetVelocity() ) ) )
-			break
-		}
-	}
-
-	array<string> p = split( Demo_GetInputsAt( pov, t ), "|" )
-	if ( p.len() >= 4 )
-	{
-		int buttons = p[0].tointeger()
-		float fwd = p[1].tofloat()
-		float side = p[2].tofloat()
-		string keys = ""
-		keys += fwd > 0.1 ? "W" : ( fwd < -0.1 ? "S" : "-" )
-		keys += side < -0.1 ? "A" : ( side > 0.1 ? "D" : "-" )
-		if ( ( buttons & IN_JUMP ) != 0 )
-			keys += " " + Localize( "#DEMO_OVERLAY_JUMP" )
-		if ( ( buttons & IN_DUCK ) != 0 )
-			keys += " " + Localize( "#DEMO_OVERLAY_CROUCH" )
-		if ( ( buttons & IN_ATTACK ) != 0 )
-			keys += " " + Localize( "#DEMO_OVERLAY_FIRE" )
-		if ( ( buttons & IN_ZOOM ) != 0 )
-			keys += " " + Localize( "#DEMO_OVERLAY_ADS" )
-		line += "   [" + keys + "]"
-	}
-	return line
 }
 
 string function DemoOverlay_MetaString( string key )
@@ -433,9 +430,18 @@ string function DemoOverlay_SpeedLabel( float s )
 {
 	if ( fabs( s - float( int( s ) ) ) < 0.01 )
 		return format( "%dx", int( s ) )
-	if ( fabs( s * 10.0 - float( int( s * 10.0 + 0.5 ) ) ) < 0.01 )
-		return format( "%.1fx", s )
-	return format( "%.2fx", s )
+	string v = format( "%.2f", s )
+	while ( v.len() > 1 && v.slice( v.len() - 1 ) == "0" )
+		v = v.slice( 0, v.len() - 1 )
+	if ( v.slice( 0, 1 ) == "0" )
+		v = v.slice( 1 )
+	return v + "x"
+}
+
+string function DemoOverlay_Signed( float v )
+{
+	int n = int( floor( v + 0.5 ) )
+	return n > 0 ? "+" + n : string( n )
 }
 
 float function DemoOverlay_TrackX( float t, float dur )
@@ -443,135 +449,508 @@ float function DemoOverlay_TrackX( float t, float dur )
 	return DEMO_TRACK_X + DEMO_TRACK_W * ( dur > 0.0 ? clamp( t / dur, 0.0, 1.0 ) : 0.0 )
 }
 
-void function DemoOverlay_Update()
+int function DemoOverlay_WatchedPov()
 {
-	var rui = file.rui
-	float t = Demo_GetTime()
-	float dur = Demo_GetDuration()
+	return Demo_GetView() >= 0 ? Demo_GetView() : Demo_GetPov()
+}
 
-	string mode = DemoOverlay_MetaString( "modeTitle" )
-	string map = DemoOverlay_MetaString( "map" )
-	int watched = Demo_GetView() >= 0 ? Demo_GetView() : Demo_GetPov()
-	RuiSetString( rui, "titleText", Localize( "#DEMO_R_TITLE", mode != "" ? mode : "-", map != "" ? map : "-", DemoOverlay_PovName( watched ) ) )
+entity function DemoOverlay_WatchedPlayer()
+{
+	string name = Demo_GetPovName( DemoOverlay_WatchedPov() )
+	foreach ( entity p in GetPlayerArray() )
+	{
+		if ( IsValid( p ) && p.GetPlayerName() == name )
+			return p
+	}
+	return GetLocalViewPlayer()
+}
 
-	bool paused = Demo_IsPaused()
-	RuiSetString( rui, "playText", paused ? ">" : "II" )
-	DemoOverlay_Col( rui, "playColor", paused ? DEMO_COL_KNOCK : DEMO_COL_ACCENT, 1.0 )
-	RuiSetString( rui, "clockText", DemoOverlay_Clock( t ) + " / " + DemoOverlay_Clock( dur ) )
-	RuiSetString( rui, "chapterText", DemoOverlay_Chapter( t ) )
+//////////////////////////////////////////////////////////////////////////////
+// Group layout: must match gen_fs_demo.py group_layout()
+
+array<float> function DemoOverlay_SpeedXs() { return [ 499.0, 553.0, 607.0, 661.0, 715.0 ] }
+array<float> function DemoOverlay_SpeedWs() { return [ 52.0, 52.0, 52.0, 52.0, 52.0 ] }
+array<float> function DemoOverlay_CamXs() { return [ 785.0, 921.0, 1059.0 ] }
+array<float> function DemoOverlay_CamWs() { return [ 134.0, 136.0, 128.0 ] }
+array<float> function DemoOverlay_ActXs() { return [ 1202.0, 1308.0, 1426.0 ] }
+array<float> function DemoOverlay_ActWs() { return [ 100.0, 112.0, 104.0 ] }
+array<float> function DemoOverlay_HudXs() { return [ 1545.0, 1667.0, 1777.0 ] }
+array<float> function DemoOverlay_HudWs() { return [ 120.0, 108.0, 84.0 ] }
+array<float> function DemoOverlay_Speeds() { return [ 0.25, 0.5, 1.0, 2.0, 4.0 ] }
+// HUD group buttons: replay HUD, game HUD, clean view
+array<int> function DemoOverlay_HudModes() { return [ 1, 0, 2 ] }
+
+int function DemoOverlay_HitRow( array<float> xs, array<float> ws, float x )
+{
+	for ( int i = 0; i < xs.len(); i++ )
+	{
+		if ( x >= xs[ i ] && x <= xs[ i ] + ws[ i ] )
+			return i
+	}
+	return -1
+}
+
+DemoSlider function DemoOverlay_Slider( string id )
+{
+	DemoSlider s
+	s.x = DEMO_CP_L
+	s.w = DEMO_CP_R - DEMO_CP_L
+	switch ( id )
+	{
+		case "roll":  s.lo = -90.0; s.hi = 90.0;   s.cy = 204.0; break
+		case "fov":   s.lo = 10.0;  s.hi = 150.0;  s.cy = 292.0; break
+		case "focus": s.lo = 20.0;  s.hi = 3000.0; s.cy = 380.0; break
+		case "range": s.lo = 10.0;  s.hi = 1000.0; s.cy = DEMO_RANGE_Y; s.x = DEMO_RANGE_X; s.w = DEMO_RANGE_W; break
+	}
+	return s
+}
+
+float function DemoOverlay_SliderX( DemoSlider s, float v )
+{
+	return s.x + s.w * clamp( ( v - s.lo ) / ( s.hi - s.lo ), 0.0, 1.0 )
+}
+
+float function DemoOverlay_SliderValue( DemoSlider s, float x )
+{
+	return s.lo + ( s.hi - s.lo ) * clamp( ( x - s.x ) / s.w, 0.0, 1.0 )
+}
+
+//////////////////////////////////////////////////////////////////////////////
+// Bar
+
+void function DemoOverlay_SetupBar( var rui )
+{
+	RuiSetString( rui, "legKill", Localize( "#DEMO_R_LEG_KILL" ) )
+	RuiSetString( rui, "legKnock", Localize( "#DEMO_R_LEG_KNOCK" ) )
+	RuiSetString( rui, "legDeath", Localize( "#DEMO_R_LEG_DEATH" ) )
+	RuiSetString( rui, "legRing", Localize( "#DEMO_R_LEG_RING" ) )
+	RuiSetString( rui, "legCam", Localize( "#DEMO_R_LEG_CAMKEY" ) )
+	RuiSetString( rui, "act0Text", Localize( "#DEMO_R_MOMENTS" ) )
+	RuiSetString( rui, "act1Text", Localize( "#DEMO_R_BOOKMARK" ) )
+	RuiSetString( rui, "act2Text", Localize( "#DEMO_R_CLIP_SHORT" ) )
+	for ( int i = 0; i < 3; i++ )
+		RuiSetString( rui, "cam" + i + "Text", Localize( "#DEMO_R_CAM_" + i ) )
+	RuiSetString( rui, "hud0Text", Localize( "#DEMO_R_HUD_1" ) )
+	RuiSetString( rui, "hud1Text", Localize( "#DEMO_R_HUD_0" ) )
+	RuiSetString( rui, "hud2Text", Localize( "#DEMO_R_HUD_CLEAN" ) )
+}
+
+void function DemoOverlay_UpdateBar( var rui, float t, float dur )
+{
+	RuiSetString( rui, "chapterText", DemoOverlay_Chapter( t ).toupper() )
+	RuiSetString( rui, "eventText", DemoOverlay_LastEvent( t ) )
 
 	// timeline
 	float headX = DemoOverlay_TrackX( t, dur )
 	DemoOverlay_Px( rui, "progEnd", headX, DEMO_TRACK_Y )
-	DemoOverlay_Px( rui, "headPos", headX, DEMO_TRACK_Y + DEMO_TRACK_H * 0.5 )
+	DemoOverlay_Px( rui, "headPos", headX, DEMO_TRACK_CY )
 	for ( int i = 0; i < DEMO_SEGMENTS; i++ )
 	{
 		string n = "s" + i
 		if ( i >= file.segments.len() || dur <= 0.0 )
 		{
-			DemoOverlay_Park( rui, n + "A" )
-			DemoOverlay_Park( rui, n + "B" )
-			DemoOverlay_Park( rui, n + "C" )
+			DemoOverlay_ParkQuad( rui, n )
+			DemoOverlay_Col( rui, n + "Color", DEMO_COL_TEXT, 0.0 )
 			continue
 		}
 		DemoSegment s = file.segments[ i ]
 		float x0 = DemoOverlay_TrackX( s.start, dur ) + 2.0
 		float x1 = max( x0 + 2.0, DemoOverlay_TrackX( s.end, dur ) - 2.0 )
-		DemoOverlay_Px( rui, n + "A", x0, DEMO_TRACK_Y - 4.0 )
-		DemoOverlay_Px( rui, n + "B", x1, DEMO_TRACK_Y - 4.0 )
-		DemoOverlay_Px( rui, n + "C", x0, DEMO_TRACK_Y + DEMO_TRACK_H + 4.0 )
-		vector col = s.result > 0 ? DEMO_COL_WON : ( s.result < 0 ? DEMO_COL_LOST : DEMO_COL_OPEN )
-		DemoOverlay_Col( rui, n + "Color", col, 1.0 )
+		DemoOverlay_Quad( rui, n, x0, x1, 952.0, 966.0 )
+		if ( s.result > 0 )
+			DemoOverlay_Col( rui, n + "Color", DEMO_COL_ACCENT, 0.16 )
+		else if ( s.result < 0 )
+			DemoOverlay_Col( rui, n + "Color", DEMO_COL_DEATH, 0.18 )
+		else
+			DemoOverlay_Col( rui, n + "Color", DEMO_COL_TEXT, 0.08 )
 	}
-	array<DemoMoment> markers = DemoOverlay_MarkerSet()
-	for ( int i = 0; i < DEMO_MARKERS; i++ )
+	array<DemoMoment> marks = DemoOverlay_MarkerSet()
+	for ( int i = 0; i < DEMO_MARKS; i++ )
 	{
 		string n = "m" + i
-		if ( i >= markers.len() || dur <= 0.0 )
+		if ( i >= marks.len() || dur <= 0.0 )
 		{
 			DemoOverlay_Park( rui, n + "Pos" )
+			DemoOverlay_Col( rui, n + "Color", DEMO_COL_TEXT, 0.0 )
 			continue
 		}
-		DemoOverlay_Px( rui, n + "Pos", DemoOverlay_TrackX( markers[ i ].time, dur ), DEMO_TRACK_Y + DEMO_TRACK_H * 0.5 )
-		DemoOverlay_Col( rui, n + "Color", markers[ i ].color, 1.0 )
+		DemoOverlay_Px( rui, n + "Pos", DemoOverlay_TrackX( marks[ i ].time, dur ), DEMO_TRACK_CY )
+		DemoOverlay_Col( rui, n + "Color", marks[ i ].color, 1.0 )
 	}
 
-	// chips
-	RuiSetString( rui, "speedText", DemoOverlay_SpeedLabel( Demo_GetTimescale() ) )
-	RuiSetString( rui, "cameraText", Localize( "#DEMO_R_CAM_" + Demo_GetCamera() ) )
-	RuiSetString( rui, "momentsText", Localize( "#DEMO_R_MOMENTS" ) )
-	RuiSetString( rui, "markText", Localize( "#DEMO_R_BOOKMARK" ) )
-	RuiSetString( rui, "clipText", Localize( "#DEMO_R_CLIP" ) )
-	RuiSetString( rui, "hudText", Localize( "#DEMO_R_HUD_0" ) )
-	foreach ( string chip in [ "speed", "camera", "moments", "mark", "clip", "hud" ] )
+	// camera path: keys, their span, the key at the playhead filled
+	bool free = Demo_GetCamera() == 2
+	array<float> keys
+	if ( free )
+		keys = Demo_GetCamKeyTimes()
+	int atNow = free ? Demo_GetCamKeyAtNow() : -1
+	for ( int i = 0; i < DEMO_KEYS; i++ )
 	{
-		bool lit = ( chip == "moments" && file.popup ) || ( chip == "camera" && Demo_GetCamera() != 0 )
-			|| ( chip == "speed" && Demo_GetTimescale() != 1.0 )
-		DemoOverlay_Col( rui, chip + "Fill", lit ? DEMO_COL_ACCENT : DEMO_COL_MARK, lit ? 0.35 : 0.08 )
-	}
-
-	// player badges: only when the replay holds more than one view
-	int povs = Demo_GetPovCount()
-	for ( int i = 0; i < DEMO_BADGES; i++ )
-	{
-		string n = "b" + i
-		if ( povs <= 1 || i >= povs )
+		string n = "k" + i
+		if ( i >= keys.len() || dur <= 0.0 )
 		{
 			DemoOverlay_Park( rui, n + "Pos" )
-			RuiSetString( rui, n + "Text", "" )
+			DemoOverlay_Col( rui, n + "Out", DEMO_COL_BLUE, 0.0 )
+			DemoOverlay_Col( rui, n + "In", DEMO_COL_INK, 0.0 )
 			continue
 		}
-		DemoOverlay_Px( rui, n + "Pos", DEMO_BADGE_X - DEMO_BADGE_STEP * float( povs - 1 - i ), DEMO_BADGE_Y )
-		string name = DemoOverlay_PovName( i )
-		RuiSetString( rui, n + "Text", name.slice( 0, minint( 2, name.len() ) ).toupper() )
-		DemoOverlay_Col( rui, n + "Fill", i == watched ? DEMO_COL_ACCENT : DEMO_COL_MARK, i == watched ? 0.6 : 0.15 )
+		DemoOverlay_Px( rui, n + "Pos", DemoOverlay_TrackX( keys[ i ], dur ), DEMO_TRACK_CY )
+		DemoOverlay_Col( rui, n + "Out", i == atNow ? DEMO_COL_TEXT : DEMO_COL_BLUE, 1.0 )
+		DemoOverlay_Col( rui, n + "In", i == atNow ? DEMO_COL_BLUE : DEMO_COL_INK, 1.0 )
 	}
+	if ( keys.len() >= 2 && dur > 0.0 )
+	{
+		// keys are in path order, not time order
+		float first = keys[0]
+		float last = keys[0]
+		foreach ( float k in keys )
+		{
+			first = min( first, k )
+			last = max( last, k )
+		}
+		DemoOverlay_Quad( rui, "path", DemoOverlay_TrackX( first, dur ), DemoOverlay_TrackX( last, dur ), 954.0, 964.0 )
+	}
+	else
+		DemoOverlay_ParkQuad( rui, "path" )
 
-	// lines above the bar
-	RuiSetString( rui, "inputText", DemoOverlay_InputLine( t ) )
-	bool toastOn = Time() < file.toastUntil
-	RuiSetString( rui, "toastText", toastOn ? file.toast : "" )
-	DemoOverlay_Col( rui, "toastColor", file.toastColor, 1.0 )
-	string hint = ""
-	if ( Demo_IsSeeking() )
-		hint = Localize( "#DEMO_R_SEEKING" ) + "  " + DemoOverlay_Clock( Demo_GetTime() )
-	else if ( !file.popup )
-		hint = Localize( file.controlsOpen && paused ? "#DEMO_R_HINT_MOUSE" : "#DEMO_R_HINT" )
-	RuiSetString( rui, "hintText", hint )
+	// transport + clock
+	bool paused = Demo_IsPaused()
+	RuiSetString( rui, "playGlyph", paused ? ">" : "II" )
+	RuiSetString( rui, "clockText", DemoOverlay_Clock( t ) )
+	RuiSetString( rui, "durText", "/ " + DemoOverlay_Clock( dur ) )
+
+	// groups
+	array<float> speeds = DemoOverlay_Speeds()
+	float scale = Demo_GetTimescale()
+	for ( int i = 0; i < speeds.len(); i++ )
+	{
+		bool on = fabs( speeds[ i ] - scale ) < 0.01
+		RuiSetString( rui, "sp" + i + "Text", DemoOverlay_SpeedLabel( speeds[ i ] ) )
+		DemoOverlay_Col( rui, "sp" + i + "Bg", DEMO_COL_TEXT, on ? 1.0 : 0.0 )
+		DemoOverlay_Col( rui, "sp" + i + "Fg", on ? DEMO_COL_INK : DEMO_COL_SUB, 1.0 )
+	}
+	int cam = Demo_GetCamera()
+	for ( int i = 0; i < 3; i++ )
+	{
+		bool on = cam == i
+		DemoOverlay_Col( rui, "cam" + i + "Bg", DEMO_COL_ACCENT, on ? 1.0 : 0.0 )
+		DemoOverlay_Col( rui, "cam" + i + "Fg", on ? DEMO_COL_INK : DEMO_COL_SUB, 1.0 )
+		DemoOverlay_Col( rui, "cam" + i + "Key", on ? DEMO_COL_INK : DEMO_COL_SUB, 0.7 )
+	}
+	array<int> modes = DemoOverlay_HudModes()
+	int hud = Demo_GetHud()
+	for ( int i = 0; i < modes.len(); i++ )
+	{
+		bool on = hud == modes[ i ]
+		DemoOverlay_Col( rui, "hud" + i + "Bg", DEMO_COL_TEXT, on ? 1.0 : 0.0 )
+		DemoOverlay_Col( rui, "hud" + i + "Fg", on ? DEMO_COL_INK : DEMO_COL_SUB, 1.0 )
+		DemoOverlay_Col( rui, "hud" + i + "Key", on ? DEMO_COL_INK : DEMO_COL_SUB, 0.7 )
+	}
 
 	// moments popup
-	DemoOverlay_SetPopup( rui, file.popup )
-	if ( file.popup )
+	float a = file.popup ? 1.0 : 0.0
+	DemoOverlay_Col( rui, "popBlur", <255, 255, 255>, a )
+	DemoOverlay_Col( rui, "popFill", DEMO_COL_PANEL, file.popup ? 0.88 : 0.0 )
+	DemoOverlay_Col( rui, "popRule", DEMO_COL_TEXT, file.popup ? 0.10 : 0.0 )
+	DemoOverlay_Col( rui, "popEdge", DEMO_COL_ACCENT, a )
+	int first = DemoOverlay_PopupFirst( t )
+	for ( int i = 0; i < DEMO_POP_ROWS; i++ )
 	{
-		int first = DemoOverlay_PopupFirst( t )
-		for ( int i = 0; i < DEMO_POP_ROWS; i++ )
+		int idx = first + i
+		string rowText = ""
+		if ( file.popup && idx < file.moments.len() )
 		{
-			int idx = first + i
-			string rowText = ""
-			if ( idx < file.moments.len() )
-			{
-				DemoMoment m = file.moments[ idx ]
-				rowText = DemoOverlay_Clock( m.time ) + "   " + m.label
-				DemoOverlay_Px( rui, "r" + i + "Dot", DEMO_POP_X + 24.0, DEMO_POP_Y + 10.0 + DEMO_POP_ROW_H * ( i + 0.5 ) )
-				DemoOverlay_Col( rui, "r" + i + "Color", m.color, 1.0 )
-			}
-			else
-			{
-				DemoOverlay_Park( rui, "r" + i + "Dot" )
-				if ( i == 0 && file.moments.len() == 0 )
-					rowText = Localize( "#DEMO_R_NO_MOMENTS" )
-			}
-			RuiSetString( rui, "r" + i + "Text", rowText )
+			DemoMoment m = file.moments[ idx ]
+			rowText = DemoOverlay_Clock( m.time ) + "   " + m.label
+			DemoOverlay_Px( rui, "r" + i + "Dot", DEMO_POP_X + 24.0, DEMO_POP_Y + 10.0 + DEMO_POP_ROW_H * ( i + 0.5 ) )
+			DemoOverlay_Col( rui, "r" + i + "Color", m.color, 1.0 )
 		}
+		else
+		{
+			DemoOverlay_Park( rui, "r" + i + "Dot" )
+			DemoOverlay_Col( rui, "r" + i + "Color", DEMO_COL_TEXT, 0.0 )
+			if ( file.popup && i == 0 && file.moments.len() == 0 )
+				rowText = Localize( "#DEMO_R_NO_MOMENTS" )
+		}
+		RuiSetString( rui, "r" + i + "Text", rowText )
 	}
 }
+
+//////////////////////////////////////////////////////////////////////////////
+// Info: replay tag, players, toast, player card
+
+void function DemoOverlay_UpdateInfo( var rui, float t )
+{
+	string mode = DemoOverlay_MetaString( "modeTitle" )
+	string map = DemoOverlay_MetaString( "map" )
+	int watched = DemoOverlay_WatchedPov()
+	RuiSetString( rui, "tagText", Localize( "#DEMO_R_REPLAY" ) )
+	RuiSetString( rui, "titleText", ( mode != "" ? mode : "-" ) + "  /  " + ( map != "" ? map : "-" ) + "  /  " + Localize( "#DEMO_R_WATCHING" ) )
+	RuiSetString( rui, "watchText", DemoOverlay_PovName( watched ) )
+
+	int povs = minint( Demo_GetPovCount(), DEMO_POV_SLOTS )
+	for ( int i = 0; i < DEMO_POV_SLOTS; i++ )
+	{
+		string p = "p" + i
+		if ( i >= povs )
+		{
+			DemoOverlay_Park( rui, p + "Pos" )
+			foreach ( string s in [ "Name", "Sub", "Initials", "Key" ] )
+				RuiSetString( rui, p + s, "" )
+			foreach ( string c in [ "Bg", "Edge", "Dot", "Ini" ] )
+				DemoOverlay_Col( rui, p + c, DEMO_COL_TEXT, 0.0 )
+			continue
+		}
+		bool sel = i == watched
+		string name = DemoOverlay_PovName( i )
+		DemoOverlay_Px( rui, p + "Pos", 1888.0 - float( povs - i ) * DEMO_POV_W - float( povs - 1 - i ) * 10.0, DEMO_POV_TOP )
+		RuiSetString( rui, p + "Name", name )
+		RuiSetString( rui, p + "Sub", Localize( "#DEMO_R_POV_STATS", string( file.povKills[ i ] ), string( file.povKnocks[ i ] ) ) )
+		RuiSetString( rui, p + "Initials", name.slice( 0, minint( 2, name.len() ) ).toupper() )
+		RuiSetString( rui, p + "Key", string( i + 1 ) )
+		DemoOverlay_Col( rui, p + "Bg", sel ? DEMO_COL_ACCENT : DEMO_COL_PANEL, sel ? 0.16 : 0.82 )
+		DemoOverlay_Col( rui, p + "Edge", sel ? DEMO_COL_ACCENT : DEMO_COL_TEXT, sel ? 0.6 : 0.10 )
+		DemoOverlay_Col( rui, p + "Dot", sel ? DEMO_COL_ACCENT : DEMO_COL_TEXT, sel ? 1.0 : 0.12 )
+		DemoOverlay_Col( rui, p + "Ini", sel ? DEMO_COL_INK : DEMO_COL_TEXT, 1.0 )
+	}
+
+	// toast, or the seek target while seeking
+	string toast = ""
+	vector toastCol = file.toastColor
+	if ( Demo_IsSeeking() )
+	{
+		toast = Localize( "#DEMO_R_SEEKING" ) + "  " + DemoOverlay_Clock( Demo_GetTime() )
+		toastCol = DEMO_COL_ACCENT
+	}
+	else if ( PlatformTime() < file.toastUntil )
+	{
+		toast = file.toast
+	}
+	bool toastOn = toast != ""
+	RuiSetString( rui, "toastText", toast )
+	DemoOverlay_Col( rui, "toastEdge", toastCol, toastOn ? 0.45 : 0.0 )
+	DemoOverlay_Col( rui, "toastFill", DEMO_COL_PANEL, toastOn ? 0.82 : 0.0 )
+	DemoOverlay_Col( rui, "toastDot", toastCol, toastOn ? 1.0 : 0.0 )
+
+	// watched player card
+	entity player = DemoOverlay_WatchedPlayer()
+	RuiSetString( rui, "cardName", DemoOverlay_PovName( watched ) )
+	RuiSetString( rui, "speedUnit", Localize( "#DEMO_R_UPS" ) )
+	int shield = 0
+	int shieldMax = 0
+	int health = 0
+	int healthMax = 100
+	int speed = 0
+	if ( IsValid( player ) )
+	{
+		shield = player.GetShieldHealth()
+		shieldMax = player.GetShieldHealthMax()
+		health = player.GetHealth()
+		healthMax = maxint( 1, player.GetMaxHealth() )
+		speed = int( Length2D( player.GetVelocity() ) )
+	}
+	RuiSetString( rui, "speedText", string( speed ) )
+	int cells = shieldMax > 0 ? minint( DEMO_SHIELD_CELLS, maxint( 1, ( shieldMax + 24 ) / 25 ) ) : 0
+	vector tier = DEMO_COL_TEXT
+	if ( shieldMax >= 125 )
+		tier = DEMO_COL_DEATH_M
+	else if ( shieldMax >= 100 )
+		tier = DEMO_COL_RING
+	else if ( shieldMax >= 75 )
+		tier = DEMO_COL_BLUE
+	float cellW = cells > 0 ? ( 200.0 - 3.0 * float( cells - 1 ) ) / float( cells ) : 0.0
+	for ( int i = 0; i < DEMO_SHIELD_CELLS; i++ )
+	{
+		string c = "c" + i
+		if ( i >= cells )
+		{
+			DemoOverlay_ParkQuad( rui, c )
+			DemoOverlay_Col( rui, c + "Col", tier, 0.0 )
+			continue
+		}
+		float x = 52.0 + float( i ) * ( cellW + 3.0 )
+		DemoOverlay_Quad( rui, c, x, x + cellW, 843.0, 848.0 )
+		DemoOverlay_Col( rui, c + "Col", tier, shield >= ( i + 1 ) * 25 - 12 ? 1.0 : 0.25 )
+	}
+	DemoOverlay_Px( rui, "hpEnd", 52.0 + 200.0 * clamp( float( health ) / float( healthMax ), 0.0, 1.0 ), 852.0 )
+
+	int buttons = 0
+	float fwd = 0.0
+	float side = 0.0
+	array<string> inp = split( Demo_GetInputsAt( watched, t ), "|" )
+	if ( inp.len() >= 3 )
+	{
+		buttons = inp[0].tointeger()
+		fwd = inp[1].tofloat()
+		side = inp[2].tofloat()
+	}
+	DemoOverlay_KeyCell( rui, "W", fwd > 0.1 )
+	DemoOverlay_KeyCell( rui, "S", fwd < -0.1 )
+	DemoOverlay_KeyCell( rui, "A", side < -0.1 )
+	DemoOverlay_KeyCell( rui, "D", side > 0.1 )
+	DemoOverlay_Pill( rui, 0, "#DEMO_OVERLAY_JUMP", ( buttons & IN_JUMP ) != 0, DEMO_COL_KNOCK, 0.2, DEMO_COL_KNOCK_T )
+	DemoOverlay_Pill( rui, 1, "#DEMO_OVERLAY_CROUCH", ( buttons & IN_DUCK ) != 0, DEMO_COL_TEXT, 0.18, DEMO_COL_TEXT )
+	DemoOverlay_Pill( rui, 2, "#DEMO_OVERLAY_FIRE", ( buttons & IN_ATTACK ) != 0, DEMO_COL_DEATH, 0.22, DEMO_COL_DEATH_T )
+	DemoOverlay_Pill( rui, 3, "#DEMO_OVERLAY_ADS", ( buttons & IN_ZOOM ) != 0, DEMO_COL_BLUE, 0.2, DEMO_COL_BLUE )
+}
+
+void function DemoOverlay_KeyCell( var rui, string key, bool on )
+{
+	DemoOverlay_Col( rui, "key" + key + "Bg", on ? DEMO_COL_ACCENT : DEMO_COL_TEXT, on ? 1.0 : 0.08 )
+	DemoOverlay_Col( rui, "key" + key + "Fg", on ? DEMO_COL_INK : DEMO_COL_MUTED, 1.0 )
+}
+
+void function DemoOverlay_Pill( var rui, int i, string loc, bool on, vector bg, float bgA, vector fg )
+{
+	RuiSetString( rui, "pill" + i + "Text", Localize( loc ) )
+	DemoOverlay_Col( rui, "pill" + i + "Bg", on ? bg : DEMO_COL_TEXT, on ? bgA : 0.06 )
+	DemoOverlay_Col( rui, "pill" + i + "Fg", on ? fg : DEMO_COL_MUTED, 1.0 )
+}
+
+//////////////////////////////////////////////////////////////////////////////
+// Free camera panel
+
+void function DemoOverlay_SetupCam( var rui )
+{
+	RuiSetString( rui, "camTitle", Localize( "#DEMO_R_CAM_2" ).toupper() )
+	RuiSetString( rui, "camHint", Localize( "#DEMO_R_CAM_MOVE_HINT" ) )
+	RuiSetString( rui, "sl0Label", Localize( "#DEMO_R_ROLL" ).toupper() )
+	RuiSetString( rui, "sl1Label", Localize( "#DEMO_R_FOV_LONG" ).toupper() )
+	RuiSetString( rui, "sl2Label", Localize( "#DEMO_R_FOCUS_DIST" ).toupper() )
+	RuiSetString( rui, "sl0Btn", Localize( "#DEMO_R_RESET" ) )
+	RuiSetString( rui, "sl1Btn", Localize( "#DEMO_R_GAME_FOV" ) )
+	RuiSetString( rui, "sl0Hint", Localize( "#DEMO_R_ROLL_HINT" ) )
+	RuiSetString( rui, "sl1Hint", Localize( "#DEMO_R_FOV_HINT" ) )
+	RuiSetString( rui, "sl2Hint", Localize( "#DEMO_R_FOCUS_HINT" ) )
+	RuiSetString( rui, "rangeLabel", Localize( "#DEMO_R_SHARP" ) )
+	RuiSetString( rui, "pathTitle", Localize( "#DEMO_R_CAMPATH" ).toupper() )
+	RuiSetString( rui, "th0", "#" )
+	RuiSetString( rui, "th1", Localize( "#DEMO_R_TIME" ).toupper() )
+	RuiSetString( rui, "th2", Localize( "#DEMO_R_ROLL" ).toupper() )
+	RuiSetString( rui, "th3", Localize( "#DEMO_R_FOV" ).toupper() )
+	RuiSetString( rui, "th4", Localize( "#DEMO_R_FOCUS" ).toupper() )
+	RuiSetString( rui, "kb0Text", Localize( "#DEMO_R_KB_ADD" ) )
+	RuiSetString( rui, "kb1Text", Localize( "#DEMO_R_KB_PREV" ) )
+	RuiSetString( rui, "kb2Text", Localize( "#DEMO_R_KB_NEXT" ) )
+	RuiSetString( rui, "kb3Text", Localize( "#DEMO_R_KB_REMOVE" ) )
+	RuiSetString( rui, "clearText", Localize( "#DEMO_R_CLEAR_PATH" ) )
+}
+
+void function DemoOverlay_SliderColors( var rui, int i, bool enabled )
+{
+	DemoOverlay_Col( rui, "sl" + i + "Ring", enabled ? DEMO_COL_ACCENT : DEMO_COL_OFF, 1.0 )
+	DemoOverlay_Col( rui, "sl" + i + "Knob", enabled ? DEMO_COL_TEXT : DEMO_COL_OFF, 1.0 )
+}
+
+void function DemoOverlay_SliderButton( var rui, int i, bool lit )
+{
+	DemoOverlay_Col( rui, "sl" + i + "BtnBg", DEMO_COL_ACCENT, lit ? 1.0 : 0.0 )
+	DemoOverlay_Col( rui, "sl" + i + "BtnEdge", lit ? DEMO_COL_ACCENT : DEMO_COL_TEXT, lit ? 1.0 : 0.18 )
+	DemoOverlay_Col( rui, "sl" + i + "BtnFg", lit ? DEMO_COL_INK : DEMO_COL_MUTED, 1.0 )
+}
+
+void function DemoOverlay_UpdateCam( var rui )
+{
+	string hint = Demo_IsCamFollow() ? Localize( "#DEMO_R_CAM_FOLLOWING" ) : Localize( "#DEMO_R_CAM_MOVE_HINT" )
+	hint += "   " + Localize( "#DEMO_R_CAM_SPEED", format( "%.0f", GetConVarFloat( "demo_freecam_speed" ) ) )
+	RuiSetString( rui, "camHint", hint )
+	float roll = Demo_GetCamRoll()
+	float fov = Demo_GetCamFov()
+	float focus = Demo_GetCamDof()
+	float range = Demo_GetCamDofRange()
+	bool dofOn = focus >= 1.0
+	if ( dofOn )
+		file.lastFocus = focus
+
+	DemoSlider sr = DemoOverlay_Slider( "roll" )
+	DemoSlider sf = DemoOverlay_Slider( "fov" )
+	DemoSlider sd = DemoOverlay_Slider( "focus" )
+	DemoSlider sg = DemoOverlay_Slider( "range" )
+	RuiSetString( rui, "sl0Val", DemoOverlay_Signed( roll ) )
+	DemoOverlay_Px( rui, "sl0Thumb", DemoOverlay_SliderX( sr, roll ), sr.cy )
+	DemoOverlay_SliderColors( rui, 0, true )
+	DemoOverlay_SliderButton( rui, 0, false )
+	RuiSetString( rui, "sl1Val", string( int( fov + 0.5 ) ) )
+	DemoOverlay_Px( rui, "sl1Thumb", DemoOverlay_SliderX( sf, fov ), sf.cy )
+	DemoOverlay_SliderColors( rui, 1, true )
+	DemoOverlay_SliderButton( rui, 1, false )
+	RuiSetString( rui, "sl2Val", dofOn ? string( int( focus + 0.5 ) ) + " u" : Localize( "#DEMO_R_BTN_OFF" ) )
+	RuiSetString( rui, "sl2Btn", Localize( dofOn ? "#DEMO_R_BTN_ON" : "#DEMO_R_BTN_OFF" ) )
+	DemoOverlay_Px( rui, "sl2Thumb", DemoOverlay_SliderX( sd, dofOn ? focus : file.lastFocus ), sd.cy )
+	DemoOverlay_Px( rui, "rangeThumb", DemoOverlay_SliderX( sg, range ), sg.cy )
+	RuiSetString( rui, "rangeVal", string( int( range + 0.5 ) ) )
+	DemoOverlay_SliderColors( rui, 2, dofOn )
+	DemoOverlay_SliderButton( rui, 2, dofOn )
+
+	// camera path table: four rows around the key at the playhead
+	array<float> data = Demo_GetCamKeyData()
+	int count = data.len() / 4
+	int atNow = Demo_GetCamKeyAtNow()
+	string countText = Localize( "#DEMO_R_KEYFRAMES", string( count ) )
+	if ( count >= 2 )
+	{
+		float first = data[0]
+		float last = data[0]
+		for ( int k = 1; k < count; k++ )
+		{
+			first = min( first, data[ k * 4 ] )
+			last = max( last, data[ k * 4 ] )
+		}
+		countText += "  " + DemoOverlay_Clock( first ) + " - " + DemoOverlay_Clock( last )
+	}
+	RuiSetString( rui, "keyCount", countText )
+	int focusRow = atNow >= 0 ? atNow : 0
+	if ( focusRow < file.keyRowFirst )
+		file.keyRowFirst = focusRow
+	else if ( focusRow >= file.keyRowFirst + DEMO_KEY_ROWS )
+		file.keyRowFirst = focusRow - DEMO_KEY_ROWS + 1
+	file.keyRowFirst = maxint( 0, minint( file.keyRowFirst, count - DEMO_KEY_ROWS ) )
+	for ( int r = 0; r < DEMO_KEY_ROWS; r++ )
+	{
+		string p = "r" + r
+		int k = file.keyRowFirst + r
+		if ( k >= count )
+		{
+			foreach ( string s in [ "Num", "Time", "Roll", "Fov", "Focus" ] )
+				RuiSetString( rui, p + s, "" )
+			foreach ( string c in [ "Bg", "Dia", "DiaIn", "NumFg" ] )
+				DemoOverlay_Col( rui, p + c, DEMO_COL_TEXT, 0.0 )
+			continue
+		}
+		bool sel = k == atNow
+		float kFocus = data[ k * 4 + 3 ]
+		RuiSetString( rui, p + "Num", string( k + 1 ) )
+		RuiSetString( rui, p + "Time", DemoOverlay_Clock( data[ k * 4 ] ) )
+		RuiSetString( rui, p + "Roll", DemoOverlay_Signed( data[ k * 4 + 1 ] ) )
+		RuiSetString( rui, p + "Fov", string( int( data[ k * 4 + 2 ] + 0.5 ) ) )
+		RuiSetString( rui, p + "Focus", kFocus >= 1.0 ? string( int( kFocus + 0.5 ) ) : Localize( "#DEMO_R_OFF" ) )
+		DemoOverlay_Col( rui, p + "Bg", DEMO_COL_BLUE, sel ? 0.14 : 0.0 )
+		DemoOverlay_Col( rui, p + "Dia", DEMO_COL_BLUE, 1.0 )
+		DemoOverlay_Col( rui, p + "DiaIn", sel ? DEMO_COL_BLUE : DEMO_COL_PANEL, 1.0 )
+		DemoOverlay_Col( rui, p + "NumFg", sel ? DEMO_COL_INK : DEMO_COL_BLUE, 1.0 )
+	}
+
+	bool playing = Demo_IsCamPathPlaying()
+	RuiSetString( rui, "playText", Localize( playing ? "#DEMO_R_STOP_PATH" : "#DEMO_R_PLAY_PATH" ) )
+	DemoOverlay_Col( rui, "playBg", DEMO_COL_BLUE, playing ? 1.0 : 0.14 )
+	DemoOverlay_Col( rui, "playEdge", DEMO_COL_BLUE, playing ? 1.0 : 0.55 )
+	DemoOverlay_Col( rui, "playFg", playing ? DEMO_COL_INK : DEMO_COL_TEXT, 1.0 )
+}
+
+//////////////////////////////////////////////////////////////////////////////
+// Frame
 
 void function DemoOverlay_Think()
 {
 	OnThreadEnd(
 		function() : ()
 		{
-			DemoOverlay_Destroy()
+			DemoOverlay_DestroyRui( file.bar )
+			DemoOverlay_DestroyRui( file.info )
+			DemoOverlay_DestroyRui( file.cam )
+			file.bar = null
+			file.info = null
+			file.cam = null
 			DemoOverlay_SetControls( false )
 			DemoOverlay_SeekCard( false )
 			DemoOverlay_ReturnHint( false )
@@ -591,19 +970,49 @@ void function DemoOverlay_Think()
 
 		DemoOverlay_ReturnHint( hud == 0 )
 		bool want = hud == 1
-		if ( want && file.rui == null )
-			file.rui = DemoOverlay_Create()
-		else if ( !want && file.rui != null )
-			DemoOverlay_Destroy()
+		bool wantCam = want && Demo_GetCamera() == 2
+		if ( want && file.bar == null )
+		{
+			file.bar = DemoOverlay_CreateRui( "ui/fs_demo_overlay.rpak", 100 )
+			if ( file.bar != null )
+				DemoOverlay_SetupBar( file.bar )
+		}
+		if ( want && file.info == null )
+			file.info = DemoOverlay_CreateRui( "ui/fs_demo_info.rpak", 101 )
+		if ( wantCam && file.cam == null )
+		{
+			file.cam = DemoOverlay_CreateRui( "ui/fs_demo_campanel.rpak", 102 )
+			if ( file.cam != null )
+				DemoOverlay_SetupCam( file.cam )
+		}
+		if ( !want )
+		{
+			DemoOverlay_DestroyRui( file.bar )
+			DemoOverlay_DestroyRui( file.info )
+			file.bar = null
+			file.info = null
+		}
+		if ( !wantCam )
+		{
+			DemoOverlay_DestroyRui( file.cam )
+			file.cam = null
+			if ( file.drag != "" )
+				file.drag = ""
+		}
 
-		// The pointer is always available except in free camera, where the mouse looks
-		// around; there it comes up on pause or ALT.
-		DemoOverlay_SetControls( file.rui != null && ( file.mouse || Demo_IsPaused() ) )
+		// In free camera the mouse looks around even while paused; the pointer comes up on ALT.
+		DemoOverlay_SetControls( file.bar != null && ( file.mouse || ( Demo_IsPaused() && Demo_GetCamera() != 2 ) ) )
 		DemoOverlay_SeekCard( Demo_IsSeeking() )
 
-		if ( file.rui != null )
-			DemoOverlay_Update()
-		wait DEMO_OVERLAY_TICK
+		float t = Demo_GetTime()
+		float dur = Demo_GetDuration()
+		if ( file.bar != null )
+			DemoOverlay_UpdateBar( file.bar, t, dur )
+		if ( file.info != null )
+			DemoOverlay_UpdateInfo( file.info, t )
+		if ( file.cam != null )
+			DemoOverlay_UpdateCam( file.cam )
+		DemoOverlay_WaitReal( DEMO_OVERLAY_TICK )
 	}
 }
 
@@ -623,6 +1032,15 @@ void function DemoOverlay_SeekCard( bool show )
 	}
 }
 
+// Game time runs at the replay speed (and barely moves while paused); the
+// overlay keeps wall-clock pace instead.
+void function DemoOverlay_WaitReal( float seconds )
+{
+	float until = PlatformTime() + seconds
+	while ( PlatformTime() < until )
+		WaitFrame()
+}
+
 void function DemoOverlay_SetControls( bool open )
 {
 	if ( open == file.controlsOpen )
@@ -636,7 +1054,7 @@ void function DemoOverlay_Toast( string text, vector color )
 {
 	file.toast = text
 	file.toastColor = color
-	file.toastUntil = Time() + DEMO_TOAST_TIME
+	file.toastUntil = PlatformTime() + DEMO_TOAST_TIME
 }
 
 //////////////////////////////////////////////////////////////////////////////
@@ -684,7 +1102,7 @@ void function DemoOverlay_JumpMoment( int dir )
 
 void function DemoOverlay_StepScale( int dir )
 {
-	array<float> scales = [ 0.25, 0.5, 1.0, 2.0, 4.0 ]
+	array<float> scales = DemoOverlay_Speeds()
 	float cur = Demo_GetTimescale()
 	int best = 2
 	for ( int i = 0; i < scales.len(); i++ )
@@ -698,38 +1116,44 @@ void function DemoOverlay_StepScale( int dir )
 	Demo_SetTimescale( scales[ minint( maxint( next, 0 ), scales.len() - 1 ) ] )
 }
 
+void function DemoOverlay_SetCamera( int mode )
+{
+	if ( Demo_SetCamera( mode ) )
+		DemoOverlay_CameraChanged()
+	else
+		DemoOverlay_Toast( Localize( "#DEMO_R_T_CAM_FAIL" ), DEMO_COL_DEATH_M )
+}
+
 void function DemoOverlay_CycleCamera()
 {
-	for ( int step = 1; step <= DEMO_CAMERAS; step++ )
+	for ( int step = 1; step <= 3; step++ )
 	{
-		int mode = ( Demo_GetCamera() + step ) % DEMO_CAMERAS
+		int mode = ( Demo_GetCamera() + step ) % 3
 		if ( Demo_SetCamera( mode ) )
 		{
 			DemoOverlay_CameraChanged()
 			return
 		}
 	}
-	DemoOverlay_Toast( Localize( "#DEMO_R_T_CAM_FAIL" ), DEMO_COL_DEATH )
+	DemoOverlay_Toast( Localize( "#DEMO_R_T_CAM_FAIL" ), DEMO_COL_DEATH_M )
 }
 
 void function DemoOverlay_CameraChanged()
 {
 	// The free camera looks with the mouse; every other camera shows the pointer.
 	file.mouse = Demo_GetCamera() != 2
-	DemoOverlay_Toast( Localize( "#DEMO_R_CAM_" + Demo_GetCamera() ), DEMO_COL_MARK )
-	file.hintFrom = Time()
+	DemoOverlay_Toast( Localize( "#DEMO_R_CAM_" + Demo_GetCamera() ), DEMO_COL_TEXT )
 }
 
 void function DemoOverlay_ToggleFreecam()
 {
-	if ( Demo_SetCamera( Demo_GetCamera() == 2 ? 0 : 2 ) )
-		DemoOverlay_CameraChanged()
+	DemoOverlay_SetCamera( Demo_GetCamera() == 2 ? 0 : 2 )
 }
 
 // ALT pressed as part of Alt+Tab must not flip the mouse layer.
 void function DemoOverlay_ToggleMouseThread()
 {
-	wait 0.2
+	DemoOverlay_WaitReal( 0.2 )
 	if ( InputIsButtonDown( KEY_TAB ) || InputIsButtonDown( KEY_F4 ) )
 		return
 	file.mouse = !file.mouse
@@ -741,10 +1165,26 @@ void function DemoOverlay_CycleHud()
 	DemoOverlay_SetHud( Demo_GetHud() == 1 ? 0 : 1 )
 }
 
+// One key between the clean view (no HUD, outlines, hit markers or damage
+// numbers) and the HUD it replaced.
+void function DemoOverlay_ToggleClean()
+{
+	int hud = Demo_GetHud()
+	if ( hud == 2 )
+	{
+		DemoOverlay_SetHud( file.hudBeforeClean )
+		return
+	}
+	file.hudBeforeClean = hud
+	DemoOverlay_SetHud( 2 )
+}
+
 void function DemoOverlay_SetHud( int mode )
 {
+	if ( mode == 2 && Demo_GetHud() != 2 )
+		file.hudBeforeClean = Demo_GetHud()
 	Demo_SetHud( mode )
-	DemoOverlay_Toast( Localize( "#DEMO_R_HUD_" + mode ), DEMO_COL_MARK )
+	DemoOverlay_Toast( Localize( "#DEMO_R_HUD_" + mode ), DEMO_COL_TEXT )
 }
 
 void function DemoOverlay_ReturnHint( bool show )
@@ -776,7 +1216,7 @@ void function DemoOverlay_Bookmark()
 	}
 	else
 	{
-		DemoOverlay_Toast( Localize( "#DEMO_R_T_BOOKMARK_FAIL" ), DEMO_COL_DEATH )
+		DemoOverlay_Toast( Localize( "#DEMO_R_T_BOOKMARK_FAIL" ), DEMO_COL_DEATH_M )
 	}
 }
 
@@ -787,7 +1227,7 @@ void function DemoOverlay_Clip()
 	if ( name != "" )
 		DemoOverlay_Toast( Localize( "#DEMO_R_T_CLIP", name ), DEMO_COL_ACCENT )
 	else
-		DemoOverlay_Toast( Localize( "#DEMO_R_T_CLIP_FAIL" ), DEMO_COL_DEATH )
+		DemoOverlay_Toast( Localize( "#DEMO_R_T_CLIP_FAIL" ), DEMO_COL_DEATH_M )
 }
 
 void function DemoOverlay_View( int pov )
@@ -797,19 +1237,159 @@ void function DemoOverlay_View( int pov )
 	Demo_SetView( pov == Demo_GetPov() ? -1 : pov )
 }
 
-bool function DemoOverlay_ShiftDown()
+// Camera path keys ------------------------------------------------------------
+
+void function DemoOverlay_KeyAdd()
 {
-	return InputIsButtonDown( KEY_LSHIFT ) || InputIsButtonDown( KEY_RSHIFT )
+	int before = Demo_GetCamKeyTimes().len()
+	if ( !Demo_CamKeyAdd() )
+		return
+	int at = Demo_GetCamKeyAtNow()
+	string when = DemoOverlay_Clock( Demo_GetTime() )
+	bool added = Demo_GetCamKeyTimes().len() > before
+	DemoOverlay_Toast( Localize( added ? "#DEMO_R_T_KEY_ADDED" : "#DEMO_R_T_KEY_UPDATED", string( at + 1 ), when ), DEMO_COL_ACCENT )
 }
 
-// Clicks from the mouse layer, in 1920x1080 space.
+void function DemoOverlay_KeyStep( int dir )
+{
+	Demo_CamKeyStep( dir )
+}
+
+void function DemoOverlay_KeyRemove()
+{
+	int at = Demo_GetCamKeyAtNow()
+	if ( at >= 0 && Demo_CamKeyRemove( at ) )
+		DemoOverlay_Toast( Localize( "#DEMO_R_T_KEY_REMOVED" ), DEMO_COL_TEXT )
+}
+
+// A slider moved while the playhead sits on a key stores it into that key.
+void function DemoOverlay_StoreKeyEdit()
+{
+	if ( Demo_GetCamKeyAtNow() >= 0 && !Demo_IsCamPathPlaying() )
+		DemoOverlay_KeyAdd()
+}
+
+// Sliders --------------------------------------------------------------------
+
+void function DemoOverlay_ApplySlider( string id, float x )
+{
+	float v = DemoOverlay_SliderValue( DemoOverlay_Slider( id ), x )
+	switch ( id )
+	{
+		case "roll":
+			Demo_SetCamRoll( floor( v + 0.5 ) )
+			break
+		case "fov":
+			Demo_SetCamFov( floor( v + 0.5 ) )
+			break
+		case "focus":
+			file.lastFocus = floor( v / 10.0 + 0.5 ) * 10.0
+			Demo_SetCamDof( file.lastFocus, 0.0 )
+			break
+		case "range":
+			Demo_SetCamDof( Demo_GetCamDof(), floor( v / 10.0 + 0.5 ) * 10.0 )
+			break
+	}
+}
+
+bool function DemoOverlay_CamClick( float x, float y )
+{
+	if ( x < 1488.0 || x > 1888.0 || y < 110.0 || y > 830.0 )
+		return false
+
+	// slider tracks (a band around each so the thumb is easy to catch)
+	foreach ( string id in [ "roll", "fov", "focus", "range" ] )
+	{
+		DemoSlider s = DemoOverlay_Slider( id )
+		if ( fabs( y - s.cy ) <= 14.0 && x >= s.x - 10.0 && x <= s.x + s.w + 10.0 )
+		{
+			if ( id == "focus" || id == "range" )
+			{
+				if ( Demo_GetCamDof() < 1.0 )
+					Demo_SetCamDof( file.lastFocus, 0.0 )
+			}
+			file.drag = id
+			DemoOverlay_ApplySlider( id, x )
+			return true
+		}
+	}
+
+	// slider buttons: reset roll, game FOV, depth of field on / off
+	if ( fabs( y - 175.0 ) <= 13.0 && x >= 1812.0 && x <= 1868.0 )
+	{
+		Demo_SetCamRoll( 0.0 )
+		DemoOverlay_StoreKeyEdit()
+		return true
+	}
+	if ( fabs( y - 263.0 ) <= 13.0 && x >= 1808.0 && x <= 1868.0 )
+	{
+		Demo_SetCamFov( 0.0 )
+		DemoOverlay_StoreKeyEdit()
+		return true
+	}
+	if ( fabs( y - 351.0 ) <= 13.0 && x >= 1820.0 && x <= 1868.0 )
+	{
+		Demo_SetCamDof( Demo_GetCamDof() >= 1.0 ? 0.0 : file.lastFocus, 0.0 )
+		DemoOverlay_StoreKeyEdit()
+		return true
+	}
+
+	// key table rows
+	if ( y >= DEMO_TABLE_Y && y < DEMO_TABLE_Y + DEMO_ROW_H * DEMO_KEY_ROWS && x >= DEMO_CP_L && x <= DEMO_CP_R )
+	{
+		int k = file.keyRowFirst + int( ( y - DEMO_TABLE_Y ) / DEMO_ROW_H )
+		if ( k < Demo_GetCamKeyTimes().len() )
+			Demo_CamKeyGoto( k )
+		return true
+	}
+
+	// key buttons
+	if ( y >= DEMO_KBTN_Y && y <= DEMO_KBTN_Y + DEMO_KBTN_H )
+	{
+		int b = int( ( x - DEMO_CP_L ) / ( DEMO_KBTN_W + 8.0 ) )
+		float inX = x - DEMO_CP_L - float( b ) * ( DEMO_KBTN_W + 8.0 )
+		if ( b < 0 || b > 3 || inX > DEMO_KBTN_W )
+			return true
+		if ( b == 0 )
+			DemoOverlay_KeyAdd()
+		else if ( b == 1 )
+			DemoOverlay_KeyStep( -1 )
+		else if ( b == 2 )
+			DemoOverlay_KeyStep( 1 )
+		else
+			DemoOverlay_KeyRemove()
+		return true
+	}
+
+	// play / clear path
+	if ( y >= DEMO_PATH_Y && y <= DEMO_PATH_Y + DEMO_PATH_H )
+	{
+		if ( x >= DEMO_CP_L && x <= DEMO_CP_L + 236.0 )
+		{
+			if ( !Demo_SetCamPathPlaying( !Demo_IsCamPathPlaying() ) )
+				DemoOverlay_Toast( Localize( "#DEMO_R_T_PATH_NEEDS_KEYS" ), DEMO_COL_DEATH_M )
+		}
+		else if ( x >= 1752.0 && x <= DEMO_CP_R && Demo_GetCamKeyTimes().len() > 0 )
+		{
+			Demo_CamKeyClear()
+			DemoOverlay_Toast( Localize( "#DEMO_R_T_PATH_CLEARED" ), DEMO_COL_TEXT )
+		}
+	}
+	return true
+}
+
+// Presses from the mouse layer, in 1920x1080 space.
 void function DemoOverlay_Click( float x, float y )
 {
 	if ( !Demo_IsPlaying() )
 		return
 
+	if ( file.cam != null && DemoOverlay_CamClick( x, y ) )
+		return
+
 	// moments popup rows
-	if ( file.popup && x >= DEMO_POP_X && x <= DEMO_POP_X + DEMO_POP_W && y >= DEMO_POP_Y && y <= DEMO_POP_Y + DEMO_POP_H )
+	float popH = 20.0 + DEMO_POP_ROWS * DEMO_POP_ROW_H
+	if ( file.popup && x >= DEMO_POP_X && x <= DEMO_POP_X + DEMO_POP_W && y >= DEMO_POP_Y && y <= DEMO_POP_Y + popH )
 	{
 		int row = int( ( y - DEMO_POP_Y - 10.0 ) / DEMO_POP_ROW_H )
 		int idx = DemoOverlay_PopupFirst( Demo_GetTime() ) + row
@@ -818,10 +1398,37 @@ void function DemoOverlay_Click( float x, float y )
 		return
 	}
 
-	// timeline: snap to a marker within 8 px, else the clicked time
-	if ( x >= DEMO_TRACK_X - 8.0 && x <= DEMO_TRACK_X + DEMO_TRACK_W + 8.0 && y >= DEMO_TRACK_Y - 18.0 && y <= DEMO_TRACK_Y + 22.0 )
+	// player buttons
+	int povs = minint( Demo_GetPovCount(), DEMO_POV_SLOTS )
+	if ( y >= DEMO_POV_TOP && y <= DEMO_POV_TOP + DEMO_POV_H )
 	{
-		float dur = Demo_GetDuration()
+		for ( int i = 0; i < povs; i++ )
+		{
+			float px = 1888.0 - float( povs - i ) * DEMO_POV_W - float( povs - 1 - i ) * 10.0
+			if ( x >= px && x <= px + DEMO_POV_W )
+			{
+				DemoOverlay_View( i )
+				return
+			}
+		}
+	}
+
+	// timeline: camera keys first, then moment marks within 8 px, else the clicked time
+	float dur = Demo_GetDuration()
+	if ( x >= DEMO_TRACK_X - 10.0 && x <= DEMO_TRACK_X + DEMO_TRACK_W + 10.0 && y >= 942.0 && y <= 976.0 )
+	{
+		if ( Demo_GetCamera() == 2 )
+		{
+			array<float> keys = Demo_GetCamKeyTimes()
+			for ( int i = 0; i < keys.len(); i++ )
+			{
+				if ( fabs( DemoOverlay_TrackX( keys[ i ], dur ) - x ) <= 9.0 )
+				{
+					Demo_CamKeyGoto( i )
+					return
+				}
+			}
+		}
 		foreach ( DemoMoment m in DemoOverlay_MarkerSet() )
 		{
 			if ( fabs( DemoOverlay_TrackX( m.time, dur ) - x ) <= 8.0 )
@@ -830,65 +1437,97 @@ void function DemoOverlay_Click( float x, float y )
 				return
 			}
 		}
+		file.drag = "timeline"
 		Demo_Seek( clamp( ( x - DEMO_TRACK_X ) / DEMO_TRACK_W, 0.0, 1.0 ) * dur )
 		return
 	}
 
-	// chips on row 2
-	if ( fabs( y - DEMO_ROW2_Y ) <= DEMO_CHIP_H * 0.5 )
+	// transport row
+	if ( y >= DEMO_BTN_Y - 3.0 && y <= DEMO_BTN_Y + DEMO_BTN_H + 3.0 )
 	{
-		string chip = DemoOverlay_ChipAt( x )
-		if ( chip == "speed" )
-			DemoOverlay_StepScale( 1 )
-		else if ( chip == "camera" )
-			DemoOverlay_CycleCamera()
-		else if ( chip == "moments" )
-			file.popup = !file.popup
-		else if ( chip == "mark" )
-			DemoOverlay_Bookmark()
-		else if ( chip == "clip" )
-			DemoOverlay_Clip()
-		else if ( chip == "hud" )
-			DemoOverlay_SetHud( 0 )
-		else if ( x <= 96.0 )
+		if ( x >= 56.0 && x <= 100.0 )
+			DemoOverlay_SeekBy( -5.0 )
+		else if ( x >= 112.0 && x <= 168.0 )
 			DemoOverlay_TogglePause()
-		return
-	}
+		else if ( x >= 180.0 && x <= 224.0 )
+			DemoOverlay_SeekBy( 5.0 )
+		else if ( x >= 236.0 && x <= 280.0 )
+			Demo_Step()
 
-	// player badges
-	int povs = Demo_GetPovCount()
-	for ( int i = 0; i < povs && i < DEMO_BADGES && povs > 1; i++ )
-	{
-		float bx = DEMO_BADGE_X - DEMO_BADGE_STEP * float( povs - 1 - i )
-		if ( fabs( x - bx ) <= 24.0 && fabs( y - DEMO_BADGE_Y ) <= 24.0 )
+		int i = DemoOverlay_HitRow( DemoOverlay_SpeedXs(), DemoOverlay_SpeedWs(), x )
+		if ( i >= 0 )
 		{
-			DemoOverlay_View( i )
+			Demo_SetTimescale( DemoOverlay_Speeds()[ i ] )
+			// the free camera gets the mouse back, as after picking a camera
+			if ( Demo_GetCamera() == 2 )
+				file.mouse = false
 			return
 		}
+		i = DemoOverlay_HitRow( DemoOverlay_CamXs(), DemoOverlay_CamWs(), x )
+		if ( i >= 0 )
+		{
+			DemoOverlay_SetCamera( i )
+			return
+		}
+		i = DemoOverlay_HitRow( DemoOverlay_ActXs(), DemoOverlay_ActWs(), x )
+		if ( i == 0 )
+			file.popup = !file.popup
+		else if ( i == 1 )
+			DemoOverlay_Bookmark()
+		else if ( i == 2 )
+			DemoOverlay_Clip()
+		i = DemoOverlay_HitRow( DemoOverlay_HudXs(), DemoOverlay_HudWs(), x )
+		if ( i >= 0 )
+			DemoOverlay_SetHud( DemoOverlay_HudModes()[ i ] )
 	}
 }
 
-// Chips are right-aligned; names and widths mirror gen_fs_demo.py CHIPS.
-string function DemoOverlay_ChipAt( float x )
+// The held pointer moved: sliders and the timeline follow it.
+void function DemoOverlay_Drag( float x, float y )
 {
-	array<string> names = [ "speed", "camera", "moments", "mark", "clip", "hud" ]
-	array<float> widths = [ 72.0, 176.0, 128.0, 128.0, 150.0, 150.0 ]
-	float right = DEMO_CHIP_RIGHT
-	for ( int i = names.len() - 1; i >= 0; i-- )
+	if ( !Demo_IsPlaying() || file.drag == "" )
+		return
+	if ( file.drag == "timeline" )
+		return
+	if ( file.cam == null )
 	{
-		float left = right - widths[ i ]
-		if ( x >= left && x <= right )
-			return names[ i ]
-		right = left - DEMO_CHIP_GAP
+		file.drag = ""
+		return
 	}
-	return ""
+	DemoOverlay_ApplySlider( file.drag, x )
+}
+
+void function DemoOverlay_Release( float x, float y )
+{
+	if ( !Demo_IsPlaying() )
+		return
+	string drag = file.drag
+	file.drag = ""
+	if ( drag == "timeline" )
+	{
+		float dur = Demo_GetDuration()
+		if ( x >= DEMO_TRACK_X - 40.0 && x <= DEMO_TRACK_X + DEMO_TRACK_W + 40.0 )
+			Demo_Seek( clamp( ( x - DEMO_TRACK_X ) / DEMO_TRACK_W, 0.0, 1.0 ) * dur )
+		return
+	}
+	if ( drag == "roll" || drag == "fov" || drag == "focus" )
+		DemoOverlay_StoreKeyEdit()
 }
 
 // Keys forwarded by the mouse layer, which owns input while it is open.
 void function DemoOverlay_Key( int key, bool shift )
 {
+	if ( Demo_InputDiag() )
+		printt( "[DEMO-INPUT] key", key, "playing", Demo_IsPlaying(), "hud", Demo_GetHud(), "camera", Demo_GetCamera(), "controls", file.controlsOpen )
 	if ( !Demo_IsPlaying() )
 		return
+	// A key that opens or closes the controls menu reaches both the menu and the
+	// game while it is still held, so the same press arrives twice.
+	float now = PlatformTime()
+	if ( key == file.lastKey && now - file.lastKeyTime < 0.2 )
+		return
+	file.lastKey = key
+	file.lastKeyTime = now
 	switch ( key )
 	{
 		case KEY_SPACE:  DemoOverlay_TogglePause(); break
@@ -898,13 +1537,15 @@ void function DemoOverlay_Key( int key, bool shift )
 		case KEY_UP:     DemoOverlay_StepScale( 1 ); break
 		case KEY_DOWN:   DemoOverlay_StepScale( -1 ); break
 		case KEY_N:      DemoOverlay_JumpMoment( 1 ); break
-		case KEY_P:      DemoOverlay_JumpMoment( -1 ); break
+		// P plays the camera path in the free camera, so it is not "previous moment" there
+		case KEY_P:      if ( Demo_GetCamera() != 2 ) DemoOverlay_JumpMoment( -1 ); break
 		case KEY_C:      DemoOverlay_CycleCamera(); break
 		case KEY_F:      DemoOverlay_ToggleFreecam(); break
 		case KEY_M:      file.popup = !file.popup; break
 		case KEY_B:      DemoOverlay_Bookmark(); break
 		case KEY_X:      DemoOverlay_Clip(); break
 		case KEY_H:      DemoOverlay_CycleHud(); break
+		case KEY_G:      DemoOverlay_ToggleClean(); break
 		case KEY_LALT:   thread DemoOverlay_ToggleMouseThread(); break
 		case KEY_V:      file.mouse = !file.mouse; break
 		case KEY_1:      DemoOverlay_View( 0 ); break
@@ -914,6 +1555,11 @@ void function DemoOverlay_Key( int key, bool shift )
 		case KEY_5:      DemoOverlay_View( 4 ); break
 		case KEY_6:      DemoOverlay_View( 5 ); break
 	}
+}
+
+bool function DemoOverlay_ShiftDown()
+{
+	return InputIsButtonDown( KEY_LSHIFT ) || InputIsButtonDown( KEY_RSHIFT )
 }
 
 void function DemoOverlay_OnKeySpace( var button ) { DemoOverlay_Key( KEY_SPACE, false ) }
@@ -930,6 +1576,7 @@ void function DemoOverlay_OnKeyMoments( var button ) { DemoOverlay_Key( KEY_M, f
 void function DemoOverlay_OnKeyBookmark( var button ) { DemoOverlay_Key( KEY_B, false ) }
 void function DemoOverlay_OnKeyClip( var button ) { DemoOverlay_Key( KEY_X, false ) }
 void function DemoOverlay_OnKeyHud( var button ) { DemoOverlay_Key( KEY_H, false ) }
+void function DemoOverlay_OnKeyClean( var button ) { DemoOverlay_Key( KEY_G, false ) }
 void function DemoOverlay_OnKeyMouse( var button ) { DemoOverlay_Key( KEY_LALT, false ) }
 void function DemoOverlay_OnKeyCursor( var button ) { DemoOverlay_Key( KEY_V, false ) }
 

@@ -30,6 +30,7 @@ global function LegendBot_CrosshairSpot
 global function LegendBot_SetStrafeTimingAll
 global function LegendBot_SetStrafingAll
 global function LegendBot_SetCrouchAll
+global function LegendBot_ApplyArmor
 
 const string LEGENDBOT_NAME_PREFIX = "R5F-"
 const int LEGENDBOT_KILL_HEAL = 50

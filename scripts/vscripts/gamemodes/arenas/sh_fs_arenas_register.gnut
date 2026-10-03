@@ -24,6 +24,8 @@ void function FS_Arenas_RegisterMode()
 
 	#if CLIENT
 		GameMode_AddClientInitByName( "fs_arenas", ClGamemodeSurvival_Init )
+		// Survival only installs the fullmap scoreboard for its own mode id.
+		GameMode_AddClientInitByName( "fs_arenas", Fullmap_SetupScoreboard )
 		GameMode_AddClientInitByName( "fs_arenas", Arenas_ClientInit )
 	#endif
 

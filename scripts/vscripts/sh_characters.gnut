@@ -956,24 +956,10 @@ bool function Survival_DoesTeamHaveCharacter( int team, ItemFlavor checkCharacte
 }
 #endif
 
-const array<string> DEV_ONLY_CHARACTER_REFS = [ "character_valkyrie", "character_newcastle" ]
-
-bool function CharacterClass_AllowDevOnlyCharacters()
-{
-	string pl = GetCurrentPlaylistName()
-	return pl == "survival_dev" || pl == "dev_default"
-}
-
+// Per-playlist legend availability is the playlist's character_* vars.
 bool function CharacterClass_IsBlockedForCurrentPlaylist( ItemFlavor character )
 {
-	if ( !ItemFlavor_IsAvailableInPlaylist( character ) )
-		return true
-
-	string ref = ItemFlavor_GetCharacterRef( character )
-	if ( !DEV_ONLY_CHARACTER_REFS.contains( ref ) )
-		return false
-
-	return !CharacterClass_AllowDevOnlyCharacters()
+	return !ItemFlavor_IsAvailableInPlaylist( character )
 }
 
 ItemFlavor function CharacterClass_GetRandomPlayableCharacter()
