@@ -843,6 +843,8 @@ void function DeathScreenUpdateChangeLegend( entity player )
 	var button = Hud_GetRui( file.changeLegendButton )
 	bool validGameState = GetGameState() >= eGameState.Playing && GetGameState() < eGameState.WinnerDetermined
 	bool legendReselectable = IsCharacterReselectEnabled()
+	if ( GetCurrentPlaylistVarBool( "freedm_ffa_active", false ) && GetCurrentPlaylistVarBool( "flowstateForceCharacter", false ) )
+		legendReselectable = false
 
 
 		if( IsRevTakeover() && IsValid( player ) )

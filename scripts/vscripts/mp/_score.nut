@@ -106,10 +106,15 @@ void function AddPlayerScore( entity player, string scoreEventName, entity assoc
 	int displayType = ScoreEvent_GetDisplayType( event )
 
 	                    
+	array<entity> wipedTeam
 	if( scoreEventName == "Sur_SquadWipe" && IsValid( associatedEntity ) )
+		wipedTeam = GetPlayerArrayOfTeam( associatedEntity.GetTeam() )
+
+	// kill and assist bits share one non-negative 31-bit int, two bits per teammate
+	if( wipedTeam.len() > 0 && wipedTeam.len() * 2 <= 31 )
 	{
 		int bitFlag = 0
-		array<entity> teammates = GetPlayerArrayOfTeam( associatedEntity.GetTeam() )
+		array<entity> teammates = wipedTeam
 		for( int i=0; i < teammates.len(); i++ )
 		{
 			entity teammate = teammates[i]

@@ -1,5 +1,5 @@
 {
-  "count": 1659,
+  "count": 1669,
   "order": [
     "DEV_MENU",
     "DEV_ONLY",
@@ -1659,7 +1659,17 @@
     "WPN_VINSON_MYTHIC_S26",
     "WPN_VINSON_MYTHIC_S26_DESC",
     "WPN_VINSON_MYTHIC_S26_DESC_SHORT",
-    "Y_BUTTON_MODS"
+    "Y_BUTTON_MODS",
+    "SETTING_INPUT_OVERLAY",
+    "FS_WAITING_FOR_PLAYERS_COUNT",
+    "SETTING_INPUT_OVERLAY_AUTO",
+    "SETTING_INPUT_OVERLAY_DESC",
+    "SETTING_INPUT_OVERLAY_KBM",
+    "SETTING_INPUT_OVERLAY_OFF",
+    "SETTING_INPUT_OVERLAY_PS",
+    "SETTING_INPUT_OVERLAY_XBOX",
+    "SETTING_FLOWSTATE_HEADER",
+    "SETTING_GAMEPLAY_HEADER"
   ],
   "entries": {
     "DEV_MENU": "Dev Menu",
@@ -3320,7 +3330,17 @@
     "WPN_VINSON_MYTHIC_S26": "Road Rage",
     "WPN_VINSON_MYTHIC_S26_DESC": "Can fire Explosive Rounds.\nKnocked enemies will have a bomb attached.",
     "WPN_VINSON_MYTHIC_S26_DESC_SHORT": "Lots of fire!",
-    "Y_BUTTON_MODS": "%[Y_BUTTON|MOUSE1]% Mods"
+    "Y_BUTTON_MODS": "%[Y_BUTTON|MOUSE1]% Mods",
+    "SETTING_INPUT_OVERLAY": "Input Overlay",
+    "SETTING_INPUT_OVERLAY_AUTO": "Auto",
+    "SETTING_INPUT_OVERLAY_DESC": "Shows your live keyboard, mouse or controller input on screen. Auto follows the device you are using.",
+    "SETTING_INPUT_OVERLAY_KBM": "Keyboard & Mouse",
+    "SETTING_INPUT_OVERLAY_OFF": "Off",
+    "SETTING_INPUT_OVERLAY_PS": "PlayStation Controller",
+    "SETTING_INPUT_OVERLAY_XBOX": "Xbox Controller",
+    "SETTING_FLOWSTATE_HEADER": "Flowstate",
+    "SETTING_GAMEPLAY_HEADER": "Gameplay",
+    "FS_WAITING_FOR_PLAYERS_COUNT": "Waiting for players   `1[%s1/%s2]"
   },
   "sections": {
     "DEV": [
@@ -3484,7 +3504,17 @@
       "SETTING_VISUAL_CLUTTER",
       "SETTING_VISUAL_CLUTTER_DESC",
       "SETTING_VISUAL_CLUTTER_FULL",
-      "SETTING_VISUAL_CLUTTER_MINIMAL"
+      "SETTING_VISUAL_CLUTTER_MINIMAL",
+      "SETTING_INPUT_OVERLAY",
+      "FS_WAITING_FOR_PLAYERS_COUNT",
+      "SETTING_INPUT_OVERLAY_AUTO",
+      "SETTING_INPUT_OVERLAY_DESC",
+      "SETTING_INPUT_OVERLAY_KBM",
+      "SETTING_INPUT_OVERLAY_OFF",
+      "SETTING_INPUT_OVERLAY_PS",
+      "SETTING_INPUT_OVERLAY_XBOX",
+      "SETTING_FLOWSTATE_HEADER",
+      "SETTING_GAMEPLAY_HEADER"
     ],
     "HUB": [
       "HUB_ABILITY_OCTANE",

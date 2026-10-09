@@ -362,6 +362,15 @@ void function MeleeWeaponCosmetics_ApplyForWeapon( entity player, entity weapon 
 	if ( !IsValid( weapon ) || !IsValid( player ) )
 		return
 
+	// mod heirlooms take their look from the heirloom registry, not the loadout melee skin
+	if ( ModHeirloom_IsModWeapon( weapon.GetWeaponClassName() ) )
+	{
+		#if SERVER
+			ModHeirloom_ApplyLook( weapon )
+		#endif
+		return
+	}
+
 	ItemFlavor meleeSkin = MeleeSkin_GetMeleeSkinFromPlayer( player )
 	LoadoutEntry meleeSlot = Loadout_MeleeSkin( LoadoutSlot_GetItemFlavor( ToEHI( player ), Loadout_Character() ) )
 	if ( !player.IsBot() && !IsItemFlavorUnlockedForLoadoutSlot( ToEHI( player ), meleeSlot, meleeSkin ) )
@@ -1488,7 +1497,9 @@ void function Melee_Attack( entity attacker, entity meleeAttackWeapon, int impac
 	int meleeAttackWeaponImpactTableIndex = impactTableOverride >= 0 ? impactTableOverride : meleeAttackWeapon.GetImpactTableIndex()
 	#if SERVER
 		string weaponName  = meleeAttackWeapon.GetWeaponClassName()
-		int damageSourceId = (weaponName in eDamageSourceId ? eDamageSourceId[weaponName] : eDamageSourceId.damagedef_unknownBugIt)
+		int damageSourceId = DamageSource_GetIdForWeaponClass( weaponName )
+		if ( damageSourceId == eDamageSourceId.invalid )
+			damageSourceId = eDamageSourceId.damagedef_unknownBugIt
 		vector damageForce = AnglesToForward( attacker.EyeAngles() ) * meleeAttackWeapon.GetWeaponDamageForce()
 		int damageAmount   = meleeAttackWeapon.GetDamageAmountForArmorType( 0 )
 	#endif

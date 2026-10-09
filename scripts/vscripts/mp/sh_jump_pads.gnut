@@ -39,8 +39,6 @@ const float JUMP_PAD_VIEW_PUNCH_RAND_TITAN = 20.0
 const float JUMP_PAD_ANGLE_LIMIT = 0.70
 const float JUMP_PAD_ICON_HEIGHT_OFFSET = 48.0
 const float JUMP_PAD_ACTIVATION_TIME = 0.5
-const float JUMP_PAD_DOUBLE_JUMP_DELAY = 0.1
-const float JUMP_PAD_DOUBLE_JUMP_AIRBORNE_TIMEOUT = 0.5
 
 const bool JUMP_PAD_USES_VORTEX_SPHERE = false
 
@@ -56,9 +54,6 @@ global array<string> INVALID_GRAVITY_CANNON_PLACEABLES
 struct
 {
 	array<entity> jumpPads
-	#if SERVER
-	bool reportedMissingDoubleJumpMod = false
-	#endif
 }file
 
 const asset DOUBLE_JUMP_REDIRECT_TRAIL_3P = $"P_LU_Octane_trail"
@@ -353,6 +348,7 @@ void function JumpPad_CreateTriggerEntity( entity jumpPad, entity owner )
 	trigger.SetAngles( angles )
 	trigger.SetTriggerType( TT_JUMP_PAD )
 	trigger.SetLaunchScaleValues( JumpPad_GetPushVelocity( owner ), JUMP_PAD_VERT_OVERRIDE )
+	trigger.SetEnableDoubleJump( true )
 	trigger.SetViewPunchValues( JUMP_PAD_VIEW_PUNCH_SOFT, JUMP_PAD_VIEW_PUNCH_HARD, JUMP_PAD_VIEW_PUNCH_RAND )
 	trigger.kv.triggerFilterNonCharacter = "1"
 	trigger.kv.triggerFilterNpc = "all"
@@ -370,10 +366,6 @@ void function JumpPad_CreateTriggerEntity( entity jumpPad, entity owner )
 
 	if ( IsTooCloseToSkydiveLauncher( trigger ) )
 		trigger.Disable()
-
-	if ( GetCurrentPlaylistVarBool( "jump_pad_trace", false ) )
-		printt( "[JUMPPAD] planted pad=" + string( jumpPad ) + " origin=" + string( origin ) + " parent=" + string( jumpPad.GetParent() )
-			+ " owner=" + string( owner ) + " realms=" + string( trigger.GetRealms() ) + " nearLauncher=" + string( IsTooCloseToSkydiveLauncher( trigger ) ) )
 }
 
 void function JumpPad_OnTouchTrigger_Server( entity trigger, entity ent )
@@ -387,10 +379,6 @@ void function JumpPad_OnTouchTrigger_Server( entity trigger, entity ent )
 	if ( !IsValid( jumpPad ) )
 		return
 
-	if ( GetCurrentPlaylistVarBool( "jump_pad_trace", false ) )
-		printt( "[JUMPPAD] touch pad=" + string( jumpPad ) + " ent=" + string( ent ) + " class=" + string( ent.GetNetworkedClassName() )
-			+ " team=" + string( ent.GetTeam() ) + " realms=" + string( ent.GetRealms() ) )
-
 	thread JumpPad_PlayLaunchAnim( jumpPad )
 	int fxId = GetParticleSystemIndex( JUMP_PAD_LAUNCH_FX )
 	StartParticleEffectOnEntity( jumpPad, fxId, FX_PATTACH_ABSORIGIN_FOLLOW, ATTACHMENTID_INVALID )
@@ -400,7 +388,6 @@ void function JumpPad_OnTouchTrigger_Server( entity trigger, entity ent )
 		ent.Signal( "JumpPad_GiveDoubleJump" )
 
 		thread JumpJetsWhileAirborne( ent, trigger, false )
-		thread JumpPad_StartDoubleJumpAfterLaunch( ent )
 
 		entity ownerPlayer = jumpPad.GetOwner()
 
@@ -431,35 +418,6 @@ void function JumpPad_PlayLaunchAnim( entity jumpPad )
 	jumpPad.Anim_PlayOnly( "prop_octane_jump_pad_deploy_idle" )
 }
 
-// This server's engine does not grant the pad's double jump on its own, so
-// start it here once the launch has actually taken the player off the ground.
-// The delay matches the one S21 uses between the launch and the grant.
-void function JumpPad_StartDoubleJumpAfterLaunch( entity player )
-{
-	if ( !IsValid( player ) || !player.IsPlayer() )
-		return
-
-	player.EndSignal( "OnDeath" )
-	player.EndSignal( "OnDestroy" )
-	player.EndSignal( "JumpPad_GiveDoubleJump" )
-
-	wait JUMP_PAD_DOUBLE_JUMP_DELAY
-
-	float airborneDeadline = Time() + JUMP_PAD_DOUBLE_JUMP_AIRBORNE_TIMEOUT
-	while ( player.IsOnGround() && Time() < airborneDeadline )
-		WaitFrame()
-
-	if ( player.IsOnGround() )
-		return
-
-	if ( !file.reportedMissingDoubleJumpMod && !player.IsClassModAvailableForPlayerSetting( string( player.GetPlayerSettings() ), "enable_doublejump" ) )
-	{
-		file.reportedMissingDoubleJumpMod = true
-		Warning( "Jump pad: this character's player settings have no 'enable_doublejump' mod, double jump will not be granted" )
-	}
-
-	thread JumpPad_GiveDoubleJump( player )
-}
 
 void function RemoveDoubleJump ( entity player )
 {

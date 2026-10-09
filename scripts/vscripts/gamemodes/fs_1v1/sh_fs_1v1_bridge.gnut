@@ -1213,16 +1213,13 @@ void function SetStartNewGameBool( bool value )
 	file.startNewGame = value
 }
 
-// Stock fists melee -- heirloom table not ported.
+// The player's mod heirloom when they picked one, else fists.
 void function FS_GiveRandomMelee( entity player, bool is1v1 = false )
 {
 	if ( !IsValid( player ) )
 		return
 
-	player.TakeNormalWeaponByIndexNow( WEAPON_INVENTORY_SLOT_PRIMARY_2 )
-	player.TakeOffhandWeapon( OFFHAND_MELEE )
-	player.GiveWeapon( "mp_weapon_melee_survival", WEAPON_INVENTORY_SLOT_PRIMARY_2, [] )
-	player.GiveOffhandWeapon( "melee_pilot_emptyhanded", OFFHAND_MELEE, [] )
+	ModHeirloom_GiveMelee( player, "mp_weapon_melee_survival", "melee_pilot_emptyhanded", false )
 }
 
 // Legendary skin GUID map not ported -- empty => no random legendary skin.

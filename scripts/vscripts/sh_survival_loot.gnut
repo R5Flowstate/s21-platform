@@ -1077,6 +1077,22 @@ void function SURVIVAL_Loot_InitShared()
 				Assert( !IsAttachmentAmbiguousForWeapon( aData.ref, data.ref, aData.attachPoints ) )
 
 				int col = GetDataTableColumnByName( attachmentMatrix, weaponRef )
+				if ( col == -1 && ModWeapon_FindClass( weaponRef ) >= 0 )
+				{
+					// mod guns have no matrix column: an attachment fits when the gun's own weapon file defines it
+					if ( GetWeaponMods_Global( weaponRef ).contains( aData.ref ) )
+					{
+						foreach ( string attachPoint in aData.attachPoints )
+						{
+							if ( data.supportedAttachments.contains( attachPoint ) )
+							{
+								aData.compatibleWeapons.append( weaponRef )
+								break
+							}
+						}
+					}
+					continue
+				}
 				if ( col == -1 ) //If the data doesn't exist, may be a variant
 				{
 					string baseWeapon = Weapon_GetBaseClassNameOrEmpty( weaponRef )

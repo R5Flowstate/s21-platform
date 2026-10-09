@@ -471,8 +471,7 @@ void function FS_Instagib_GiveLoadout( entity player )
 	else
 		SetWeaponLockedSetFromLootTags( [ WEAPON_LOCKEDSET_MOD_GOLD ], weaponNew )
 
-	player.GiveWeapon( "mp_weapon_melee_survival", WEAPON_INVENTORY_SLOT_PRIMARY_2, [] )
-	player.GiveOffhandWeapon( "melee_pilot_emptyhanded", OFFHAND_MELEE, [] )
+	ModHeirloom_GiveMelee( player, "mp_weapon_melee_survival", "melee_pilot_emptyhanded", false )
 
 	player.TakeOffhandWeapon( OFFHAND_TACTICAL )
 	player.TakeOffhandWeapon( OFFHAND_ULTIMATE )

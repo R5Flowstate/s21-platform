@@ -2124,6 +2124,7 @@ void function ApplyLoadout( entity player )
 	{
 		FreeDM_FFA_ApplyArmor( player )
 		FreeDM_FFA_ApplyAbilities( player )
+		FreeDM_FFA_GiveConsumables( player )
 	}
 	else
 	{
@@ -2219,7 +2220,10 @@ void function OnPlayerPostRespawned( entity player )
 	}
 	else if ( FreeDM_IsFFA() )
 	{
-		thread FreeDM_FFA_ApplyLoadoutAfterRespawn_THREAD( player )
+		// Snap before the first move tick: a hull spawned inside a prop gets
+		// unstuck straight up through the ceiling.
+		FreeDM_FFA_SnapPlayerToGround( player )
+		thread FreeDM_FFA_ApplyLoadoutAfterRespawn_THREAD( player, player.GetOrigin() )
 	}
 	else
 		thread SetupPlayer( player )
@@ -2229,7 +2233,7 @@ void function OnPlayerPostRespawned( entity player )
 		PlayBattleChatterLineToSpeakerAndTeamWithDebounceTime( player, RESPAWN_DIALOGUE, RESPAWN_DIALOGUE_COOLDOWN, RESPAWN_DIALOGUE_COOLDOWN, null, true )
 }
 
-void function FreeDM_FFA_ApplyLoadoutAfterRespawn_THREAD( entity player )
+void function FreeDM_FFA_ApplyLoadoutAfterRespawn_THREAD( entity player, vector spawnOrigin )
 {
 	player.EndSignal( "OnDestroy" )
 	WaitEndFrame()
@@ -2240,7 +2244,14 @@ void function FreeDM_FFA_ApplyLoadoutAfterRespawn_THREAD( entity player )
 	if ( GetGameState() > eGameState.Playing )
 		return
 
+	if ( player.GetOrigin().z > spawnOrigin.z + 64.0 )
+	{
+		printt( "[FreeDM] FFA spawn lifted " + player.GetPlayerName() + " from=" + string( spawnOrigin ) + " to=" + string( player.GetOrigin() ) )
+		player.SetOrigin( spawnOrigin )
+		player.SetVelocity( <0,0,0> )
+	}
 	FreeDM_FFA_SnapPlayerToGround( player )
+	thread FreeDM_FFA_WatchSpawnHeight_THREAD( player, spawnOrigin )
 
 	player.p.respawnPodLanded = true
 	player.p.survivalLandedOnGround = true
@@ -2375,6 +2386,21 @@ void function FreeDM_FFA_RingDamage_THREAD( entity circle, float radius )
 	}
 }
 
+void function FreeDM_FFA_WatchSpawnHeight_THREAD( entity player, vector spawnOrigin )
+{
+	player.EndSignal( "OnDestroy" )
+	player.EndSignal( "OnDeath" )
+	for ( int i = 0; i < 6; i++ )
+	{
+		wait 0.5
+		if ( fabs( player.GetOrigin().z - spawnOrigin.z ) > 96.0 )
+		{
+			printt( "[FreeDM] FFA spawn moved " + player.GetPlayerName() + " spawn=" + string( spawnOrigin ) + " now=" + string( player.GetOrigin() ) + " t=" + string( ( i + 1 ) * 0.5 ) )
+			return
+		}
+	}
+}
+
 void function FreeDM_FFA_SnapPlayerToGround( entity player )
 {
 	if ( !IsValid( player ) || !IsAlive( player ) )
@@ -2384,19 +2410,37 @@ void function FreeDM_FFA_SnapPlayerToGround( entity player )
 	vector mins = player.GetPlayerMins()
 	vector maxs = player.GetPlayerMaxs()
 
-	float lift = 0.0
-	while ( lift <= 256.0 )
+	// A spawn can sit against a prop (pole, table, luggage). Step out sideways or a
+	// little up only: lifting far climbs through low ceilings onto the roof.
+	array<vector> offsets = [ <0,0,0>, <0,0,16>, <0,0,32>, <0,0,48> ]
+	foreach ( float r in [ 16.0, 32.0, 48.0, 64.0 ] )
 	{
-		TraceResults free = TraceHull( origin + <0,0,lift>, origin + <0,0,lift> + <0,0,1>, mins, maxs, player, TRACE_MASK_PLAYERSOLID, TRACE_COLLISION_GROUP_PLAYER )
-		if ( !free.startSolid && !free.allSolid )
-			break
-		lift += 32.0
+		for ( int k = 0; k < 8; k++ )
+		{
+			float a = k * 45.0 * DEG_TO_RAD
+			offsets.append( <cos( a ) * r, sin( a ) * r, 8> )
+		}
 	}
 
-	float dropLift = lift + 64.0
-	while ( dropLift <= 4096.0 )
+	vector start = origin
+	bool foundFree = false
+	foreach ( vector o in offsets )
 	{
-		TraceResults drop = TraceHull( origin + <0,0,dropLift>, origin - <0,0,2048>, mins, maxs, player, TRACE_MASK_PLAYERSOLID, TRACE_COLLISION_GROUP_PLAYER )
+		TraceResults free = TraceHull( origin + o, origin + o + <0,0,1>, mins, maxs, player, TRACE_MASK_PLAYERSOLID, TRACE_COLLISION_GROUP_PLAYER )
+		if ( !free.startSolid && !free.allSolid )
+		{
+			start = origin + o
+			foundFree = true
+			break
+		}
+	}
+
+	if ( foundFree && start != origin )
+		printt( "[FreeDM] FFA spawn blocked " + player.GetPlayerName() + " origin=" + string( origin ) + " free=" + string( start ) )
+
+	if ( foundFree )
+	{
+		TraceResults drop = TraceHull( start, start - <0,0,2048>, mins, maxs, player, TRACE_MASK_PLAYERSOLID, TRACE_COLLISION_GROUP_PLAYER )
 		if ( !drop.startSolid && !drop.allSolid && drop.fraction < 1.0 )
 		{
 			vector snapped = drop.endPos + <0,0,2>
@@ -2404,10 +2448,9 @@ void function FreeDM_FFA_SnapPlayerToGround( entity player )
 				player.SetOrigin( snapped )
 			return
 		}
-		dropLift *= 2.0
 	}
 
-	printt( "[FreeDM] FFA ground snap failed " + player.GetPlayerName() + " origin=" + string( origin ) )
+	printt( "[FreeDM] FFA ground snap failed " + player.GetPlayerName() + " origin=" + string( origin ) + " free=" + foundFree )
 }
 
 void function FreeDM_FFA_RespawnAfterDeath_THREAD( entity player )
@@ -2432,6 +2475,13 @@ void function FreeDM_FFA_RespawnAfterDeath_THREAD( entity player )
 
 	if ( delay > 0.0 )
 		wait delay
+
+	// Capped so a client holding the legend menu open cannot stay dead forever.
+	float holdUntil = Time() + GetCurrentPlaylistVarFloat( "ffa_reselect_max_hold", 15.0 )
+	while ( IsPlayerReselectingCharacter( player ) && Time() < holdUntil )
+		wait 0.1
+	if ( IsPlayerReselectingCharacter( player ) )
+		Remote_CallFunction_NonReplay( player, "FreeDM_CloseCharacterSelect" )
 
 	if ( !IsValid( player ) || IsAlive( player ) )
 		return

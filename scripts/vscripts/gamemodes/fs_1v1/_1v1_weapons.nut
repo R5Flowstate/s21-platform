@@ -53,10 +53,7 @@ void function FS_1v1_GiveScenarioLoadout( entity player, bool giveWeapons )
 	if( FS_1v1_PlayerHasClient( player ) )
 		Remote_CallFunction_ByRef( player, "Minimap_EnableDraw" )
 
-	player.TakeNormalWeaponByIndexNow( WEAPON_INVENTORY_SLOT_PRIMARY_2 )
-	player.TakeOffhandWeapon( OFFHAND_MELEE )
-	player.GiveWeapon( "mp_weapon_melee_survival", WEAPON_INVENTORY_SLOT_PRIMARY_2, [] )
-	player.GiveOffhandWeapon( "melee_pilot_emptyhanded", OFFHAND_MELEE, [] )
+	ModHeirloom_GiveMelee( player, "mp_weapon_melee_survival", "melee_pilot_emptyhanded", false )
 }
 
 bool function Gamemode1v1_AreCustomWeaponsAllowedForPlayer( entity player )

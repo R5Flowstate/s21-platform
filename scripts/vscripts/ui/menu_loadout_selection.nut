@@ -326,6 +326,9 @@ void function LoadoutSelectionMenu_SetupLoadoutButton( int index, int loadoutInd
 	if ( index >= maxLoadouts )
 		return
 
+	if ( file.menu == null )
+		return
+
 	var loadoutButton = Hud_GetChild( file.menu, LoadoutSelectionMenu_GetLoadoutButtonPrefix( loadoutSlotType ) + index )
 	Hud_AddEventHandler( loadoutButton, UIE_CLICK, LoadoutSelectionMenu_OnLoadoutSelectClick )
 	file.loadoutButtons.append( loadoutButton )

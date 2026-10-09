@@ -1,0 +1,195 @@
+// Guns added by installed mods; each mod registers them from its ModInit in every VM.
+// They change gameplay, so the server only gives them with sv_cheats or mod_weapons_enabled.
+
+global function ModWeapon_Register
+global function ModWeapon_GetCount
+global function ModWeapon_GetName
+global function ModWeapon_GetClass
+global function ModWeapon_FindClass
+global function ModWeapon_GetLootLike
+
+const int MOD_WEAPON_MAX = 32
+const string MOD_WEAPON_NAME_CHARS = "abcdefghijklmnopqrstuvwxyz0123456789_"
+
+struct ModWeaponDef
+{
+	string cls
+	string name
+	string lootLike
+}
+
+struct
+{
+	array<ModWeaponDef> defs
+	bool serverHooked = false
+	table<entity, float> lastCommand
+} file
+
+// Mod weapons are namespaced ("<ns>__<name>"), so a registration can never hand out a stock weapon.
+bool function ModWeapon_IsModWeaponName( string s )
+{
+	if ( s.len() < 5 || s.len() > 63 || s.find( "__" ) <= 0 )
+		return false
+	for ( int i = 0; i < s.len(); i++ )
+	{
+		if ( MOD_WEAPON_NAME_CHARS.find( s.slice( i, i + 1 ) ) < 0 )
+			return false
+	}
+	return true
+}
+
+// lootLike: the stock main weapon whose loot entry (attachments, tags, pickup sounds, tier)
+// this gun copies; its own weapon file still decides ammo, model and name.
+void function ModWeapon_Register( string cls, string name, string lootLike = "" )
+{
+	if ( !ModWeapon_IsModWeaponName( cls ) )
+	{
+		printt( format( "[ModWeapon] rejected '%s': mod weapons are named <namespace>__<name>", cls ) )
+		return
+	}
+	if ( ModWeapon_FindClass( cls ) >= 0 )
+		return
+	if ( file.defs.len() >= MOD_WEAPON_MAX )
+	{
+		printt( format( "[ModWeapon] '%s' ignored: %d weapon limit", cls, MOD_WEAPON_MAX ) )
+		return
+	}
+
+	#if SERVER || CLIENT
+		RegisterModWeaponDamageSource( cls, true )
+	#endif
+
+	ModWeaponDef def
+	def.cls = cls
+	def.name = name != "" ? name : cls
+	def.lootLike = lootLike
+	file.defs.append( def )
+	printt( format( "[ModWeapon] registered '%s' (%s)", def.name, cls ) )
+
+	#if SERVER
+		ModWeapon_ServerHook()
+	#endif
+}
+
+int function ModWeapon_GetCount()
+{
+	return file.defs.len()
+}
+
+string function ModWeapon_GetName( int index )
+{
+	return ( index >= 0 && index < file.defs.len() ) ? file.defs[ index ].name : ""
+}
+
+string function ModWeapon_GetClass( int index )
+{
+	return ( index >= 0 && index < file.defs.len() ) ? file.defs[ index ].cls : ""
+}
+
+string function ModWeapon_GetLootLike( int index )
+{
+	return ( index >= 0 && index < file.defs.len() ) ? file.defs[ index ].lootLike : ""
+}
+
+int function ModWeapon_FindClass( string cls )
+{
+	foreach ( int i, ModWeaponDef def in file.defs )
+	{
+		if ( def.cls == cls )
+			return i
+	}
+	return -1
+}
+
+#if SERVER
+void function ModWeapon_ServerHook()
+{
+	if ( file.serverHooked )
+		return
+	file.serverHooked = true
+
+	AddClientCommandCallback( "mod_weapon", ClientCommand_ModWeapon )
+	AddCallback_OnClientDisconnected( ModWeapon_OnClientDisconnected )
+}
+
+bool function ModWeapon_Allowed()
+{
+	return GetConVarBool( "sv_cheats" ) || GetCurrentPlaylistVarBool( "mod_weapons_enabled", false )
+}
+
+void function ClientCommand_ModWeapon( entity player, array<string> args )
+{
+	if ( !IsValid( player ) || args.len() != 1 || !IsAlive( player ) )
+		return
+
+	float now = Time()
+	if ( player in file.lastCommand && now - file.lastCommand[ player ] < 1.0 )
+		return
+	file.lastCommand[ player ] <- now
+
+	if ( !ModWeapon_Allowed() )
+	{
+		printt( format( "[ModWeapon] %s asked for %s: not allowed here (sv_cheats 0, mod_weapons_enabled 0)", player.GetPlayerName(), args[0] ) )
+		return
+	}
+
+	int index = ModWeapon_FindClass( args[0] )
+	if ( index < 0 )
+		return
+	string cls = file.defs[ index ].cls
+
+	int slot = WEAPON_INVENTORY_SLOT_PRIMARY_0
+	entity active = player.GetActiveWeapon( eActiveInventorySlot.mainHand )
+	if ( IsValid( active ) )
+	{
+		int activeSlot = active.GetInventoryIndex()
+		if ( activeSlot == WEAPON_INVENTORY_SLOT_PRIMARY_0 || activeSlot == WEAPON_INVENTORY_SLOT_PRIMARY_1 )
+			slot = activeSlot
+	}
+
+	entity current = player.GetNormalWeapon( slot )
+	if ( IsValid( current ) && current.GetWeaponClassName() == cls )
+		return
+
+	player.TakeNormalWeaponByIndexNow( slot )
+	entity weapon = null
+	try
+	{
+		weapon = player.GiveWeapon( cls, slot, [], false )
+	}
+	catch ( giveErr )
+	{
+		printt( format( "[ModWeapon] give failed %s: %s", cls, string( giveErr ) ) )
+		return
+	}
+	if ( !IsValid( weapon ) )
+		return
+
+	if ( weapon.UsesClipsForAmmo() )
+		weapon.SetWeaponPrimaryClipCount( weapon.GetWeaponPrimaryClipCountMax() )
+	SetInfiniteAmmoForWeapon( player, weapon )
+
+	// two stacks of its pool ammo so it reloads where ammo is not infinite; reloads draw from the
+	// player's ammo pool, not the backpack, so both get the rounds
+	if ( SURVIVAL_Loot_IsRefValid( cls ) )
+	{
+		string ammo = SURVIVAL_Loot_GetLootDataByRef( cls ).ammoType
+		if ( ammo != "" && SURVIVAL_Loot_IsRefValid( ammo ) )
+		{
+			int added = SURVIVAL_AddToPlayerInventory( player, ammo, 2 * SURVIVAL_Loot_GetLootDataByRef( ammo ).inventorySlotCount )
+			int poolType = weapon.GetWeaponAmmoPoolType()
+			int pool = player.AmmoPool_GetCount( poolType ) + added
+			if ( player.AmmoPool_GetCapacity() < pool )
+				player.AmmoPool_SetCapacity( pool )
+			player.AmmoPool_SetCount( poolType, pool )
+		}
+	}
+	player.SetActiveWeaponBySlot( eActiveInventorySlot.mainHand, slot )
+}
+
+void function ModWeapon_OnClientDisconnected( entity player )
+{
+	if ( player in file.lastCommand )
+		delete file.lastCommand[ player ]
+}
+#endif

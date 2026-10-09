@@ -45,6 +45,7 @@ struct
 	var progressionModifiersButton
 	var newsButton
 	var newsButtonStatusIcon
+	int pendingNewsStatus = -1
 	var socialButton
 	var gameMenuButton
 	var bonusXp
@@ -170,6 +171,8 @@ void function InitLobbyMenu( var newMenuArg )
 	HudElem_SetRuiArg( newsButton, "shortcutText", "%[R_TRIGGER|ESCAPE]%" )
 	Hud_AddEventHandler( newsButton, UIE_CLICK, NewsButton_OnActivate )
 	Hud_AddEventHandler( newsButton, UIE_GET_FOCUS, NewsButton_OnHover )
+	if ( file.pendingNewsStatus >= 0 )
+		SetNewsButtonTooltip( file.pendingNewsStatus )
 	UpdatePromoToast()
 
 	var socialButton = Hud_GetChild( menu, "SocialButton" )
@@ -1076,6 +1079,13 @@ void function ClearActiveLobbyPopup()
 
 void function SetNewsButtonTooltip( int status )
 {
+	// The news request can finish during boot, before InitLobbyMenu has built the button.
+	if ( file.newsButton == null )
+	{
+		file.pendingNewsStatus = status
+		return
+	}
+
 	ToolTipData newsToolTip
 	switch( status )
 	{

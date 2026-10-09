@@ -1,0 +1,905 @@
+// Heirlooms that installed mods add. A mod registers its weapon pair from its ModInit in
+// every VM; Lab > Mods lists them. The server gives the picked pair wherever a mode gives
+// melee (ModHeirloom_GiveMelee), owns each player's look (style skin + custom color), and
+// refuses a heirloom whose gameplay values differ from the stock heirloom it rides.
+
+global function ModHeirloom_Register
+global function ModHeirloom_SetHost
+global function ModHeirloom_GetCount
+global function ModHeirloom_GetName
+global function ModHeirloom_GetPrimary
+global function ModHeirloom_FindPrimary
+global function ModHeirloom_IsModWeapon
+global function ModHeirloom_RegisterColor
+global function ModHeirloom_GetColorConVar
+global function ModHeirloom_RegisterStyles
+global function ModHeirloom_GetStyleKeys
+global function ModHeirloom_GetStyleLabels
+global function ModHeirloom_RegisterStyleColor
+global function ModHeirloom_GetStyleColorKey
+global function ModHeirloom_GetStyleColorConVar
+global function ModHeirloom_BuildLookCommand
+
+#if SERVER || CLIENT
+global function ModHeirloom_RegisterRemoteFunctions
+#endif
+
+#if SERVER
+global function ModHeirloom_GetChoice
+global function ModHeirloom_GiveMelee
+global function ModHeirloom_ApplyLook
+global function ModHeirloom_OnSurvivalMeleeGiven
+#endif
+
+#if CLIENT
+global function ModHeirloom_CL_Sync
+global function ModHeirloom_CL_Notice
+#endif
+
+const int MOD_HEIRLOOM_MAX = 32
+const string MOD_HEIRLOOM_PREFS_KEY = "mod_heirloom"
+const string MOD_HEIRLOOM_NAME_CHARS = "abcdefghijklmnopqrstuvwxyz0123456789_"
+const int MOD_HEIRLOOM_MIN_BRIGHTNESS = 80
+const float MOD_HEIRLOOM_LOOK_BURST = 4.0
+const float MOD_HEIRLOOM_LOOK_REFILL_PER_SEC = 1.0
+const string MOD_HEIRLOOM_NO_TINT = "255 255 255"
+
+global enum eModHeirloomNotice
+{
+	PENDING,    // pick stored, given at the next round / respawn
+	REFUSED,    // gameplay values differ from the stock heirloom it rides
+	_count
+}
+
+struct ModHeirloomDef
+{
+	string primary
+	string melee
+	string name
+	string hostKey
+	string refusal
+	string colorConVar
+	array<string> styleKeys
+	array<string> styleLabels
+	string styleColorKey
+	string styleColorConVar
+}
+
+struct ModHeirloomLook
+{
+	string style
+	string rgb
+}
+
+struct
+{
+	array<ModHeirloomDef> defs
+	bool serverHooked = false
+	table<entity, int> choice
+	table<entity, float> lastCommand
+	table<entity, table<string, ModHeirloomLook> > looks
+	table<entity, float> lookTokens
+	table<entity, float> lookTokenTime
+	table<entity, array<string> > fallbackPair  // [ primary, melee ] the mode asked GiveMelee for
+	table<entity, float> lastSync
+	table<entity, float> lastStatus
+	table<entity, float> lastPrefsWrite
+	table<entity, bool> prefsWritePending
+} file
+
+// Mod weapons are namespaced ("<ns>__<name>"), so a registration can never put a
+// stock weapon in the melee slot.
+bool function ModHeirloom_IsModWeaponName( string s )
+{
+	if ( s.len() < 5 || s.len() > 63 || s.find( "__" ) <= 0 )
+		return false
+	return ModHeirloom_HasNameCharsOnly( s )
+}
+
+bool function ModHeirloom_HasNameCharsOnly( string s )
+{
+	for ( int i = 0; i < s.len(); i++ )
+	{
+		if ( MOD_HEIRLOOM_NAME_CHARS.find( s.slice( i, i + 1 ) ) < 0 )
+			return false
+	}
+	return true
+}
+
+#if SERVER || CLIENT
+// Always registered, so the remote function table is the same whichever heirloom mods each side has.
+void function ModHeirloom_RegisterRemoteFunctions()
+{
+	Remote_RegisterClientFunction( "ModHeirloom_CL_Sync", "int", -1, MOD_HEIRLOOM_MAX + 1 )
+	Remote_RegisterClientFunction( "ModHeirloom_CL_Notice", "int", 0, MOD_HEIRLOOM_MAX, "int", 0, eModHeirloomNotice._count )
+}
+#endif
+
+void function ModHeirloom_Register( string primary, string melee, string name )
+{
+	if ( !ModHeirloom_IsModWeaponName( primary ) || !ModHeirloom_IsModWeaponName( melee ) || primary == melee )
+	{
+		printt( format( "[ModHeirloom] rejected '%s' / '%s': mod weapons are named <namespace>__<name>", primary, melee ) )
+		return
+	}
+	if ( ModHeirloom_FindPrimary( primary ) >= 0 )
+		return
+	if ( file.defs.len() >= MOD_HEIRLOOM_MAX )
+	{
+		printt( format( "[ModHeirloom] '%s' ignored: %d heirloom limit", primary, MOD_HEIRLOOM_MAX ) )
+		return
+	}
+
+	#if SERVER || CLIENT
+		RegisterModWeaponDamageSource( melee )
+		RegisterModWeaponDamageSource( primary )
+	#endif
+
+	ModHeirloomDef def
+	def.primary = primary
+	def.melee = melee
+	def.name = name != "" ? name : primary
+	def.refusal = "no host heirloom declared (ModHeirloom_SetHost)"
+	file.defs.append( def )
+	printt( format( "[ModHeirloom] registered '%s' (%s / %s)", def.name, primary, melee ) )
+
+	#if SERVER
+		ModHeirloom_ServerHook()
+	#endif
+}
+
+// The stock heirloom this one is a skin of, by family key ("wraith_kunai" = melee_wraith_kunai +
+// mp_weapon_wraith_kunai_primary). The server compares every gameplay value against it.
+void function ModHeirloom_SetHost( string primary, string hostKey )
+{
+	int index = ModHeirloom_FindPrimary( primary )
+	string hostMelee = "melee_" + hostKey
+	string hostPrimary = "mp_weapon_" + hostKey + "_primary"
+	bool known = true
+	#if SERVER || CLIENT
+		known = ( hostMelee in eDamageSourceId ) && ( hostPrimary in eDamageSourceId )
+	#endif
+	if ( index < 0 || hostKey == "" || !ModHeirloom_HasNameCharsOnly( hostKey ) || !known )
+	{
+		printt( format( "[ModHeirloom] host '%s' rejected for '%s': not a stock heirloom", hostKey, primary ) )
+		return
+	}
+	file.defs[ index ].hostKey = hostKey
+	file.defs[ index ].refusal = ""
+
+	#if SERVER
+		PrecacheWeapon( hostMelee )
+		PrecacheWeapon( hostPrimary )
+		string offhand = ModHeirloom_ParityMismatch( file.defs[ index ].melee, hostMelee )
+		string main = ModHeirloom_ParityMismatch( primary, hostPrimary )
+		file.defs[ index ].refusal = offhand != "" ? offhand : main
+		if ( file.defs[ index ].refusal != "" )
+			Warning( format( "[ModHeirloom] '%s' refused: %s", file.defs[ index ].name, file.defs[ index ].refusal ) )
+	#endif
+}
+
+bool function ModHeirloom_IsModWeapon( string cls )
+{
+	foreach ( ModHeirloomDef def in file.defs )
+	{
+		if ( def.primary == cls || def.melee == cls )
+			return true
+	}
+	return false
+}
+
+// Lab > Mods shows a colour picker for this heirloom that writes "r g b" or "cycle" into the
+// mod's own archived ConVar. The ConVar must start with the heirloom's namespace, so the
+// picker can only ever write a setting that mod declared.
+void function ModHeirloom_RegisterColor( string primary, string convar )
+{
+	int index = ModHeirloom_FindPrimary( primary )
+	if ( index < 0 || !ModHeirloom_IsOwnConVar( primary, convar ) )
+	{
+		printt( format( "[ModHeirloom] colour setting '%s' rejected for '%s'", convar, primary ) )
+		return
+	}
+	file.defs[ index ].colorConVar = convar
+}
+
+bool function ModHeirloom_IsOwnConVar( string primary, string convar )
+{
+	int sep = primary.find( "__" )
+	string prefix = sep > 0 ? primary.slice( 0, sep ) + "_" : ""
+	return prefix != "" && convar.len() > prefix.len() && convar.len() <= 63
+		&& convar.slice( 0, prefix.len() ) == prefix && ModHeirloom_HasNameCharsOnly( convar )
+}
+
+string function ModHeirloom_GetColorConVar( int index )
+{
+	return ( index >= 0 && index < file.defs.len() ) ? file.defs[ index ].colorConVar : ""
+}
+
+// Named looks (model skin families) instead of free colours: Lab > Mods lists the labels and
+// writes the picked key into the mod's ConVar. Key i is skin family i.
+void function ModHeirloom_RegisterStyles( string primary, string convar, array<string> keys, array<string> labels )
+{
+	ModHeirloom_RegisterColor( primary, convar )
+	int index = ModHeirloom_FindPrimary( primary )
+	if ( index < 0 || file.defs[ index ].colorConVar != convar )
+		return
+	if ( keys.len() == 0 || keys.len() != labels.len() || keys.len() > 16 )
+	{
+		printt( format( "[ModHeirloom] styles rejected for '%s': need 1-16 keys with matching labels", primary ) )
+		file.defs[ index ].colorConVar = ""
+		return
+	}
+	foreach ( string k in keys )
+	{
+		if ( k == "" || k.len() > 24 || !ModHeirloom_HasNameCharsOnly( k ) )
+		{
+			printt( format( "[ModHeirloom] style key '%s' rejected for '%s'", k, primary ) )
+			file.defs[ index ].colorConVar = ""
+			return
+		}
+	}
+	file.defs[ index ].styleKeys = clone keys
+	file.defs[ index ].styleLabels = clone labels
+}
+
+array<string> function ModHeirloom_GetStyleKeys( int index )
+{
+	array<string> out
+	if ( index >= 0 && index < file.defs.len() )
+		out = clone file.defs[ index ].styleKeys
+	return out
+}
+
+array<string> function ModHeirloom_GetStyleLabels( int index )
+{
+	array<string> out
+	if ( index >= 0 && index < file.defs.len() )
+		out = clone file.defs[ index ].styleLabels
+	return out
+}
+
+// The LAST style picks a free colour: Lab > Mods opens an RGB selector under the style list
+// while it is selected and writes "r g b" into the mod's own ConVar.
+void function ModHeirloom_RegisterStyleColor( string primary, string styleKey, string convar )
+{
+	int index = ModHeirloom_FindPrimary( primary )
+	if ( index < 0 || file.defs[ index ].styleKeys.len() == 0 || file.defs[ index ].styleKeys.top() != styleKey
+		|| convar == file.defs[ index ].colorConVar || !ModHeirloom_IsOwnConVar( primary, convar ) )
+	{
+		printt( format( "[ModHeirloom] style colour '%s' / '%s' rejected for '%s': register styles first, use the last key", styleKey, convar, primary ) )
+		return
+	}
+	file.defs[ index ].styleColorKey = styleKey
+	file.defs[ index ].styleColorConVar = convar
+}
+
+string function ModHeirloom_GetStyleColorKey( int index )
+{
+	return ( index >= 0 && index < file.defs.len() ) ? file.defs[ index ].styleColorKey : ""
+}
+
+string function ModHeirloom_GetStyleColorConVar( int index )
+{
+	return ( index >= 0 && index < file.defs.len() ) ? file.defs[ index ].styleColorConVar : ""
+}
+
+// "mod_heirloom_look <primary> <style> [r g b]" from the player's own settings, or "" when the
+// heirloom has no styles. Client and UI both send it; the server validates it.
+string function ModHeirloom_BuildLookCommand( int index, string style, string rgb )
+{
+	if ( index < 0 || index >= file.defs.len() || file.defs[ index ].styleKeys.len() == 0 )
+		return ""
+	ModHeirloomDef def = file.defs[ index ]
+	if ( !def.styleKeys.contains( style ) )
+		style = def.styleKeys[0]
+	string cmd = "mod_heirloom_look " + def.primary + " " + style
+	if ( style == def.styleColorKey )
+	{
+		array<int> parsed = ModHeirloom_ParseRgb( rgb )
+		if ( parsed.len() == 3 )
+			cmd += format( " %d %d %d", parsed[0], parsed[1], parsed[2] )
+	}
+	return cmd
+}
+
+// "r g b" with 1-3 digit channels <= 255 -> [r, g, b]; empty when malformed.
+array<int> function ModHeirloom_ParseRgb( string value )
+{
+	array<int> rgb
+	array<string> parts = split( value, " \t" )
+	if ( parts.len() != 3 )
+		return rgb
+	foreach ( string part in parts )
+	{
+		if ( part.len() == 0 || part.len() > 3 )
+			return []
+		for ( int i = 0; i < part.len(); i++ )
+		{
+			if ( "0123456789".find( part.slice( i, i + 1 ) ) < 0 )
+				return []
+		}
+		int v = part.tointeger()
+		if ( v > 255 )
+			return []
+		rgb.append( v )
+	}
+	return rgb
+}
+
+int function ModHeirloom_GetCount()
+{
+	return file.defs.len()
+}
+
+string function ModHeirloom_GetName( int index )
+{
+	return ( index >= 0 && index < file.defs.len() ) ? file.defs[ index ].name : ""
+}
+
+string function ModHeirloom_GetPrimary( int index )
+{
+	return ( index >= 0 && index < file.defs.len() ) ? file.defs[ index ].primary : ""
+}
+
+int function ModHeirloom_FindPrimary( string primary )
+{
+	for ( int i = 0; i < file.defs.len(); i++ )
+	{
+		if ( file.defs[ i ].primary == primary )
+			return i
+	}
+	return -1
+}
+
+int function ModHeirloom_FindByClass( string cls )
+{
+	for ( int i = 0; i < file.defs.len(); i++ )
+	{
+		if ( file.defs[ i ].primary == cls || file.defs[ i ].melee == cls )
+			return i
+	}
+	return -1
+}
+
+#if SERVER
+void function ModHeirloom_ServerHook()
+{
+	if ( file.serverHooked )
+		return
+	file.serverHooked = true
+
+	AddClientCommandCallback( "mod_heirloom", ClientCommand_ModHeirloom )
+	AddClientCommandCallback( "mod_heirloom_look", ClientCommand_ModHeirloomLook )
+	AddClientCommandCallback( "mod_heirloom_status", ClientCommand_ModHeirloomStatus )
+	AddCallback_OnClientConnected( ModHeirloom_OnClientConnected )
+	AddCallback_OnClientDisconnected( ModHeirloom_OnClientDisconnected )
+}
+
+// ---- parity ----
+
+// A weapon file value as text, or "<none>" when the key is absent.
+string function ModHeirloom_KeyValue( string cls, string key )
+{
+	try
+	{
+		var v = GetWeaponInfoFileKeyField_Global( cls, key )
+		return v == null ? "<none>" : string( v )
+	}
+	catch ( e )
+	{
+		return "<none>"
+	}
+	unreachable
+}
+
+// "" when every gameplay key matches, else the first difference.
+string function ModHeirloom_ParityMismatch( string modClass, string hostClass )
+{
+	foreach ( string key in MOD_HEIRLOOM_PARITY_KEYS )
+	{
+		string mine = ModHeirloom_KeyValue( modClass, key )
+		string host = ModHeirloom_KeyValue( hostClass, key )
+		if ( mine != host )
+			return format( "%s %s = %s (stock %s = %s)", modClass, key, mine, hostClass, host )
+	}
+	return ""
+}
+
+bool function ModHeirloom_IsUsable( int index )
+{
+	if ( index < 0 || index >= file.defs.len() )
+		return false
+	return file.defs[ index ].refusal == "" || GetCurrentPlaylistVarBool( "mod_heirlooms_allow_nonparity", false )
+}
+
+bool function ModHeirloom_Enabled()
+{
+	return GetCurrentPlaylistVarBool( "mod_heirlooms_enabled", true )
+}
+
+// ---- pick ----
+
+// The class the melee slot should hold for this player, or "" for the mode's own.
+string function ModHeirloom_GetChoice( entity player, bool offhand )
+{
+	if ( !IsValid( player ) || player.IsBot() || !( player in file.choice ) || !ModHeirloom_Enabled() )
+		return ""
+
+	int index = file.choice[ player ]
+	if ( !ModHeirloom_IsUsable( index ) )
+		return ""
+	return offhand ? file.defs[ index ].melee : file.defs[ index ].primary
+}
+
+int function ModHeirloom_ChoiceIndex( entity player )
+{
+	return ( player in file.choice ) ? file.choice[ player ] : -1
+}
+
+// Competitive modes never re-give a weapon mid-round: a pick waits for the next give.
+bool function ModHeirloom_SwapIsLive( entity player )
+{
+	string policy = GetCurrentPlaylistVarString( "mod_heirlooms_swap", "" )
+	if ( policy == "live" )
+		return true
+	if ( policy == "respawn" )
+		return false
+
+	bool competitive = Flowstate_IsGame1v1Type() || FS_IsScenarios() || GameRules_GetGameMode() == "fs_arenas"
+	if ( !competitive )
+		return true
+	if ( Flowstate_IsGame1v1Type() )
+	{
+		try
+		{
+			return FS_1v1_IsLobbyState( Gamemode1v1_GetPlayerGamestate( player ) )
+		}
+		catch ( e )
+		{
+			return false
+		}
+	}
+	return false
+}
+
+void function ClientCommand_ModHeirloom( entity player, array<string> args )
+{
+	if ( !IsValid( player ) || args.len() != 1 )
+		return
+
+	if ( args[0] == "sync" )
+	{
+		if ( ModHeirloom_RateOk( player, file.lastSync, 0.25 ) )
+			ModHeirloom_Sync( player )
+		return
+	}
+
+	if ( !ModHeirloom_RateOk( player, file.lastCommand, 1.0 ) )
+		return
+
+	if ( !ModHeirloom_Enabled() )
+		return
+
+	int index = -1
+	if ( args[0] != "none" )
+	{
+		index = ModHeirloom_FindPrimary( args[0] )
+		if ( index < 0 )
+			return
+		if ( !ModHeirloom_IsUsable( index ) )
+		{
+			Remote_CallFunction_NonReplay( player, "ModHeirloom_CL_Notice", index, eModHeirloomNotice.REFUSED )
+			ModHeirloom_Sync( player )
+			return
+		}
+	}
+
+	// Only swap a melee this system or the survival loadout gave; modes that hand out their own
+	// melee some other way keep it.
+	entity held = player.GetNormalWeapon( WEAPON_INVENTORY_SLOT_PRIMARY_2 )
+	string heldClass = IsValid( held ) ? held.GetWeaponClassName() : ""
+	bool viaGiveMelee = player in file.fallbackPair
+	bool onSwappableMelee = ModHeirloom_IsModWeapon( heldClass )
+		|| ( viaGiveMelee ? heldClass == file.fallbackPair[ player ][0] : heldClass == Survival_GetMeleeWeaponName( player ) )
+
+	if ( index < 0 )
+	{
+		if ( player in file.choice )
+			delete file.choice[ player ]
+	}
+	else
+	{
+		file.choice[ player ] <- index
+	}
+	ModHeirloom_SavePrefs( player )
+
+	if ( IsAlive( player ) && onSwappableMelee && !Bleedout_IsBleedingOut( player ) )
+	{
+		if ( !ModHeirloom_SwapIsLive( player ) || player.PlayerMelee_IsAttackActive() )
+		{
+			if ( index >= 0 )
+				Remote_CallFunction_NonReplay( player, "ModHeirloom_CL_Notice", index, eModHeirloomNotice.PENDING )
+		}
+		else if ( viaGiveMelee )
+		{
+			array<string> pair = file.fallbackPair[ player ]
+			ModHeirloom_GiveMelee( player, pair[0], pair[1], false )
+		}
+		else
+		{
+			SURVIVAL_TryGivePlayerDefaultMeleeWeapons( player )
+		}
+	}
+	ModHeirloom_Sync( player )
+}
+
+bool function ModHeirloom_RateOk( entity player, table<entity, float> last, float interval )
+{
+	float now = Time()
+	if ( player in last && now - last[ player ] < interval )
+		return false
+	last[ player ] <- now
+	return true
+}
+
+void function ModHeirloom_Sync( entity player )
+{
+	Remote_CallFunction_NonReplay( player, "ModHeirloom_CL_Sync", ModHeirloom_ChoiceIndex( player ) )
+}
+
+// ---- give ----
+
+// Gives the player's mod heirloom, or the mode's own pair, into the melee slots; the single path
+// every mode uses. Looks are applied before the weapons are first seen.
+void function ModHeirloom_GiveMelee( entity player, string fallbackPrimary, string fallbackMelee, bool deploy )
+{
+	if ( !IsValid( player ) )
+		return
+	file.fallbackPair[ player ] <- [ fallbackPrimary, fallbackMelee ]
+
+	string wantMain = ModHeirloom_GetChoice( player, false )
+	string wantOffhand = ModHeirloom_GetChoice( player, true )
+	if ( wantMain == "" || wantOffhand == "" )
+	{
+		wantMain = fallbackPrimary
+		wantOffhand = fallbackMelee
+	}
+
+	entity offhand = player.GetOffhandWeapon( OFFHAND_MELEE )
+	if ( !IsValid( offhand ) || offhand.GetWeaponClassName() != wantOffhand )
+	{
+		if ( IsValid( offhand ) )
+			player.TakeOffhandWeapon( OFFHAND_MELEE )
+		player.GiveOffhandWeapon( wantOffhand, OFFHAND_MELEE, [] )
+	}
+
+	entity main = player.GetNormalWeapon( WEAPON_INVENTORY_SLOT_PRIMARY_2 )
+	if ( !IsValid( main ) )
+	{
+		player.GiveWeapon( wantMain, WEAPON_INVENTORY_SLOT_PRIMARY_2, [] )
+	}
+	else if ( main.GetWeaponClassName() != wantMain )
+	{
+		if ( main == player.GetActiveWeapon( eActiveInventorySlot.mainHand ) && !player.IsPlayback() )
+		{
+			player.ReplaceActiveWeapon( eActiveInventorySlot.mainHand, wantMain )
+		}
+		else
+		{
+			player.TakeWeaponByEntNow( main )
+			player.GiveWeapon( wantMain, WEAPON_INVENTORY_SLOT_PRIMARY_2, [] )
+		}
+	}
+
+	ModHeirloom_ApplyLookToPlayer( player )
+
+	if ( deploy )
+	{
+		player.SetActiveWeaponBySlot( eActiveInventorySlot.mainHand, WEAPON_INVENTORY_SLOT_PRIMARY_2 )
+		player.DeployWeapon()
+	}
+}
+
+// ---- look ----
+
+void function ModHeirloom_ApplyLookToPlayer( entity player )
+{
+	ModHeirloom_ApplyLook( player.GetNormalWeapon( WEAPON_INVENTORY_SLOT_PRIMARY_2 ) )
+	ModHeirloom_ApplyLook( player.GetOffhandWeapon( OFFHAND_MELEE ) )
+}
+
+// Skin family and render colour are networked on the weapon, so every viewer (and replays)
+// renders the server's value. Heirlooms without styles are left to their mod.
+void function ModHeirloom_ApplyLook( entity weapon )
+{
+	if ( !IsValid( weapon ) )
+		return
+	int index = ModHeirloom_FindByClass( weapon.GetWeaponClassName() )
+	if ( index < 0 || file.defs[ index ].styleKeys.len() == 0 )
+		return
+	ModHeirloomDef def = file.defs[ index ]
+
+	entity owner = weapon.GetWeaponOwner()
+	ModHeirloomLook look
+	look.style = def.styleKeys[0]
+	look.rgb = MOD_HEIRLOOM_NO_TINT
+	if ( IsValid( owner ) && owner in file.looks && def.primary in file.looks[ owner ] )
+		look = file.looks[ owner ][ def.primary ]
+
+	int skin = maxint( def.styleKeys.find( look.style ), 0 )
+	if ( skin >= weapon.GetSkinCount() )
+	{
+		Warning( format( "[ModHeirloom] %s style %d needs %d skins, model has %d", def.primary, skin, skin + 1, weapon.GetSkinCount() ) )
+		skin = 0
+	}
+	weapon.SetSkin( skin )
+
+	if ( def.styleColorKey != "" )
+		weapon.kv.rendercolor = look.style == def.styleColorKey ? look.rgb : MOD_HEIRLOOM_NO_TINT
+}
+
+// The look carried by a command or the prefs file, validated; null when anything is off.
+ModHeirloomLook ornull function ModHeirloom_ValidateLook( int index, string style, string rgb )
+{
+	if ( index < 0 || index >= file.defs.len() )
+		return null
+	ModHeirloomDef def = file.defs[ index ]
+	if ( !def.styleKeys.contains( style ) )
+		return null
+
+	ModHeirloomLook look
+	look.style = style
+	look.rgb = MOD_HEIRLOOM_NO_TINT
+	if ( style == def.styleColorKey )
+	{
+		array<int> c = ModHeirloom_ParseRgb( rgb )
+		if ( c.len() != 3 )
+			return null
+		int peak = maxint( c[0], maxint( c[1], c[2] ) )
+		if ( peak == 0 )
+			c = [ MOD_HEIRLOOM_MIN_BRIGHTNESS, MOD_HEIRLOOM_MIN_BRIGHTNESS, MOD_HEIRLOOM_MIN_BRIGHTNESS ]
+		else if ( peak < MOD_HEIRLOOM_MIN_BRIGHTNESS )
+			c = [ c[0] * MOD_HEIRLOOM_MIN_BRIGHTNESS / peak, c[1] * MOD_HEIRLOOM_MIN_BRIGHTNESS / peak, c[2] * MOD_HEIRLOOM_MIN_BRIGHTNESS / peak ]
+		look.rgb = format( "%d %d %d", c[0], c[1], c[2] )
+	}
+	return look
+}
+
+bool function ModHeirloom_TakeLookToken( entity player )
+{
+	float now = Time()
+	float tokens = ( player in file.lookTokens ) ? file.lookTokens[ player ] : MOD_HEIRLOOM_LOOK_BURST
+	float last = ( player in file.lookTokenTime ) ? file.lookTokenTime[ player ] : now
+	tokens = min( MOD_HEIRLOOM_LOOK_BURST, tokens + ( now - last ) * MOD_HEIRLOOM_LOOK_REFILL_PER_SEC )
+	file.lookTokenTime[ player ] <- now
+	if ( tokens < 1.0 )
+	{
+		file.lookTokens[ player ] <- tokens
+		return false
+	}
+	file.lookTokens[ player ] <- tokens - 1.0
+	return true
+}
+
+// mod_heirloom_look <primary> <style> [r g b]
+void function ClientCommand_ModHeirloomLook( entity player, array<string> args )
+{
+	if ( !IsValid( player ) || ( args.len() != 2 && args.len() != 5 ) )
+		return
+	if ( !ModHeirloom_TakeLookToken( player ) )
+		return
+
+	int index = ModHeirloom_FindPrimary( args[0] )
+	string rgb = args.len() == 5 ? args[2] + " " + args[3] + " " + args[4] : ""
+	ModHeirloomLook ornull look = ModHeirloom_ValidateLook( index, args[1], rgb )
+	if ( look == null )
+		return
+
+	if ( !( player in file.looks ) )
+		file.looks[ player ] <- {}
+	file.looks[ player ][ file.defs[ index ].primary ] <- expect ModHeirloomLook( look )
+	ModHeirloom_SavePrefs( player )
+	ModHeirloom_ApplyLookToPlayer( player )
+}
+
+// Server-side state for every player, for testing; prints to the server console.
+void function ClientCommand_ModHeirloomStatus( entity player, array<string> args )
+{
+	if ( !IsValid( player ) || !GetConVarBool( "sv_cheats" ) || !ModHeirloom_RateOk( player, file.lastStatus, 2.0 ) )
+		return
+	foreach ( int i, ModHeirloomDef def in file.defs )
+		printt( format( "[ModHeirloom] def %d %s host=%s refusal='%s' styles=%d color=%s", i, def.primary, def.hostKey, def.refusal, def.styleKeys.len(), def.styleColorKey ) )
+	foreach ( entity p in GetPlayerArray() )
+	{
+		string line = format( "[ModHeirloom] %s pick=%d", p.GetPlayerName(), ModHeirloom_ChoiceIndex( p ) )
+		if ( p in file.looks )
+		{
+			foreach ( string primary, ModHeirloomLook look in file.looks[ p ] )
+				line += format( " %s=%s/%s", primary, look.style, look.rgb )
+		}
+		printt( line )
+	}
+}
+
+// ---- persistence (Cafe_PlayerPrefs, per server disk) ----
+
+void function ModHeirloom_SavePrefs( entity player )
+{
+	if ( !IsValid( player ) )
+		return
+	float now = Time()
+	float last = ( player in file.lastPrefsWrite ) ? file.lastPrefsWrite[ player ] : -999.0
+	if ( now - last < 3.0 )
+	{
+		if ( !( player in file.prefsWritePending ) )
+		{
+			file.prefsWritePending[ player ] <- true
+			thread ModHeirloom_SavePrefsLater( player, 3.0 - ( now - last ) )
+		}
+		return
+	}
+	file.lastPrefsWrite[ player ] <- now
+	ModHeirloom_WritePrefs( player )
+}
+
+void function ModHeirloom_SavePrefsLater( entity player, float delay )
+{
+	player.EndSignal( "OnDestroy" )
+	OnThreadEnd(
+		function() : ( player )
+		{
+			if ( player in file.prefsWritePending )
+				delete file.prefsWritePending[ player ]
+		}
+	)
+	wait delay
+	file.lastPrefsWrite[ player ] <- Time()
+	ModHeirloom_WritePrefs( player )
+}
+
+void function ModHeirloom_WritePrefs( entity player )
+{
+	int index = ModHeirloom_ChoiceIndex( player )
+	string payload = "v=2\nstring.PRIMARY=" + ( index >= 0 ? file.defs[ index ].primary : "" ) + "\n"
+	if ( player in file.looks )
+	{
+		foreach ( string primary, ModHeirloomLook look in file.looks[ player ] )
+		{
+			payload += "string.STYLE." + primary + "=" + look.style + "\n"
+			if ( look.rgb != MOD_HEIRLOOM_NO_TINT )
+				payload += "string.RGB." + primary + "=" + look.rgb + "\n"
+		}
+	}
+	try
+	{
+		player.Cafe_PlayerPrefs_Write( MOD_HEIRLOOM_PREFS_KEY, payload )
+	}
+	catch ( e )
+	{
+		printt( "[ModHeirloom] pref write failed: " + string( e ) )
+	}
+}
+
+void function ModHeirloom_OnClientConnected( entity player )
+{
+	string payload = ""
+	try
+	{
+		payload = player.Cafe_PlayerPrefs_Read( MOD_HEIRLOOM_PREFS_KEY )
+	}
+	catch ( e )
+	{
+		payload = ""
+	}
+
+	table<string, string> styles
+	table<string, string> rgbs
+	foreach ( string line in split( payload, "\n" ) )
+	{
+		int eq = line.find( "=" )
+		if ( eq <= 0 )
+			continue
+		string key = line.slice( 0, eq )
+		string value = strip( line.slice( eq + 1 ) )
+		if ( key == "string.PRIMARY" )
+		{
+			int index = ModHeirloom_FindPrimary( value )
+			if ( index >= 0 )
+				file.choice[ player ] <- index
+		}
+		else if ( key.find( "string.STYLE." ) == 0 )
+			styles[ key.slice( 13 ) ] <- value
+		else if ( key.find( "string.RGB." ) == 0 )
+			rgbs[ key.slice( 11 ) ] <- value
+	}
+
+	foreach ( string primary, string style in styles )
+	{
+		ModHeirloomLook ornull look = ModHeirloom_ValidateLook( ModHeirloom_FindPrimary( primary ), style, ( primary in rgbs ) ? rgbs[ primary ] : "" )
+		if ( look == null )
+			continue
+		if ( !( player in file.looks ) )
+			file.looks[ player ] <- {}
+		file.looks[ player ][ primary ] <- expect ModHeirloomLook( look )
+	}
+
+	// the client answers the sync with its own (portable) look settings
+	ModHeirloom_Sync( player )
+	foreach ( int i, ModHeirloomDef def in file.defs )
+	{
+		if ( !ModHeirloom_IsUsable( i ) )
+			Remote_CallFunction_NonReplay( player, "ModHeirloom_CL_Notice", i, eModHeirloomNotice.REFUSED )
+	}
+}
+
+// The survival loadout path gave this player's melee; a live swap goes back through it.
+void function ModHeirloom_OnSurvivalMeleeGiven( entity player )
+{
+	if ( player in file.fallbackPair )
+		delete file.fallbackPair[ player ]
+	ModHeirloom_ApplyLookToPlayer( player )
+}
+
+void function ModHeirloom_OnClientDisconnected( entity player )
+{
+	if ( player in file.prefsWritePending )
+		ModHeirloom_WritePrefs( player )
+	if ( player in file.choice )
+		delete file.choice[ player ]
+	if ( player in file.lastCommand )
+		delete file.lastCommand[ player ]
+	if ( player in file.looks )
+		delete file.looks[ player ]
+	if ( player in file.lookTokens )
+		delete file.lookTokens[ player ]
+	if ( player in file.lookTokenTime )
+		delete file.lookTokenTime[ player ]
+	if ( player in file.fallbackPair )
+		delete file.fallbackPair[ player ]
+	if ( player in file.lastSync )
+		delete file.lastSync[ player ]
+	if ( player in file.lastStatus )
+		delete file.lastStatus[ player ]
+	if ( player in file.lastPrefsWrite )
+		delete file.lastPrefsWrite[ player ]
+}
+#endif // SERVER
+
+#if CLIENT
+// Indexes match when client and server load the same mods, which the mod policy enforces.
+void function ModHeirloom_CL_Sync( int index )
+{
+	try
+	{
+		RunUIScript( "LabMods_SetHeirloom", index )
+	}
+	catch ( e )
+	{
+		printt( "[ModHeirloom] UI sync failed: " + string( e ) )
+	}
+
+	// The player's look settings live in the mod ConVars on this machine; send the worn one.
+	if ( index < 0 || index >= file.defs.len() )
+		return
+	ModHeirloomDef def = file.defs[ index ]
+	if ( def.colorConVar == "" || def.styleKeys.len() == 0 )
+		return
+	string rgb = def.styleColorConVar != "" ? GetConVarString( def.styleColorConVar ) : ""
+	string cmd = ModHeirloom_BuildLookCommand( index, strip( GetConVarString( def.colorConVar ) ).tolower(), strip( rgb ) )
+	entity player = GetLocalClientPlayer()
+	if ( cmd != "" && IsValid( player ) )
+		player.ClientCommand( cmd )
+}
+
+void function ModHeirloom_CL_Notice( int index, int kind )
+{
+	try
+	{
+		RunUIScript( "LabMods_OnHeirloomNotice", index, kind )
+	}
+	catch ( e )
+	{
+		printt( "[ModHeirloom] UI notice failed: " + string( e ) )
+	}
+}
+#endif // CLIENT

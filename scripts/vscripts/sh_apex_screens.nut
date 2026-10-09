@@ -354,7 +354,7 @@ void function ShApexScreens_Init()
 		}
 	#endif
 
-	Remote_RegisterClientFunction( "ServerToClient_ApexScreenKillDataChanged", "int", 0, 512, "float", 0.0, 10000.0, 32, "int", 0, 32, "entity" )
+	Remote_RegisterClientFunction( "ServerToClient_ApexScreenKillDataChanged", "int", 0, DamageSource_GetIdLimit(), "float", 0.0, 10000.0, 32, "int", 0, 32, "entity" )
 	Remote_RegisterClientFunction( "ServerToClient_ApexScreenRefreshAll" )
 
 	for ( int screenPosition = eApexScreenPosition.L; screenPosition <= eApexScreenPosition.R; screenPosition++ )

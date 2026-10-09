@@ -892,7 +892,7 @@ string function FS1v1_RemoteStats_SanitizeWeapon( string raw )
 		return ""
 	if ( out == "unknown" || out == "Unknown" || out == "NA" || out == "na" )
 		return ""
-	if ( out.find( "melee" ) >= 0 )
+	if ( out.find( "melee" ) >= 0 || ModHeirloom_IsModWeapon( out ) )
 		return ""
 	if ( out.find( "mp_ability_" ) == 0 )
 		return ""

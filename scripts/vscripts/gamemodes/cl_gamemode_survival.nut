@@ -47,6 +47,7 @@ global function SURVIVAL_PopulatePlayerInfoRui
 global function PilotHUD_PlayerInfo_StatusEffectChanged
 global function PlayerInfo_UpdatePossibleHealTo
 global function SURVIVAL_SetGameStateAssetOverrideCallback
+global function SURVIVAL_SetGameStateRuiValueCallback
 
 global function MarkDpadAsBlocked
 
@@ -353,6 +354,7 @@ struct
 
 	bool functionref() shouldRunCharacterSelectionCallback
 	void functionref() gameStateOverrideCallback
+	int functionref( int ) gameStateRuiValueCallback
 	VictorySoundPackage functionref() victorySoundPackageCallback
 
 	table<entity, asset>  customPlayerInfoTreatment
@@ -564,6 +566,12 @@ void function ClGamemodeSurvival_Init()
 void function SURVIVAL_SetGameStateAssetOverrideCallback( void functionref() func )
 {
 	file.gameStateOverrideCallback = func
+}
+
+// For an overridden gamestate RUI built against a different eGameState numbering.
+void function SURVIVAL_SetGameStateRuiValueCallback( int functionref( int ) func )
+{
+	file.gameStateRuiValueCallback = func
 }
 
 bool function SprintFXAreEnabled()
@@ -2817,7 +2825,7 @@ void function OnGameStateChanged( int newVal )
 	RuiSetBool( gamestateRui, "gamestateIsEpilogue", gamestateIsEpilogue )
 	RuiSetBool( gamestateRui, "gamestateIsPlaying", gamestateIsPlaying )
 	RuiSetBool( gamestateRui, "gamestateWaitingForPlayers", gamestateWaitingForPlayers )
-	RuiSetInt( gamestateRui, "gamestate", gamestate )
+	RuiSetInt( gamestateRui, "gamestate", file.gameStateRuiValueCallback != null ? file.gameStateRuiValueCallback( gamestate ) : gamestate )
 	RuiSetBool( gamestateRui, "isFiringRange", GameModeVariant_IsActive( eGameModeVariants.SURVIVAL_FIRING_RANGE ) || GameModeVariant_IsActive( eGameModeVariants.SURVIVAL_TRAINING ) || IsEventFinale() )
 
 	if ( file.pilotRui != null )

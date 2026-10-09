@@ -8,6 +8,12 @@ global function GetRefFromDamageSourceID
 global function PIN_GetDamageCause
 global function RegisterAdditionalMainWeapon
 global function GetIsAdditionalMainWeapon
+global function RegisterModWeaponDamageSource
+global function DamageSource_GetIdForWeaponClass
+global function DamageSource_GetModChecksum
+global function DamageSource_GetIdLimit
+
+global const int MOD_DAMAGE_SOURCE_MAX = 256
 
 struct
 {
@@ -15,6 +21,11 @@ struct
 	table<int, asset>  damageSourceIDToImage
 	table<int, string> damageSourceIDToString
 	array<int>         additionalMainWeapons
+
+	table<string, bool> modDamageSourcePending
+	table<string, int>  modDamageSourceIds
+	bool                modDamageSourcesDirty = false
+	int                 modDamageSourceChecksum = 0
 } file
 
 
@@ -1076,6 +1087,8 @@ void function RegisterWeaponDamageSource( string weaponRef )
 	//Looks like if we want the weapon names to be different, it also needs its own damage source -pmcd
 	if ( !(weaponRef in eDamageSourceId) )
 		weaponRef = Weapon_GetBaseClassName( weaponRef )
+	if ( !(weaponRef in eDamageSourceId) )
+		return
 
 	int sourceID = eDamageSourceId[weaponRef]
 	file.damageSourceIDToName[ sourceID ] <- GetWeaponInfoFileKeyField_GlobalString( weaponRef, "shortprintname" )
@@ -1086,13 +1099,16 @@ void function RegisterWeaponDamageSource( string weaponRef )
 
 bool function DamageSourceIDHasString( int index )
 {
+	DamageSource_FinalizeModWeapons()
 	return (index in file.damageSourceIDToString)
 }
 
 
 string function DamageSourceIDToString( int index )
 {
-	return file.damageSourceIDToString[ index ]
+	DamageSource_FinalizeModWeapons()
+	// a mod id this VM does not know (client and server mod sets differ) reads as no weapon
+	return ( index in file.damageSourceIDToString ) ? file.damageSourceIDToString[ index ] : ""
 }
 
 
@@ -1103,6 +1119,7 @@ string function GetObitFromDamageSourceID( int damageSourceID )
 		return DamageDef_GetObituary( damageSourceID )
 	}
 
+	DamageSource_FinalizeModWeapons()
 	if ( damageSourceID in file.damageSourceIDToName )
 		return file.damageSourceIDToName[ damageSourceID ]
 
@@ -1119,6 +1136,7 @@ string function GetObitFromDamageSourceID( int damageSourceID )
 
 asset function GetObitImageFromDamageSourceID( int damageSourceID )
 {
+	DamageSource_FinalizeModWeapons()
 	if ( damageSourceID in file.damageSourceIDToImage )
 		return file.damageSourceIDToImage[ damageSourceID ]
 
@@ -1128,7 +1146,8 @@ asset function GetObitImageFromDamageSourceID( int damageSourceID )
 
 string function GetRefFromDamageSourceID( int damageSourceID )
 {
-	return file.damageSourceIDToString[damageSourceID]
+	DamageSource_FinalizeModWeapons()
+	return ( damageSourceID in file.damageSourceIDToString ) ? file.damageSourceIDToString[ damageSourceID ] : ""
 }
 
 
@@ -1154,6 +1173,11 @@ string function PIN_GetDamageCause( var damageInfo )
 
 void function RegisterAdditionalMainWeapon( string weaponRef )
 {
+	if ( !(weaponRef in eDamageSourceId) )
+	{
+		RegisterModWeaponDamageSource( weaponRef, true )
+		return
+	}
 	int damageSourceID = eDamageSourceId[weaponRef]
 	if ( !file.additionalMainWeapons.contains( damageSourceID ) )
 		file.additionalMainWeapons.push( damageSourceID )
@@ -1162,5 +1186,101 @@ void function RegisterAdditionalMainWeapon( string weaponRef )
 
 bool function GetIsAdditionalMainWeapon( int damageSourceID )
 {
+	DamageSource_FinalizeModWeapons()
 	return file.additionalMainWeapons.contains( damageSourceID )
+}
+
+// ---- damage sources for mod weapons ----
+// eDamageSourceId is compiled before any mod loads, so a mod weapon gets an id past _count.
+// Mods queue their classes from ModInit; ids are handed out in sorted class order on the next
+// lookup, so client and server agree whatever order their mods loaded in.
+
+void function RegisterModWeaponDamageSource( string weaponClass, bool isMainWeapon = false )
+{
+	int sep = weaponClass.find( "__" )
+	if ( sep <= 0 || weaponClass.len() > 63 || weaponClass in eDamageSourceId )
+	{
+		Warning( format( "[DamageSource] '%s' rejected: mod weapons are named <namespace>__<name>", weaponClass ) )
+		return
+	}
+	if ( weaponClass in file.modDamageSourcePending )
+		return
+	if ( file.modDamageSourcePending.len() >= MOD_DAMAGE_SOURCE_MAX )
+	{
+		Warning( format( "[DamageSource] '%s' ignored: %d mod damage source limit", weaponClass, MOD_DAMAGE_SOURCE_MAX ) )
+		return
+	}
+	file.modDamageSourcePending[ weaponClass ] <- isMainWeapon
+	file.modDamageSourcesDirty = true
+}
+
+void function DamageSource_FinalizeModWeapons()
+{
+	if ( !file.modDamageSourcesDirty )
+		return
+	file.modDamageSourcesDirty = false
+
+	foreach ( string cls, int id in file.modDamageSourceIds )
+	{
+		delete file.damageSourceIDToString[ id ]
+		if ( id in file.damageSourceIDToName )
+			delete file.damageSourceIDToName[ id ]
+		if ( id in file.damageSourceIDToImage )
+			delete file.damageSourceIDToImage[ id ]
+		file.additionalMainWeapons.fastremovebyvalue( id )
+	}
+	file.modDamageSourceIds.clear()
+
+	array<string> classes
+	foreach ( string cls, bool isMain in file.modDamageSourcePending )
+		classes.append( cls )
+	classes.sort()
+
+	int checksum = classes.len()
+	for ( int i = 0; i < classes.len(); i++ )
+	{
+		string cls = classes[ i ]
+		int id = eDamageSourceId._count + i
+		file.modDamageSourceIds[ cls ] <- id
+		file.damageSourceIDToString[ id ] <- cls
+		try
+		{
+			file.damageSourceIDToName[ id ] <- GetWeaponInfoFileKeyField_GlobalString( cls, "shortprintname" )
+			asset icon = GetWeaponInfoFileKeyFieldAsset_Global( cls, "hud_icon" )
+			if ( icon != $"" )
+				file.damageSourceIDToImage[ id ] <- icon
+		}
+		catch ( e )
+		{
+			Warning( format( "[DamageSource] '%s' has no weapon settings in this VM (not precached?)", cls ) )
+		}
+		if ( file.modDamageSourcePending[ cls ] && !file.additionalMainWeapons.contains( id ) )
+			file.additionalMainWeapons.push( id )
+		for ( int c = 0; c < cls.len(); c++ )
+			checksum = ( checksum * 31 + expect int( cls[ c ] ) ) % 1000003
+	}
+	file.modDamageSourceChecksum = checksum
+	if ( classes.len() > 0 )
+		printt( format( "[DamageSource] %d mod weapon damage sources from id %d (checksum %d)", classes.len(), eDamageSourceId._count, checksum ) )
+}
+
+// eDamageSourceId value for a stock class, the assigned id for a registered mod class, else -1.
+int function DamageSource_GetIdForWeaponClass( string weaponClass )
+{
+	if ( weaponClass in eDamageSourceId )
+		return eDamageSourceId[ weaponClass ]
+	DamageSource_FinalizeModWeapons()
+	return ( weaponClass in file.modDamageSourceIds ) ? file.modDamageSourceIds[ weaponClass ] : eDamageSourceId.invalid
+}
+
+int function DamageSource_GetModChecksum()
+{
+	DamageSource_FinalizeModWeapons()
+	return file.modDamageSourceChecksum
+}
+
+// Upper bound (exclusive) of every damage source id, stock and mod; remote functions use it as their range.
+int function DamageSource_GetIdLimit()
+{
+	return eDamageSourceId.len() + MOD_DAMAGE_SOURCE_MAX
 }

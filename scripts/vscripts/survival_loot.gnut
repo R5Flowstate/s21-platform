@@ -5149,6 +5149,7 @@ void function SURVIVAL_TryGivePlayerDefaultMeleeWeapons( entity player )
 	}
 
 	MeleeWeaponCosmetics_Apply( player )
+	ModHeirloom_OnSurvivalMeleeGiven( player )
 }
 
 ///////////////////////////////////////////////////////////////
@@ -9323,7 +9324,7 @@ void function ClientCallback_Sur_SwapPrimaryPositions( entity player )
 		if ( TitanSword_Super_IsActive( player ) ) //Do not swap
 			return
        
-	//player.SwapPrimaryWeaponsInSlots( WEAPON_INVENTORY_SLOT_PRIMARY_0, WEAPON_INVENTORY_SLOT_PRIMARY_1 ) // S3: entity method not available
+	player.SwapPrimaryWeaponsInSlots( WEAPON_INVENTORY_SLOT_PRIMARY_0, WEAPON_INVENTORY_SLOT_PRIMARY_1 )
                
                                                                                                              
       

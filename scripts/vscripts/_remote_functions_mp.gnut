@@ -689,8 +689,8 @@ void function RemoteFunctions_Init_Begin()
                                                                             
        
 
-	Remote_RegisterClientFunction( "ServerCallback_YouDiedNoAttacker", "float", -1.0, 1.0, 10, "int", -1, eDamageSourceId.len(), "float", 0.0, 200.0, 32 )
-	Remote_RegisterClientFunction( "ServerCallback_YouDied", "entity", "float", -1.0, 1.0, 10, "int", -1, eDamageSourceId.len(), "float", 0.0, 200.0, 32 )
+	Remote_RegisterClientFunction( "ServerCallback_YouDiedNoAttacker", "float", -1.0, 1.0, 10, "int", -1, DamageSource_GetIdLimit(), "float", 0.0, 200.0, 32 )
+	Remote_RegisterClientFunction( "ServerCallback_YouDied", "entity", "float", -1.0, 1.0, 10, "int", -1, DamageSource_GetIdLimit(), "float", 0.0, 200.0, 32 )
 	Remote_RegisterClientFunction( "ServerCallback_YouRespawned" )
 
 	Remote_RegisterClientFunction( "ServerCallback_PreKillReplaySounds" )//, "float", 0.0, FLT_MAX )
@@ -698,12 +698,12 @@ void function RemoteFunctions_Init_Begin()
 	if ( !IsLobby() )
 		Remote_RegisterClientFunction( "ServerCallback_ShowDeathHint", "int", 0, MAX_DEATH_HINTS )
 
-	Remote_RegisterClientFunction( "ServerCallback_SetAssistInformation", "int", eDamageSourceId.invalid, eDamageSourceId.len(), "entity", "entity", "float", 0.0, FLT_MAX, 32 )
+	Remote_RegisterClientFunction( "ServerCallback_SetAssistInformation", "int", eDamageSourceId.invalid, DamageSource_GetIdLimit(), "entity", "entity", "float", 0.0, FLT_MAX, 32 )
 	Remote_RegisterClientFunction( "ServerCallback_DataKnifeStartLeech", "float", -1.0, FLT_MAX, 32 )
 	Remote_RegisterClientFunction( "ServerCallback_DataKnifeCancelLeech" )
 	Remote_RegisterClientFunction( "ServerCallback_ControlPanelRefresh", "entity" )
-	Remote_RegisterClientFunction( "ServerCallback_OnPlayerOrNpcKilled", "entity", "entity", "int", INT_MIN, INT_MAX, "int", eDamageSourceId.invalid, eDamageSourceId.len() ) // handles obit and death recap
-	Remote_RegisterClientFunction( "ServerCallback_OnEnemyDowned", "entity", "entity", "int", INT_MIN, INT_MAX, "int", eDamageSourceId.invalid, eDamageSourceId.len(), "int", INT_MIN, INT_MAX ) // handles obit
+	Remote_RegisterClientFunction( "ServerCallback_OnPlayerOrNpcKilled", "entity", "entity", "int", INT_MIN, INT_MAX, "int", eDamageSourceId.invalid, DamageSource_GetIdLimit() ) // handles obit and death recap
+	Remote_RegisterClientFunction( "ServerCallback_OnEnemyDowned", "entity", "entity", "int", INT_MIN, INT_MAX, "int", eDamageSourceId.invalid, DamageSource_GetIdLimit(), "int", INT_MIN, INT_MAX ) // handles obit
 	Remote_RegisterClientFunction( "ServerCallback_ResetReconnectParametersAsync" )
 	Remote_RegisterUIFunction( "SCBUI_PlayerConnectedOrDisconnected", "bool" )
 
@@ -712,8 +712,8 @@ void function RemoteFunctions_Init_Begin()
                                       
 
 	// IMPORTANT BUT MAYBE FINE AS A REMOTE CALL
-	Remote_RegisterClientFunction( "ServerCallback_PlayerTookDamage_NoAttacker", "float", 0.0, 99999.0, 32, "vector", -MAX_MAP_BOUNDS, MAX_MAP_BOUNDS, 32, "int", INT_MIN, INT_MAX, "int", eDamageSourceId.invalid, eDamageSourceId.len() )
-	Remote_RegisterClientFunction( "ServerCallback_PlayerTookDamage", "float", 0.0, 99999.0, 32, "vector", -MAX_MAP_BOUNDS, MAX_MAP_BOUNDS, 32, "int", INT_MIN, INT_MAX, "int", eDamageSourceId.invalid, eDamageSourceId.len(), "entity" )
+	Remote_RegisterClientFunction( "ServerCallback_PlayerTookDamage_NoAttacker", "float", 0.0, 99999.0, 32, "vector", -MAX_MAP_BOUNDS, MAX_MAP_BOUNDS, 32, "int", INT_MIN, INT_MAX, "int", eDamageSourceId.invalid, DamageSource_GetIdLimit() )
+	Remote_RegisterClientFunction( "ServerCallback_PlayerTookDamage", "float", 0.0, 99999.0, 32, "vector", -MAX_MAP_BOUNDS, MAX_MAP_BOUNDS, 32, "int", INT_MIN, INT_MAX, "int", eDamageSourceId.invalid, DamageSource_GetIdLimit(), "entity" )
 	 // should be converted into a code callback... similar to NotifyDidDamage
 
 	Remote_RegisterClientFunction( "ServerCallback_UpdateOverheadIconForNPC", "entity" )

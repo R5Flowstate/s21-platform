@@ -16,9 +16,28 @@
         proportionalToParent    1
     }
 
+    FlowstateHeader
+    {
+        ControlName				ImagePanel
+        InheritProperties		SubheaderBackgroundWide
+        className               "SettingScrollSizer"
+        xpos					0
+        ypos					0
+        use_pin_locale_direction    1
+    }
+    FlowstateHeaderText
+    {
+        ControlName				Label
+        InheritProperties		SubheaderText
+        pin_to_sibling			FlowstateHeader
+        pin_corner_to_sibling	LEFT
+        pin_to_sibling_corner	LEFT
+        use_pin_locale_direction    1
+        labelText				"#SETTING_FLOWSTATE_HEADER"
+    }
+
     SwitchUILanguage
     {
-		ypos					0
         ControlName				RuiButton
         InheritProperties		SwitchButton
         className               "SettingScrollSizer"
@@ -43,7 +62,9 @@
         }
 
         tabPosition             1
-        ypos                    0
+        pin_to_sibling          FlowstateHeader
+        pin_corner_to_sibling   TOP_LEFT
+        pin_to_sibling_corner   BOTTOM_LEFT
         childGroupAlways        MultiChoiceButtonAlways
     }
 
@@ -98,7 +119,7 @@
         className               "SettingScrollSizer"
         style					DialogListButton
         navUp					SwitchChatSetting
-        navDown					SwitchLootPromptStyle
+        navDown					SwitchInputOverlay
         ConVar					"cl_visual_clutter"
         list
         {
@@ -112,13 +133,60 @@
         childGroupAlways        ChoiceButtonAlways
     }
 
+    SwitchInputOverlay
+    {
+        ControlName             RuiButton
+        InheritProperties       SwitchButton
+        className               "SettingScrollSizer"
+        style                   DialogListButton
+        navUp                   SwitchVisualClutter
+        navDown                 SwitchLootPromptStyle
+        ConVar                  "hud_setting_input_overlay"
+        list
+        {
+            "#SETTING_INPUT_OVERLAY_OFF"        0
+            "#SETTING_INPUT_OVERLAY_AUTO"       1
+            "#SETTING_INPUT_OVERLAY_KBM"        2
+            "#SETTING_INPUT_OVERLAY_XBOX"       3
+            "#SETTING_INPUT_OVERLAY_PS"         4
+        }
+
+        pin_to_sibling          SwitchVisualClutter
+        pin_corner_to_sibling   TOP_LEFT
+        pin_to_sibling_corner   BOTTOM_LEFT
+        childGroupAlways        MultiChoiceButtonAlways
+    }
+
+    GameplayHeader
+    {
+        ControlName				ImagePanel
+        InheritProperties		SubheaderBackgroundWide
+        className               "SettingScrollSizer"
+        xpos					0
+        ypos					6
+        pin_to_sibling			SwitchInputOverlay
+        pin_corner_to_sibling	TOP_LEFT
+        pin_to_sibling_corner	BOTTOM_LEFT
+        use_pin_locale_direction    1
+    }
+    GameplayHeaderText
+    {
+        ControlName				Label
+        InheritProperties		SubheaderText
+        pin_to_sibling			GameplayHeader
+        pin_corner_to_sibling	LEFT
+        pin_to_sibling_corner	LEFT
+        use_pin_locale_direction    1
+        labelText				"#SETTING_GAMEPLAY_HEADER"
+    }
+
     SwitchLootPromptStyle
     {
         ControlName				RuiButton
         InheritProperties		SwitchButton
         className               "SettingScrollSizer"
         style					DialogListButton
-        navUp					SwitchVisualClutter
+        navUp					SwitchInputOverlay
         navDown					SwitchShotButtonHints
         ConVar					"hud_setting_showMedals"
         list
@@ -127,7 +195,7 @@
             "#SETTING_DEFAULT"	1
         }
 
-        pin_to_sibling			SwitchVisualClutter
+        pin_to_sibling			GameplayHeader
         pin_corner_to_sibling	TOP_LEFT
         pin_to_sibling_corner	BOTTOM_LEFT
         childGroupAlways        ChoiceButtonAlways

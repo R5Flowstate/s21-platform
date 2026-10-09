@@ -6189,6 +6189,11 @@ bool function AttachmentPointSupported( string attachmentPoint, string weaponNam
 
 string function GetAttachmentPointStyle( string attachmentPoint, string weaponName )
 {
+	// A locked set refuses every attachment, which would leave the bare point name
+	// ("barrel" has no empty-slot image); the style belongs to the base weapon.
+	if ( SURVIVAL_Weapon_IsAttachmentLocked( weaponName ) )
+		weaponName = GetBaseWeaponRef( weaponName )
+
 	switch ( attachmentPoint )
 	{
 		case "sight":
@@ -6948,14 +6953,13 @@ void function GivePlayerSettingsMods( entity player, array<string> additionalMod
 		}
 		if( modsToAdd.len() > 0 )
 		{
-			//if ( additionalMods.len == 1 )
+			if ( additionalMods.len() == 1 )
 			{
-				//player.AddPlayerClassMod( additionalMods[ 0 ] )
+				player.AddPlayerClassMod( additionalMods[ 0 ] )
 			}
-			//else
+			else
 			{
 				#if SERVER
-
 					array<string> mods = player.GetPlayerSettingsMods()
 					mods.extend( modsToAdd ) // duplicates are OK
 					player.SetPlayerSettingsWithMods( player.GetPlayerSettings(), mods )
@@ -6987,11 +6991,11 @@ void function TakePlayerSettingsMods( entity player, array<string> modsToTake, b
 		#if CLIENT
 			Assert( modsToTake.len() == 1 )
 		#endif
-		/*if ( modsToTake.len == 1 && mods.contains( modsToTake[ 0 ] ) )
- {
- player.RemovePlayerClassMod( modsToTake[ 0 ] )
- }
- else*/
+		if ( modsToTake.len() == 1 && mods.contains( modsToTake[ 0 ] ) )
+		{
+			player.RemovePlayerClassMod( modsToTake[ 0 ] )
+		}
+		else
 		{
 			foreach ( string modToTake in modsToTake )
 				mods.fastremovebyvalue( modToTake )

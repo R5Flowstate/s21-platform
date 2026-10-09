@@ -28,6 +28,7 @@ global function Survival_GetBodyshotDamageScale
 global function Survival_GetHeadshotDamageScale
 global function Survival_DamageShouldSlowDownPlayer
 global function Survival_ShouldBypassCharacterDamageScale
+global function Survival_RegisterPlayerDamageCallbacks
 
 global function OnPlayerMatchParticipationEnded
 global function PlayCharacterSelectMusicToAllPlayersIfNeeded
@@ -540,8 +541,7 @@ void function GamemodeSurvival_Init()
 
 	AddCallback_EntitiesDidLoad( EntitiesDidLoad_Survival, eEntitiesDidLoadPriority.MEDIUM )
 
-	AddDamageCallback( "player", OnPlayerTookDamage )
-	AddHeadshotCallback( "player", OnPlayerTookHeadshot )
+	Survival_RegisterPlayerDamageCallbacks()
 
 	AddCallback_OnPlayerReloadPressed( Survival_OnReloadPressed )
 
@@ -640,9 +640,6 @@ void function GamemodeSurvival_Init()
 	}
 
 	//thread TrackSpectatedCount
-
-	file.headshotDamageScale = GetCurrentPlaylistVarFloat( "headshot_damage_scale", 1 )
-	file.bodyshotDamageScale = GetCurrentPlaylistVarFloat( "bodyshot_damage_scale", 1 )
 
 		AddCallback_OnWeaponAttack( Survival_OnWeaponAttack )
 
@@ -3643,6 +3640,10 @@ void function Survival_PlayerDealtDamage( entity player, entity victim, entity w
 
 string function Survival_GetOffhandMeleeWeaponName( entity player )
 {
+	string modHeirloom = ModHeirloom_GetChoice( player, true )
+	if ( modHeirloom != "" )
+		return modHeirloom
+
 	ItemFlavor meleeSkin = MeleeSkin_GetMeleeSkinFromPlayer( player )
 	asset meleeWeaponAsset = GetGlobalSettingsAsset( ItemFlavor_GetAsset( meleeSkin ), "parentItemFlavor" )
 	ItemFlavor meleeWeapon = GetItemFlavorByAsset( meleeWeaponAsset )
@@ -3652,6 +3653,10 @@ string function Survival_GetOffhandMeleeWeaponName( entity player )
 
 string function Survival_GetMeleeWeaponName( entity player )
 {
+	string modHeirloom = ModHeirloom_GetChoice( player, false )
+	if ( modHeirloom != "" )
+		return modHeirloom
+
 	ItemFlavor meleeSkin = MeleeSkin_GetMeleeSkinFromPlayer( player )
 	asset meleeWeaponAsset = GetGlobalSettingsAsset( ItemFlavor_GetAsset( meleeSkin ), "parentItemFlavor" )
 	ItemFlavor meleeWeapon = GetItemFlavorByAsset( meleeWeaponAsset )
@@ -6014,6 +6019,17 @@ bool function Survival_ShouldBypassCharacterDamageScale( entity damagedEnt, var 
 	return false
 }
 
+// Character damage scale (Fortified), hit slow, armor flags and helmet headshot scaling.
+// Modes with their own server init (arenas) call this instead of GamemodeSurvival_Init.
+void function Survival_RegisterPlayerDamageCallbacks()
+{
+	file.headshotDamageScale = GetCurrentPlaylistVarFloat( "headshot_damage_scale", 1 )
+	file.bodyshotDamageScale = GetCurrentPlaylistVarFloat( "bodyshot_damage_scale", 1 )
+
+	AddDamageCallback( "player", OnPlayerTookDamage )
+	AddHeadshotCallback( "player", OnPlayerTookHeadshot )
+}
+
 void function OnPlayerTookDamage( entity damagedEnt, var damageInfo )
 {
 	if ( damagedEnt.IsPlayer() && !damagedEnt.IsTitan() )
@@ -6025,7 +6041,7 @@ void function OnPlayerTookDamage( entity damagedEnt, var damageInfo )
 			if ( Survival_DamageShouldSlowDownPlayer( damagedEnt, damageInfo ) )
 			{
 				//file.playerLastDamageSlowTime[damagedEnt] = Time
-				Survival_GetPlayerLastDamageSlowTime()[ damagedEnt ] = Time()
+				Survival_GetPlayerLastDamageSlowTime()[ damagedEnt ] <- Time()
 				StatusEffect_AddTimed_PredictionFriendly( damagedEnt, eStatusEffect.move_slow, CharacterClass_GetDamageSlowAmount( victimCharacter ), CharacterClass_GetDamageSlowDuration( victimCharacter ), CharacterClass_GetDamageSlowEaseOut( victimCharacter ) )
 			}
 
@@ -7767,7 +7783,7 @@ bool function Survival_DamageShouldSlowDownPlayer( entity player, var damageInfo
 
 	ItemFlavor character = LoadoutSlot_GetItemFlavor( ToEHI( player ), Loadout_Character() )
 
-	if ( Time() - file.playerLastDamageSlowTime[player] < CharacterClass_GetDamageSlowDebounce( character ) )
+	if ( player in file.playerLastDamageSlowTime && Time() - file.playerLastDamageSlowTime[player] < CharacterClass_GetDamageSlowDebounce( character ) )
 		return false
 
 	return (CharacterClass_GetDamageSlowAmount( character ) > 0.0)

@@ -178,16 +178,17 @@ void function Perks_Init()
 	AddCallback_OnItemFlavorRegistered( eItemType.character_class, OnItemFlavorRegistered_Class )
 	AddCallback_OnItemFlavorRegistered( eItemType.character_perk, OnItemFlavorRegistered_Perk )
 
+	// Signalled by shared survey beacon code even when perks are off
+	RegisterSignal( "UpdatePerkMinimapVisibility" )
+	RegisterSignal( "UpdatePerkMinimapReady" )
+	RegisterSignal( "HidePerkMinimapVisibility" )
+
 	printt( "PERKS: Perks_Enabled() = " + Perks_Enabled() )
 	if ( !Perks_Enabled() )
 	{
 		printt( "PERKS: Perks disabled, returning early" )
 		return
 	}
-
-	RegisterSignal( "UpdatePerkMinimapVisibility" )
-	RegisterSignal( "UpdatePerkMinimapReady" )
-	RegisterSignal( "HidePerkMinimapVisibility" )
 
 	#if SERVER || CLIENT
 		AddCallback_PlayerClassActuallyChanged( OnPlayerClassChanged )

@@ -1348,6 +1348,10 @@ int function CodeCallback_GetWeaponDamageSourceId( entity weapon )
 
 	if ( !(classname in eDamageSourceId) )
 	{
+		int modId = DamageSource_GetIdForWeaponClass( classname )
+		if ( modId != eDamageSourceId.invalid )
+			return modId
+
 		if ( weapon.HasBaseClass() )
 		{
 			string baseclass = weapon.GetWeaponClassName()

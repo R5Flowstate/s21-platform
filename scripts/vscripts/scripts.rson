@@ -658,6 +658,9 @@ Scripts:
 	gamemodes/fs_aimtrainer/_aimtrainer_legend_bots.nut
 	gamemodes/fs_aimtrainer/_aimtrainer_targets.nut
 	cafemods/sh_cafemod_defs.gnut
+	sh_mod_heirloom_parity_keys.gnut
+	sh_mod_heirlooms.gnut
+	sh_mod_weapons.gnut
 	cafemods/sv_cafemod_core.nut
 	cafemods/sv_mod_mitosis.nut
 	cafemods/sv_mod_maggie_mitosis.nut
@@ -1577,6 +1580,7 @@ Scripts:
 	ui/_sectioned_list_panel.gnut
 	ui/_menu_utility.nut
 	ui/_menus.nut
+	ui/ui_surf_fps_cap.nut
 	ui/_matchmaking_overlay.nut
 	ui/_respawn_overlay.nut
 	ui/_embedded_text.nut
@@ -1588,6 +1592,8 @@ Scripts:
 	ui/mini_promo.nut
 	ui/menu_action_blocks.nut
 	cafemods/sh_cafemod_defs.gnut
+	sh_mod_heirlooms.gnut
+	sh_mod_weapons.gnut
 	cafemods/sh_cafemod_items.gnut
 	ui/menu_dev.nut
 gamemodes/freeroam_weapons_menu/sh_freeroam_weapons_menu.gnut
@@ -2024,6 +2030,7 @@ Scripts:
 [
 	client/cl_bridge_mantle_boost.gnut
 	client/cl_demo_overlay.gnut
+	client/cl_input_overlay.gnut
 ]
 When: "SERVER"
 Scripts:
@@ -2575,6 +2582,8 @@ Scripts:
 	client/cl_devmenu_cheats.nut
 	client/cl_lab.nut
 	cafemods/sh_cafemod_defs.gnut
+	sh_mod_heirlooms.gnut
+	sh_mod_weapons.gnut
 	cafemods/sh_cafemod_items.gnut
 	cafemods/cl_cafemod_sync.nut
 	cafemods/cl_mod_fake_obits.nut
@@ -2969,6 +2978,7 @@ When: "SERVER || CLIENT"
 Scripts:
 [
 	remap/sh_remap.nut
+	sh_surf_movement.gnut
 ]
 
 When: "CLIENT"

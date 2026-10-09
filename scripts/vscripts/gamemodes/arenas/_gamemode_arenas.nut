@@ -53,6 +53,7 @@ const float ARENAS_POST_ROUND_SUMMARY_DURATION = 5.0
 // Win condition constants
 const int ARENAS_ROUNDS_TO_WIN = 3
 const int ARENAS_MAX_TIES = 2
+const string ARENAS_TAC_REGEN_PAUSED_MOD = "survival_ammo_regen_paused"
 
 // Game phase enum
 global enum eArenaPhase
@@ -524,10 +525,13 @@ void function Arenas_SetupFallbackWaitingView()
 	SetIntroCameraSettings( file.waitingView )
 }
 
-// Drives the "connected / max players" readout on the waiting HUD.
+// The arenas waiting HUD reads its "connected / max players" count from livingPlayerCount.
 void function Arenas_UpdateConnectedCount()
 {
-	SetGlobalNetInt( "connectedPlayerCount", GetPlayerArray_ConnectedNotSpectatorTeam().len() )
+	int connected = GetPlayerArray_ConnectedNotSpectatorTeam().len()
+	SetGlobalNetInt( "connectedPlayerCount", connected )
+	if ( GetGameState() <= eGameState.WaitingForPlayers )
+		SetGlobalNetInt( "livingPlayerCount", connected )
 }
 
 void function Arenas_UpdateConnectedCountNextFrame()
@@ -1027,9 +1031,36 @@ entity function Arenas_EnsureTactical( entity player )
 	ItemFlavor character = LoadoutSlot_GetItemFlavor( ToEHI( player ), Loadout_Character() )
 	player.GiveOffhandWeapon( CharacterAbility_GetWeaponClassname( CharacterClass_GetTacticalAbility( character ) ), OFFHAND_TACTICAL, [] )
 	weapon = player.GetOffhandWeapon( OFFHAND_TACTICAL )
-	if ( IsValid( weapon ) && weapon.GetWeaponPrimaryAmmoCountMax( AMMOSOURCE_STOCKPILE ) > 0 )
+	if ( !IsValid( weapon ) )
+		return null
+
+	if ( weapon.GetWeaponPrimaryAmmoCountMax( AMMOSOURCE_STOCKPILE ) > 0 )
 		weapon.SetWeaponPrimaryAmmoCount( AMMOSOURCE_STOCKPILE, 0 )
+	Arenas_UpdateTacticalRegenPause( player, weapon )
 	return weapon
+}
+
+// The cooldown may only refill from bought charges. The server engine ignores
+// ammo_regen_takes_from_stockpile, so regen is paused outright while the stockpile is empty;
+// the mod is networked, so the client stops predicting the refill too.
+void function Arenas_UpdateTacticalRegenPause( entity player, entity weapon )
+{
+	if ( !DoesModExist( weapon, ARENAS_TAC_REGEN_PAUSED_MOD ) )
+	{
+		Warning( "[Arenas] tactical " + weapon.GetWeaponClassName() + " has no " + ARENAS_TAC_REGEN_PAUSED_MOD + " mod; its cooldown refills without bought charges" )
+		return
+	}
+
+	bool pause = weapon.GetWeaponPrimaryAmmoCount( AMMOSOURCE_STOCKPILE ) <= 0
+	if ( pause == weapon.HasMod( ARENAS_TAC_REGEN_PAUSED_MOD ) )
+		return
+
+	if ( pause )
+		weapon.AddMod( ARENAS_TAC_REGEN_PAUSED_MOD )
+	else
+		weapon.RemoveMod( ARENAS_TAC_REGEN_PAUSED_MOD )
+	weapon.RegenerateAmmoReset()
+	Remote_CallFunction_Replay( player, "ServerCallback_UpdateHudWeaponData", weapon )
 }
 
 bool function Arenas_CanAddTacticalCharge( entity player )
@@ -1051,11 +1082,10 @@ void function Arenas_AddTacticalCharges( entity player, int charges )
 	int stockpileMax = weapon.GetWeaponPrimaryAmmoCountMax( AMMOSOURCE_STOCKPILE )
 	int stock = weapon.GetWeaponPrimaryAmmoCount( AMMOSOURCE_STOCKPILE ) + charges * Arenas_TacticalAmmoPerCharge( weapon )
 	weapon.SetWeaponPrimaryAmmoCount( AMMOSOURCE_STOCKPILE, minint( maxint( stock, 0 ), stockpileMax ) )
+	Arenas_UpdateTacticalRegenPause( player, weapon )
 }
 
-// Tactical cooldown only refills from bought charges (the ammo_regen_takes_from_stockpile
-// behaviour, which the server engine does not implement): every unit the cooldown adds is paid
-// from the stockpile, and with the stockpile empty the clip stays where the player left it.
+// Every unit the cooldown adds is paid from the stockpile; the last unit paid pauses regen.
 void function Arenas_TacticalChargeFeed_Thread()
 {
 	table<entity, int> lastClip
@@ -1086,6 +1116,7 @@ void function Arenas_TacticalChargeFeed_Thread()
 					clip = lastClip[ weapon ] + paid
 					weapon.SetWeaponPrimaryClipCount( clip )
 				}
+				Arenas_UpdateTacticalRegenPause( player, weapon )
 			}
 			lastClip[ weapon ] = clip
 		}
@@ -1113,8 +1144,7 @@ void function Arenas_ResetPlayerForRound( entity player )
 	SetPlayerInventory( player, [] )
 
 	// Give melee back
-	player.GiveOffhandWeapon( "melee_pilot_emptyhanded", OFFHAND_MELEE, [] )
-	player.GiveWeapon( "mp_weapon_melee_survival", WEAPON_INVENTORY_SLOT_PRIMARY_2, [] )
+	ModHeirloom_GiveMelee( player, "mp_weapon_melee_survival", "melee_pilot_emptyhanded", false )
 
 	// Emotes and holosprays ride these offhands.
 	if ( GetCurrentPlaylistVarBool( "holosprays_enabled", true ) )

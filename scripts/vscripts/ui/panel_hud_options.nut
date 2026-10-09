@@ -97,6 +97,7 @@ void function InitHudOptionsPanel( var panel )
 	// [MANTLE-BOOST] activation-input selector (Off / Jump / Crouch / Movement Ability) -> mantle_boost_input_setting
 	SetupSettingsButton( Hud_GetChild( contentPanel, "SwitchMantleBoostControl" ), "#SETTING_MANTLE_BOOST", "#SETTING_MANTLE_BOOST_DESC", $"rui/menu/settings/settings_hud" )
 	SetupSettingsButton( Hud_GetChild( contentPanel, "SwitchMantleBoostUI" ), "#SETTING_MANTLE_UI", "#SETTING_MANTLE_UI_DESC", $"rui/menu/settings/settings_hud" )
+	SetupSettingsButton( Hud_GetChild( contentPanel, "SwitchInputOverlay" ), "#SETTING_INPUT_OVERLAY", "#SETTING_INPUT_OVERLAY_DESC", $"rui/menu/settings/settings_hud" )
 	SetupSettingsButton( Hud_GetChild( contentPanel, "SwitchPilotDamageIndicators" ), "#HUD_PILOT_DAMAGE_INDICATOR_STYLE", "#HUD_PILOT_DAMAGE_INDICATOR_STYLE_DESC", $"rui/menu/settings/settings_hud" )
 	SetupSettingsButton( Hud_GetChild( contentPanel, "SwitchDamageClosesDeathBoxMenu" ), "#SETTING_DAMAGE_CLOSES_DEATHBOX_MENU", "#SETTING_DAMAGE_CLOSES_DEATHBOX_MENU_DESC", $"rui/menu/settings/settings_hud" )
 	SetupSettingsButton( Hud_GetChild( contentPanel, "SwitchOffscreenPortraits" ), "#SETTING_OFFSCREEN_PORTRAITS", "#SETTING_OFFSCREEN_PORTRAITS_DESC", $"rui/menu/settings/settings_hud" )
@@ -202,6 +203,7 @@ void function InitHudOptionsPanel( var panel )
 	file.conVarDataList.append( CreateSettingsConVarData( "hud_setting_chat", eConVarType.INT ) )
 	file.conVarDataList.append( CreateSettingsConVarData( "mantle_boost_input_setting", eConVarType.INT ) )   // [MANTLE-BOOST]
 	file.conVarDataList.append( CreateSettingsConVarData( "mantle_boost_ui_setting", eConVarType.INT ) )   // [MANTLE-BOOST]
+	file.conVarDataList.append( CreateSettingsConVarData( "hud_setting_input_overlay", eConVarType.INT ) )
 	file.conVarDataList.append( CreateSettingsConVarData( "hud_setting_accessibleChat", eConVarType.INT ) )
 	file.conVarDataList.append( CreateSettingsConVarData( "hud_setting_damageIndicatorStyle", eConVarType.INT ) )
 	file.conVarDataList.append( CreateSettingsConVarData( "hud_setting_damageTextStyle", eConVarType.INT ) )

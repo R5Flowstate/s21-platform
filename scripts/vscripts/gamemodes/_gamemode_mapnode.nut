@@ -17,6 +17,7 @@ struct MapNode_MapData
 	array<entity> airdropPoints
 	array<entity> availableAirdropPoints
 	array<Point>  introCameras
+	entity        node
 }
 
 struct
@@ -79,31 +80,76 @@ void function MapNode_OnSpawn( entity mapNode )
 	printf( "[FreeDM] FreeDM_OnMapNodeSpawned: %s", mapID )
 
 	MapNode_MapData mapData
-	vector locationOrigin = mapNode.GetOrigin()
+	mapData.node = mapNode
+	mapData = MapNode_GatherLinks( mapData, true )
 
-	const vector defaultCameraOffset = <250, 0, 2000>
-	Point defaultCamera
-	defaultCamera.origin = locationOrigin + defaultCameraOffset
-	defaultCamera.angles = VectorToAngles( locationOrigin - defaultCamera.origin )
+	file.mapNodeTable[ mapID ] <- mapData
+	file.allMapIDs.append( mapID )
 
-	foreach( childNode in mapNode.GetLinkEntArray() )
+	MapNode_ResetAvailableAirDropLocations()
+}
+
+// Linked entities can spawn after the location node, so links are gathered
+// again once every entity has loaded.
+array<entity> function MapNode_GetLinkedEnts( entity mapNode )
+{
+	array<entity> linked = mapNode.GetLinkEntArray()
+	if ( linked.len() > 0 )
+		return linked
+
+	array<string> guids
+	for ( int i = 0; i < 256; i++ )
 	{
-		string classname = ""
-		if ( childNode.HasKey( "classname" ) )
-			classname = childNode.GetValueForKey( "classname" )
+		string key = "link_to_guid_" + i
+		if ( !mapNode.HasKey( key ) )
+			break
+		guids.append( mapNode.GetValueForKey( key ).tolower() )
+	}
+	if ( guids.len() == 0 )
+		return linked
 
+	array<entity> candidates = GetEntArrayByClass_Expensive( "info_spawnpoint_human" )
+	candidates.extend( GetEntArrayByClass_Expensive( "info_spawnpoint_human_start" ) )
+	candidates.extend( GetEntArrayByClass_Expensive( "script_ref" ) )
+	foreach ( entity ent in candidates )
+	{
+		if ( !ent.HasKey( "link_guid" ) )
+			continue
+		if ( guids.contains( ent.GetValueForKey( "link_guid" ).tolower() ) )
+			linked.append( ent )
+	}
+	return linked
+}
+
+MapNode_MapData function MapNode_GatherLinks( MapNode_MapData mapData, bool atSpawn )
+{
+	entity mapNode = mapData.node
+	if ( !IsValid( mapNode ) )
+		return mapData
+
+	mapData.spawnPoints.clear()
+	mapData.airdropPoints.clear()
+	mapData.introCameras.clear()
+
+	array<entity> linked = atSpawn ? mapNode.GetLinkEntArray() : MapNode_GetLinkedEnts( mapNode )
+	foreach( childNode in linked )
+	{
+		if ( !IsValid( childNode ) )
+			continue
+
+		string classname = childNode.GetClassName()
 		if( classname == "info_spawnpoint_human" || classname == "info_spawnpoint_human_start" )
-		{
 			mapData.spawnPoints.append( childNode )
-		}
 
-		if (GetEditorClass( childNode ) == "info_freedm_airdrop_location" )
+		string editorClass = GetEditorClass( childNode )
+		if ( editorClass == "info_freedm_airdrop_location" )
 		{
 			mapData.airdropPoints.append( childNode )
-			CreateNonExpiringAirdropBadPlace( childNode.GetOrigin(), AIR_DROP_BAD_PLACE_RADIUS )
+			if ( atSpawn )
+				CreateNonExpiringAirdropBadPlace( childNode.GetOrigin(), AIR_DROP_BAD_PLACE_RADIUS )
 		}
 
-		if( GetEditorClass( childNode ) == "info_freedm_intro_camera" )
+		if( editorClass == "info_freedm_intro_camera" )
 		{
 			Point introCamera
 			introCamera.origin = childNode.GetOrigin()
@@ -114,12 +160,17 @@ void function MapNode_OnSpawn( entity mapNode )
 
 	// Only use default camera as a last resort. It's not a great option, so don't always add it
 	if( mapData.introCameras.len() == 0 )
+	{
+		vector locationOrigin = mapNode.GetOrigin()
+		Point defaultCamera
+		defaultCamera.origin = locationOrigin + <250, 0, 2000>
+		defaultCamera.angles = VectorToAngles( locationOrigin - defaultCamera.origin )
 		mapData.introCameras.append( defaultCamera )
+	}
 
-	file.mapNodeTable[ mapID ] <- mapData
-	file.allMapIDs.append( mapID )
-
-	MapNode_ResetAvailableAirDropLocations()
+	mapData.availableAirdropPoints.clear()
+	mapData.availableAirdropPoints.extend( mapData.airdropPoints )
+	return mapData
 }
 
 void function TurnOffArenaWalls( entity wall )
@@ -166,6 +217,19 @@ void function InitMapLocation()
 
 	file.currentMapID = mapID
 	MapNode_MapData mapData = file.mapNodeTable[ mapID ]
+	if ( mapData.spawnPoints.len() == 0 )
+	{
+		mapData = MapNode_GatherLinks( mapData, false )
+		file.mapNodeTable[ mapID ] = mapData
+	}
+	printf( "[FreeDM] Map location %s: %d spawn points, %d intro cameras", mapID, mapData.spawnPoints.len(), mapData.introCameras.len() )
+
+	// Never strip the map down to nothing: keep every spawn when the location links none.
+	if ( mapData.spawnPoints.len() == 0 )
+	{
+		Warning( "[FreeDM] Map location " + mapID + " links no spawn points -- keeping all map spawns" )
+		return
+	}
 
 	// Remove all spawn points across the whole map that are not related to this location
 	RemoveAllOtherSpawnpoints( mapData.spawnPoints )

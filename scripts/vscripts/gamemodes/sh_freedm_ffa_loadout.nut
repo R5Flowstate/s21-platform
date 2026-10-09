@@ -6,6 +6,7 @@ global function FreeDM_FFA_ShouldGiveForcedWeapons
 global function FreeDM_FFA_GiveForcedWeapons
 global function FreeDM_FFA_ApplyArmor
 global function FreeDM_FFA_ApplyAbilities
+global function FreeDM_FFA_GiveConsumables
 #endif
 
 string function FreeDM_FFA_PlaylistToken( string varName, string defaultValue )
@@ -257,7 +258,9 @@ entity function FreeDM_FFA_GiveLockedWeapon( entity player, string weaponclass, 
 		}
 	}
 
-	if ( GetCurrentPlaylistVarBool( "ffa_no_sights", false ) )
+	// Akimbo pairs never wear sights.
+	bool akimboPair = GetCurrentPlaylistVarBool( "ffa_akimbo", false ) && CanWeaponAkimbo( classname )
+	if ( GetCurrentPlaylistVarBool( "ffa_no_sights", false ) || akimboPair )
 	{
 		for ( int i = mods.len() - 1; i >= 0; i-- )
 		{
@@ -468,6 +471,28 @@ void function FreeDM_FFA_ApplyAbilities( entity player )
 	{
 		FreeDM_GivePlayerFullTactical( player )
 		player.SetSuitGrapplePower( 100 )
+	}
+}
+
+// One of each is enough: PAS_INFINITE_HEAL keeps the stack from emptying.
+void function FreeDM_FFA_GiveConsumables( entity player )
+{
+	if ( !IsValid( player ) || !IsAlive( player ) || !GetCurrentPlaylistVarBool( "ffa_heals", true ) )
+		return
+
+	string raw = FreeDM_FFA_PlaylistToken( "ffa_consumables", "health_pickup_combo_small health_pickup_health_small" )
+	if ( FreeDM_FFA_RefIsNone( raw ) )
+		return
+
+	foreach ( string ref in FreeDM_FFA_SplitMods( raw ) )
+	{
+		if ( !SURVIVAL_Loot_IsRefValid( ref ) )
+		{
+			printt( "[FreeDM] FFA consumable ref invalid: " + ref )
+			continue
+		}
+		if ( SURVIVAL_CountItemsInInventory( player, ref ) == 0 )
+			SURVIVAL_AddToPlayerInventory( player, ref, 1 )
 	}
 }
 #endif // SERVER

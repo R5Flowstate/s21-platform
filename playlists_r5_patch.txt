@@ -1912,18 +1912,27 @@ playlists
             {
                 // Host settings: the launcher builds its server form from these.
                 r5f_setting_match_time_limit                ""
+                r5f_setting_scorelimit                      ""
                 r5f_setting_flowstateRoundtime              "float 300 7200|Round length"
                 r5f_setting_respawn_cooldown                "float 0 15|Respawn delay"
-                r5f_setting_ffa_ring                        "bool|Ring"
+                r5f_setting_ffa_force_weapons               "bool|Same weapons for everyone"
+                r5f_setting_ffa_disable_loadouts            "bool|Hide the loadout picker"
+                r5f_setting_ffa_primary                     "weapon|Primary weapon"
+                r5f_setting_ffa_secondary                   "weapon|Secondary weapon"
+                r5f_setting_ffa_locked_set                  "choice none white blue purple gold|Attachments"
                 r5f_setting_ffa_akimbo                      "bool|Akimbo"
+                r5f_setting_ffa_ordnance                    "choice none mp_weapon_frag_grenade mp_weapon_thermite_grenade mp_weapon_grenade_emp|Grenade"
+                r5f_setting_ffa_heals                       "bool|Heal items"
                 r5f_setting_ffa_armor_level                 "int 0 5|Armor level"
+                r5f_setting_ffa_ring                        "bool|Ring"
                 r5f_setting_ffa_give_tactical               "bool|Tactical"
                 r5f_setting_ffa_give_ultimate               "bool|Ultimate"
                 r5f_setting_flowstateRandomCharacterOnSpawn "bool|Random legend on spawn"
+                r5f_setting_flowstateForceCharacter         "bool|Force legend"
                 r5f_setting_flowstateDoorsEnabled           "bool|Doors"
 
                 name            "FFA"
-                description     "Free for all. Timed rounds. First to the score limit or time expires."
+                description     "Free for all. Timed rounds; most kills when time runs out wins."
                 about_text      "Everyone for themselves. Rounds reset like 1v1."
                 visible 0
 
@@ -1942,8 +1951,11 @@ playlists
                 freedm_ffa_active 1
 
                 has_squad_based_ui 0
-                respawn_cooldown 3
-                respawn_cooldown_max 3
+                respawn_cooldown 5
+                respawn_cooldown_max 5
+                // Change Legend on the death screen; respawn waits while the menu is open.
+                character_reselect_enabled 1
+                ffa_reselect_max_hold 15
                 respawn_cooldown_perPlayerDeath 0
                 min_deathcam_spectate_length 0
                 killreplay_enabled 0
@@ -1980,14 +1992,14 @@ playlists
                 match_time_limit -1
                 // Round length in seconds. flowstateEndlessFFAorTDM 1 = no round
                 // reset, no podium, scores persist (the timer only redraws).
-                flowstateRoundtime 3600
+                flowstateRoundtime 1800
                 flowstateEndlessFFAorTDM 0
                 endgame_delay 6
                 match_ending_enabled 0
 
                 // Legend force (1v1 index table: 0 Bang 1 Bloodhound 2 Caustic 3 Gibby
                 // 4 Lifeline 5 Mirage 6 Octane 7 Pathy 8 Wraith 9 Watty 10 Crypto ...).
-                flowstateForceCharacter 1
+                flowstateForceCharacter 0
                 flowstateChosenCharacter 8
                 // Non-empty ref outranks the index (character_overdrive = Axle).
                 flowstateChosenCharacterRef "character_overdrive"
@@ -2024,7 +2036,10 @@ playlists
                 ffa_primary_mods ""
                 ffa_secondary_mods ""
                 ffa_armor_level 2
-                ffa_ordnance ""
+                ffa_ordnance "none"
+                // ffa_heals 1 tops up one of each ffa_consumables item every spawn.
+                ffa_heals 1
+                ffa_consumables "health_pickup_combo_small health_pickup_health_small"
                 ffa_give_tactical 1
                 ffa_give_ultimate 1
                 ffa_tactical_weapon ""
@@ -2042,7 +2057,7 @@ playlists
                 r5f_mode_family                         ffa
                 r5f_mode_family_title                   "FFA"
                 r5f_mode_family_order                   22
-                r5f_mode_family_blurb                   "Everyone for themselves. First to 30 kills."
+                r5f_mode_family_blurb                   "Everyone for themselves. Most kills when the timer runs out wins the round."
                 r5f_mode_map                            mp_rr_arena_habitat
                 r5f_mode_map_title                      "Habitat"
                 r5f_overlay                             1
@@ -5945,6 +5960,8 @@ playlists
                 arenas_available_weapon_columns         3
                 // Integrated hop-ups would arm on the grey tier only; the tier sets carry none.
                 disable_dormant_hopups                  1
+                // Class perks are battle royale features; arenas plays without them.
+                disable_all_perks                       1
 
                 max_team_size                           3
                 max_players                             6

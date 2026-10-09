@@ -1,0 +1,142 @@
+global function SurfMovement_Init
+global function IsSurfMap
+
+// Every surf map moves the same way. A playlist var movement_<key> overrides one key.
+const array<string> SURF_MOVEMENT_KEYS = [
+	"speed", "sprintspeed", "acceleration", "deceleration", "lowSpeed", "lowAcceleration",
+	"sprintAcceleration", "sprintDeceleration",
+	"doubleJump", "wallrun", "climbEnabled", "gravityScale", "jumpHeight", "stepHeight",
+	"airSpeed", "airAcceleration", "airFriction", "airDrag",
+	"superjumpMinHeight", "superjumpMaxHeight", "superjumpHorzSpeed", "superjumpLimit",
+	"wallrunAccelerateHorizontal", "wallrunAccelerateVertical",
+	"wallrunMaxSpeedHorizontal", "wallrunMaxSpeedVertical", "wallrunMaxSpeedHorizontalBackward", "wallrunSameWallAllowed",
+	"wallrunJumpOutwardSpeed", "wallrunJumpUpSpeed", "wallrunJumpInputDirSpeed",
+	"slideAccel", "slideDecel", "slideVelocityDecay", "slideRequiredStartSpeed", "slideSpeedBoost",
+	"slideSpeedBoostCap", "slideJumpHeight", "slideMaxJumpSpeed", "slideStopSpeed", "slideMaxStopSpeed",
+	"slideWantToStopDecel",
+	"sprintStartDelay", "sprintStartDuration", "sprintStartFastDuration", "sprintEndDuration",
+	"mantleAngleScale", "speedScaleSide", "speedScaleBack", "pitchMaxUp", "pitchMaxDown",
+	"landSlowdownDuration",
+	"antiMultiJumpHeightFrac",
+]
+
+bool function IsSurfMap()
+{
+	return GetMapName().find( "__surf_" ) != -1
+}
+
+string function SurfMovement_Default( string key )
+{
+	switch ( key )
+	{
+		case "airAcceleration":
+			return "37500"
+		case "airSpeed":
+			return "30"
+		case "airFriction":
+			return "0"
+		case "airDrag":
+			return "0"
+		case "gravityScale":
+			// CS:GO sv_gravity 800 over Apex's 750.
+			return "1.0667"
+		case "doubleJump":
+			return "0"
+		case "wallrun":
+			return "0"
+		case "climbEnabled":
+			return "0"
+		case "mantleAngleScale":
+			return "0"
+		case "antiMultiJumpHeightFrac":
+			// Apex lowers a jump made right after landing from one; Source does not.
+			return "1.0"
+		case "jumpHeight":
+			// CS:GO jump impulse 301.99 u/s; Apex takes it from sv_gravity 750, not the scaled gravity.
+			return "60.8"
+		case "landSlowdownDuration":
+			// Apex slows a player down after a hard landing; Source never does.
+			return "0"
+	}
+	return ""
+}
+
+void function SurfMovement_Init()
+{
+	#if SERVER
+		SurfMovement_SetJumpRules( IsSurfMap() )
+	#endif
+
+	if ( !IsSurfMap() )
+		return
+
+	#if SERVER
+		AddCallback_OnPlayerRespawned( SurfMovement_Apply )
+	#elseif CLIENT
+		AddCallback_LocalClientPlayerSpawned( SurfMovement_Apply )
+		thread SurfMovement_ApplyWhenReady_THREAD()
+	#endif
+}
+
+#if SERVER
+// Both convars replicate, so the client predicts the same landing. They outlive the
+// map, which is why every map sets them.
+void function SurfMovement_SetJumpRules( bool surf )
+{
+	SetConVarBool( "sv_autobunnyhopping", surf && GetCurrentPlaylistVarBool( "surf_autobhop", true ) )
+
+	// A jump within skip_time of landing normally costs this much horizontal speed (stock 100).
+	SetConVarFloat( "skip_speed_reduce", surf ? 0.0 : 100.0 )
+
+	// Running into a sloped floor fast enough throws the player off it, as in Source.
+	SetConVarBool( "sv_slope_launch", surf && GetCurrentPlaylistVarBool( "surf_slope_launch", true ) )
+}
+#endif // SERVER
+
+// The playlist's values reach every client before its scripts run, so both
+// engines apply the same numbers and prediction agrees with the server.
+void function SurfMovement_Apply( entity player )
+{
+	if ( !IsValid( player ) || !player.IsPlayer() )
+		return
+	#if SERVER
+		if ( player.IsBot() )
+			return
+	#endif
+
+	foreach ( string key in SURF_MOVEMENT_KEYS )
+	{
+		string value = GetCurrentPlaylistVarString( "movement_" + key, SurfMovement_Default( key ) )
+		if ( value == "" )
+			continue
+		#if SERVER
+			bool applied = Player_SetClassVar( player, key, value )
+		#else
+			bool applied = SetLocalClassVar( key, value )
+		#endif
+		if ( !applied )
+			printt( "[SURF] movement key refused: " + key + " = " + value )
+	}
+}
+
+#if CLIENT
+// The first spawn can land before the spawn callback is registered, or while the
+// local settings block is not ready yet.
+void function SurfMovement_ApplyWhenReady_THREAD()
+{
+	float deadline = Time() + 30.0
+	entity player = GetLocalClientPlayer()
+	while ( Time() < deadline && ( !IsValid( player ) || !player.IsPlayer() || !IsAlive( player ) ) )
+	{
+		wait 0.5
+		player = GetLocalClientPlayer()
+	}
+	if ( !IsValid( player ) || !player.IsPlayer() || !IsAlive( player ) )
+		return
+
+	SurfMovement_Apply( player )
+	wait 1.0
+	if ( IsValid( player ) && player.IsPlayer() && IsAlive( player ) )
+		SurfMovement_Apply( player )
+}
+#endif // CLIENT

@@ -126,6 +126,8 @@ void function ClientCodeCallback_MapSpawn()
 
 	CLRuiBrowser_Init()
 
+	InputOverlay_Init()
+
 	if ( IsLobby() )
 	{
 		

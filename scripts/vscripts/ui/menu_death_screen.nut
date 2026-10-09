@@ -1172,12 +1172,15 @@ void function DeathScreenUpdateCursor()
 		HideGameCursor()
 		SetGamepadCursorEnabled( file.menu, false )
 	}
-	else if ( !IsGamepadCursorEnabled( file.menu ) )
+	else
 	{
-		
+		// The gamepad flag outlives the menu, so a later death would skip ShowGameCursor.
+		if ( !IsGamepadCursorEnabled( file.menu ) )
+		{
+			SetCursorPosition( <1920.0 * 0.5, 1080.0 * 0.5, 0> )
+			SetGamepadCursorEnabled( file.menu, true )
+		}
 		ShowGameCursor()
-		SetCursorPosition( <1920.0 * 0.5, 1080.0 * 0.5, 0> )
-		SetGamepadCursorEnabled( file.menu, true )
 	}
 }
 

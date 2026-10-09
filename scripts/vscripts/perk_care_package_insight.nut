@@ -73,7 +73,7 @@ struct
 
 void function Perk_CarePackageInsight_Init()
 {
-	if ( GetCurrentPlaylistVarBool( "disable_perk_care_package_insight", false ) )
+	if ( GetCurrentPlaylistVarBool( "disable_perk_care_package_insight", false ) || !Perks_Enabled() )
 		return
 
 	PerkInfo carePackageInsight

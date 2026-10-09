@@ -2467,6 +2467,7 @@ void function InitGamepadConfigs()
 
 void function InitMenus()
 {
+	SurfFpsCap_Init()
 	RegisterSignal( "EndShowGameSummaryIfNeeded" )
 	RTKCore_RegisterSignals()
 

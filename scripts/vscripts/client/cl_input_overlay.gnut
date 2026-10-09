@@ -1,0 +1,695 @@
+// Input overlay: draws the local player's live keyboard, mouse or controller input.
+// Driven by the hud_setting_input_overlay setting (Settings > HUD).
+
+global function InputOverlay_Init
+global function InputOverlay_SetSuppressed
+
+const int IO_OFF = 0
+const int IO_AUTO = 1
+const int IO_KBM = 2
+const int IO_XBOX = 3
+const int IO_PS = 4
+
+// Placement the RUIs were authored at (1920x1080 canvas): origin + design-unit scale.
+const float IO_KBM_X = 22.0
+const float IO_KBM_Y = 614.0
+const float IO_KBM_K = 1.2
+const float IO_KBM_PANEL_Y = 26.0
+const float IO_PAD_X = 22.0
+const float IO_PAD_Y = 662.0
+const float IO_PAD_K = 0.9
+
+// Vertical extent of each overlay on that canvas, and the room it may use.
+const float IO_KBM_TOP = 614.0
+const float IO_KBM_BOTTOM = 886.0
+const float IO_PAD_TOP = 638.0
+const float IO_PAD_BOTTOM = 862.0
+const float IO_FRAME_SLOT0_TOP = 852.0
+const float IO_FRAME_PITCH = 66.0 // UNITFRAME_SIZE.y + UNITFRAME_SPACING
+const float IO_FRAME_GAP = 10.0
+const float IO_TOP_LIMIT = 500.0
+const float IO_MIN_SCALE = 0.5
+
+// Mouse dot: travel radius inside the ring (design units) and the turn rate, in degrees
+// per second, that pushes it halfway out.
+const float IO_MOUSE_RADIUS = 17.0
+const float IO_MOUSE_HALF_RATE = 90.0
+const float IO_MOUSE_FOLLOW = 18.0
+
+const float IO_HOLD_START = 0.35
+const float IO_HOLD_FULL = 1.2
+const float IO_FLASH_TIME = 0.12
+const float IO_RATE_WINDOW = 1.0
+const float IO_REBIND_INTERVAL = 1.0
+
+const vector IO_PRESS = <0.949, 0.949, 0.949>
+const vector IO_INK = <0.949, 0.949, 0.949>
+const vector IO_INK_DARK = <0.051, 0.055, 0.063>
+const vector IO_ACCENT = <0.855, 0.176, 0.165>
+const vector IO_DIM = <0.55, 0.58, 0.60>
+const vector IO_XB_A = <0.365, 0.761, 0.118>
+const vector IO_XB_B = <0.886, 0.196, 0.173>
+const vector IO_XB_X = <0.165, 0.490, 0.882>
+const vector IO_XB_Y = <0.949, 0.761, 0.106>
+
+struct IOButton
+{
+	string id
+	array<int> codes
+	array<string> binds
+	string keyName
+	float x
+	float y
+	float w
+	float h
+	bool hasInk
+	bool isMouse
+	vector pressCol
+	vector pressInk
+
+	bool down
+	float downAt
+	float flashUntil
+}
+
+struct
+{
+	bool inited
+	var rui = null
+	var topo = null
+	string placedKey
+	int shownMode = IO_OFF
+
+	array<IOButton> kbm
+	array<IOButton> xb
+	array<IOButton> ps
+
+	array<float> keyEdges
+	array<float> clickEdges
+	float lastInputAt = -100.0
+
+	table<string, bool> suppressedBy
+
+	vector lastAngles
+	float lastAnglesAt
+	bool haveAngles
+	float dotX
+	float dotY
+
+	table<string, string> lastStr
+	table<string, vector> lastVec
+
+	table<int, string> keyNames
+	table<int, string> keyNamesShort
+	float nextRebindAt
+} file
+
+void function InputOverlay_Init()
+{
+	if ( file.inited )
+		return
+	file.inited = true
+
+	IO_AddBound( "w", [ "+forward" ], 45.0, 0.0, 40.0 )
+	IO_AddBound( "a", [ "+moveleft" ], 0.0, 43.0, 40.0 )
+	IO_AddBound( "s", [ "+backward" ], 45.0, 43.0, 40.0 )
+	IO_AddBound( "d", [ "+moveright" ], 90.0, 43.0, 40.0 )
+	IO_AddBound( "shift", [ "+speed" ], 0.0, 86.0, 62.0 )
+	IO_AddBound( "ctrl", [ "+duck", "+toggle_duck" ], 67.0, 86.0, 63.0 )
+	IO_AddBound( "space", [ "+jump" ], 0.0, 129.0, 130.0 )
+	IO_AddBound( "q", [ "+offhand1" ], 142.0, 0.0, 40.0 )
+	IO_AddBound( "z", [ "+offhand4" ], 187.0, 0.0, 40.0 )
+	IO_AddBound( "e", [ "+use" ], 142.0, 43.0, 40.0 )
+	IO_AddBound( "r", [ "+reload" ], 187.0, 43.0, 40.0 )
+	IO_AddBound( "g", [ "weaponSelectOrdnance" ], 142.0, 86.0, 40.0 )
+	IO_AddBound( "n4", [ "+scriptCommand4" ], 187.0, 86.0, 40.0 )
+	IO_AddBound( "tab", [ "toggle_inventory" ], 142.0, 129.0, 85.0 )
+
+	IO_AddMouse( file.kbm, "lmb", [ MOUSE_LEFT ] )
+	IO_AddMouse( file.kbm, "rmb", [ MOUSE_RIGHT ] )
+	IO_AddMouse( file.kbm, "whl", [ MOUSE_MIDDLE, MOUSE_WHEEL_UP, MOUSE_WHEEL_DOWN ] )
+	IO_AddMouse( file.kbm, "m4", [ MOUSE_4 ] )
+	IO_AddMouse( file.kbm, "m5", [ MOUSE_5 ] )
+
+	IO_AddPadSet( file.xb, true )
+	IO_AddPadSet( file.ps, false )
+	IO_InitKeyNames()
+
+	thread InputOverlay_Think()
+}
+
+// For full-screen client UI that covers the game without turning the HUD off.
+void function InputOverlay_SetSuppressed( string reason, bool suppressed )
+{
+	if ( suppressed )
+		file.suppressedBy[ reason ] <- true
+	else if ( reason in file.suppressedBy )
+		delete file.suppressedBy[ reason ]
+}
+
+bool function IO_HudShown()
+{
+	if ( file.suppressedBy.len() > 0 )
+		return false
+
+	entity player = GetLocalViewPlayer()
+	if ( !IsValid( player ) )
+		return false
+
+	entity cockpit = player.GetCockpit()
+	return IsValid( cockpit ) && cockpit.e.hudVisible
+}
+
+void function IO_AddKey( array<IOButton> list, string id, array<int> codes, float x, float y, float w, float h, bool hasInk )
+{
+	IOButton b
+	b.id = id
+	b.codes = codes
+	b.x = x
+	b.y = y
+	b.w = w
+	b.h = h
+	b.hasInk = hasInk
+	b.pressCol = IO_PRESS
+	b.pressInk = IO_INK_DARK
+	list.append( b )
+}
+
+// A plate that follows whichever key is bound to its action.
+void function IO_AddBound( string id, array<string> binds, float x, float y, float w )
+{
+	IO_AddKey( file.kbm, id, [], x, y, w, 38.0, true )
+	file.kbm[ file.kbm.len() - 1 ].binds = binds
+}
+
+void function IO_AddMouse( array<IOButton> list, string id, array<int> codes )
+{
+	IO_AddKey( list, id, codes, 0.0, 0.0, 0.0, 0.0, false )
+	list[ list.len() - 1 ].isMouse = true
+}
+
+void function IO_AddPadSet( array<IOButton> list, bool isXbox )
+{
+	IO_AddKey( list, "a", [ BUTTON_A ], 0.0, 0.0, 0.0, 0.0, false )
+	IO_AddKey( list, "b", [ BUTTON_B ], 0.0, 0.0, 0.0, 0.0, false )
+	IO_AddKey( list, "x", [ BUTTON_X ], 0.0, 0.0, 0.0, 0.0, false )
+	IO_AddKey( list, "y", [ BUTTON_Y ], 0.0, 0.0, 0.0, 0.0, false )
+	IO_AddKey( list, "lb", [ BUTTON_SHOULDER_LEFT ], 0.0, 0.0, 0.0, 0.0, false )
+	IO_AddKey( list, "rb", [ BUTTON_SHOULDER_RIGHT ], 0.0, 0.0, 0.0, 0.0, false )
+	IO_AddKey( list, "view", [ BUTTON_BACK ], 0.0, 0.0, 0.0, 0.0, false )
+	IO_AddKey( list, "menu", [ BUTTON_START ], 0.0, 0.0, 0.0, 0.0, false )
+	IO_AddKey( list, "du", [ BUTTON_DPAD_UP ], 0.0, 0.0, 0.0, 0.0, false )
+	IO_AddKey( list, "dd", [ BUTTON_DPAD_DOWN ], 0.0, 0.0, 0.0, 0.0, false )
+	IO_AddKey( list, "dl", [ BUTTON_DPAD_LEFT ], 0.0, 0.0, 0.0, 0.0, false )
+	IO_AddKey( list, "dr", [ BUTTON_DPAD_RIGHT ], 0.0, 0.0, 0.0, 0.0, false )
+	IO_AddKey( list, "l3", [ BUTTON_STICK_LEFT ], 0.0, 0.0, 0.0, 0.0, false )
+	IO_AddKey( list, "r3", [ BUTTON_STICK_RIGHT ], 0.0, 0.0, 0.0, 0.0, false )
+	if ( isXbox )
+	{
+		list[ 0 ].pressCol = IO_XB_A
+		list[ 1 ].pressCol = IO_XB_B
+		list[ 2 ].pressCol = IO_XB_X
+		list[ 3 ].pressCol = IO_XB_Y
+	}
+	else
+	{
+		// the DualSense touchpad click reports as Back
+		IO_AddKey( list, "pad", [ BUTTON_BACK ], 0.0, 0.0, 0.0, 0.0, false )
+	}
+}
+
+int function IO_WantedMode()
+{
+	if ( IsLobby() )
+		return IO_OFF
+
+	entity player = GetLocalViewPlayer()
+	if ( !IsValid( player ) || !IsAlive( player ) )
+		return IO_OFF
+
+	int setting = GetConVarInt( "hud_setting_input_overlay" )
+	if ( setting == IO_AUTO )
+		return IsControllerModeActive() ? IO_XBOX : IO_KBM
+	if ( setting < IO_KBM || setting > IO_PS )
+		return IO_OFF
+	return setting
+}
+
+void function InputOverlay_Think()
+{
+	for ( ;; )
+	{
+		WaitFrame()
+
+		int mode = IO_WantedMode()
+		if ( mode != file.shownMode )
+			IO_Show( mode )
+
+		if ( file.rui == null )
+			continue
+
+		IO_Place( false )
+		if ( file.shownMode == IO_KBM )
+			IO_UpdateKbm()
+		else
+			IO_UpdatePad( file.shownMode == IO_XBOX ? file.xb : file.ps, file.shownMode == IO_XBOX )
+	}
+}
+
+void function IO_Show( int mode )
+{
+	if ( file.rui != null )
+	{
+		try
+		{
+			RuiDestroyIfAlive( file.rui )
+		}
+		catch ( eDestroy )
+		{
+		}
+		file.rui = null
+	}
+	file.shownMode = mode
+	file.lastStr.clear()
+	file.lastVec.clear()
+	file.haveAngles = false
+	if ( mode == IO_OFF )
+		return
+
+	string name = mode == IO_KBM ? "fs_input_kbm" : ( mode == IO_XBOX ? "fs_input_xb" : "fs_input_ps" )
+	try
+	{
+		asset a = GetKeyValueAsAsset( { kn = "ui/" + name + ".rpak" }, "kn" )
+		if ( file.topo == null )
+			file.topo = CreateFullscreenTopology( true )
+		file.rui = RuiCreate( a, file.topo, RUI_DRAW_POSTEFFECTS, 0 )
+		UISize virtualSize = GetCurrentVirtualScreenSize( true )
+		RuiSetResolution( file.rui, float( virtualSize.width ), float( virtualSize.height ) )
+	}
+	catch ( eCreate )
+	{
+		printt( format( "[InputOverlay] %s create failed: %s", name, string( eCreate ) ) )
+		file.rui = null
+		return
+	}
+	IO_Place( true )
+
+	// colour args have no baked default, so every one is set before the first draw
+	array<IOButton> list = mode == IO_KBM ? file.kbm : ( mode == IO_XBOX ? file.xb : file.ps )
+	foreach ( b in list )
+	{
+		b.down = false
+		IO_SetCol( b.id + "Fill", b.pressCol, 0.0 )
+		if ( b.hasInk )
+			IO_SetCol( b.id + "Ink", IO_INK, 0.92 )
+	}
+	IO_SetCol( "pipColor", IO_DIM, 1.0 )
+	if ( mode == IO_KBM )
+	{
+		IO_SetCol( "holdColor", IO_ACCENT, 1.0 )
+		foreach ( b in file.kbm )
+			b.keyName = ""
+		IO_ResolveBinds( true )
+	}
+	else
+	{
+		IO_SetCol( "trigFill", IO_PRESS, 1.0 )
+		IO_SetCol( "ltInk", IO_INK, 0.92 )
+		IO_SetCol( "rtInk", IO_INK, 0.92 )
+	}
+}
+
+// Collapses with the HUD, keeps the overlay above the teammate unit frames (sliding up as
+// frames stack) and shrinks it from its bottom-left corner once it would reach the ring timer.
+void function IO_Place( bool force )
+{
+	if ( file.topo == null )
+		return
+
+	bool shown = IO_HudShown()
+	int slots = GetTeamUnitFrames().len()
+	UISize screenSize = GetScreenSize()
+	string key = format( "%d/%d/%d/%d/%d", file.shownMode, slots, screenSize.width, screenSize.height, shown ? 1 : 0 )
+	if ( !force && key == file.placedKey )
+		return
+	file.placedKey = key
+
+	if ( !shown )
+	{
+		RuiTopology_UpdatePos( file.topo, <0, 0, 0>, <0, 0, 0>, <0, 0, 0> )
+		return
+	}
+
+	bool isKbm = file.shownMode == IO_KBM
+	float top = isKbm ? IO_KBM_TOP : IO_PAD_TOP
+	float bottom = isKbm ? IO_KBM_BOTTOM : IO_PAD_BOTTOM
+	float limit = bottom
+	if ( slots > 0 )
+		limit = min( bottom, IO_FRAME_SLOT0_TOP - IO_FRAME_PITCH * ( slots - 1 ) - IO_FRAME_GAP )
+
+	float scale = 1.0
+	if ( top + limit - bottom < IO_TOP_LIMIT )
+		scale = clamp( ( limit - IO_TOP_LIMIT ) / ( bottom - top ), IO_MIN_SCALE, 1.0 )
+
+	// scale about the overlay's bottom-left corner, then move that corner to the limit
+	float ax = ( isKbm ? IO_KBM_X : IO_PAD_X ) / 1920.0
+	float ay = bottom / 1080.0
+	float dy = ( limit - bottom ) / 1080.0
+
+	UISize virtualSize = GetScaledVirtualScreenSize( GetCurrentVirtualScreenSize( true ), screenSize )
+	vector right = < float( virtualSize.width ), 0, 0 >
+	vector down = < 0, float( virtualSize.height ), 0 >
+	vector org = < ( screenSize.width - virtualSize.width ) / 2.0, 0, 0 >
+	org += right * ( ax * ( 1.0 - scale ) ) + down * ( ay * ( 1.0 - scale ) + dy )
+	RuiTopology_UpdatePos( file.topo, org, right * scale, down * scale )
+}
+
+// -- bindings -----------------------------------------------------------------
+
+void function IO_ResolveBinds( bool force )
+{
+	float now = Time()
+	if ( !force && now < file.nextRebindAt )
+		return
+	file.nextRebindAt = now + IO_REBIND_INTERVAL
+
+	foreach ( b in file.kbm )
+	{
+		if ( b.binds.len() == 0 )
+			continue
+		array<int> codes
+		foreach ( cmd in b.binds )
+		{
+			// returns the ButtonCode + 1, or 0 / -1 when unbound
+			int code = GetKeyCodeForBinding( cmd, 0 ) - 1
+			if ( code > 0 && !codes.contains( code ) )
+				codes.append( code )
+		}
+		b.codes = codes
+		string name = codes.len() > 0 ? IO_KeyName( codes[ 0 ], b.w < 45.0 ) : "--"
+		if ( name != b.keyName )
+		{
+			b.keyName = name
+			IO_SetStr( b.id + "Key", name )
+		}
+	}
+}
+
+string function IO_KeyName( int code, bool narrow )
+{
+	if ( narrow && code in file.keyNamesShort )
+		return file.keyNamesShort[ code ]
+	if ( code in file.keyNames )
+		return file.keyNames[ code ]
+	return "?"
+}
+
+void function IO_InitKeyNames()
+{
+	array<int> letters = [ KEY_A, KEY_B, KEY_C, KEY_D, KEY_E, KEY_F, KEY_G, KEY_H, KEY_I, KEY_J, KEY_K, KEY_L, KEY_M,
+		KEY_N, KEY_O, KEY_P, KEY_Q, KEY_R, KEY_S, KEY_T, KEY_U, KEY_V, KEY_W, KEY_X, KEY_Y, KEY_Z ]
+	string abc = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+	foreach ( i, code in letters )
+		file.keyNames[ code ] <- abc.slice( i, i + 1 )
+
+	array<int> digits = [ KEY_0, KEY_1, KEY_2, KEY_3, KEY_4, KEY_5, KEY_6, KEY_7, KEY_8, KEY_9 ]
+	foreach ( i, code in digits )
+		file.keyNames[ code ] <- string( i )
+
+	array<int> pad = [ KEY_PAD_0, KEY_PAD_1, KEY_PAD_2, KEY_PAD_3, KEY_PAD_4, KEY_PAD_5, KEY_PAD_6, KEY_PAD_7, KEY_PAD_8, KEY_PAD_9 ]
+	foreach ( i, code in pad )
+		file.keyNames[ code ] <- "N" + i
+
+	array<int> fkeys = [ KEY_F1, KEY_F2, KEY_F3, KEY_F4, KEY_F5, KEY_F6, KEY_F7, KEY_F8, KEY_F9, KEY_F10, KEY_F11, KEY_F12 ]
+	foreach ( i, code in fkeys )
+		file.keyNames[ code ] <- "F" + ( i + 1 )
+
+	IO_Name( KEY_SPACE, "SPACE", "SPC" )
+	IO_Name( KEY_LSHIFT, "SHIFT", "SHFT" )
+	IO_Name( KEY_RSHIFT, "RSHIFT", "RSH" )
+	IO_Name( KEY_LCONTROL, "CTRL", "CTRL" )
+	IO_Name( KEY_RCONTROL, "RCTRL", "RCTL" )
+	IO_Name( KEY_LALT, "ALT", "ALT" )
+	IO_Name( KEY_RALT, "RALT", "RALT" )
+	IO_Name( KEY_TAB, "TAB", "TAB" )
+	IO_Name( KEY_CAPSLOCK, "CAPS", "CAPS" )
+	IO_Name( KEY_ENTER, "ENTER", "ENT" )
+	IO_Name( KEY_BACKSPACE, "BKSP", "BKSP" )
+	IO_Name( KEY_ESCAPE, "ESC", "ESC" )
+	IO_Name( KEY_INSERT, "INS", "INS" )
+	IO_Name( KEY_DELETE, "DEL", "DEL" )
+	IO_Name( KEY_HOME, "HOME", "HOME" )
+	IO_Name( KEY_END, "END", "END" )
+	IO_Name( KEY_PAGEUP, "PGUP", "PGUP" )
+	IO_Name( KEY_PAGEDOWN, "PGDN", "PGDN" )
+	IO_Name( KEY_UP, "UP", "UP" )
+	IO_Name( KEY_DOWN, "DOWN", "DOWN" )
+	IO_Name( KEY_LEFT, "LEFT", "LEFT" )
+	IO_Name( KEY_RIGHT, "RIGHT", "RGHT" )
+	IO_Name( KEY_BACKQUOTE, "`", "`" )
+	IO_Name( KEY_MINUS, "-", "-" )
+	IO_Name( KEY_EQUAL, "=", "=" )
+	IO_Name( KEY_LBRACKET, "[", "[" )
+	IO_Name( KEY_RBRACKET, "]", "]" )
+	IO_Name( KEY_BACKSLASH, "\\", "\\" )
+	IO_Name( KEY_SEMICOLON, ";", ";" )
+	IO_Name( KEY_APOSTROPHE, "'", "'" )
+	IO_Name( KEY_COMMA, ",", "," )
+	IO_Name( KEY_PERIOD, ".", "." )
+	IO_Name( KEY_SLASH, "/", "/" )
+	IO_Name( KEY_PAD_ENTER, "NENT", "NENT" )
+	IO_Name( KEY_PAD_PLUS, "N+", "N+" )
+	IO_Name( KEY_PAD_MINUS, "N-", "N-" )
+	IO_Name( KEY_PAD_MULTIPLY, "N*", "N*" )
+	IO_Name( KEY_PAD_DIVIDE, "N/", "N/" )
+	IO_Name( KEY_PAD_DECIMAL, "N.", "N." )
+	IO_Name( MOUSE_LEFT, "MOUSE1", "M1" )
+	IO_Name( MOUSE_RIGHT, "MOUSE2", "M2" )
+	IO_Name( MOUSE_MIDDLE, "MOUSE3", "M3" )
+	IO_Name( MOUSE_4, "MOUSE4", "M4" )
+	IO_Name( MOUSE_5, "MOUSE5", "M5" )
+	IO_Name( MOUSE_WHEEL_UP, "WHEEL UP", "MWU" )
+	IO_Name( MOUSE_WHEEL_DOWN, "WHEEL DN", "MWD" )
+}
+
+void function IO_Name( int code, string full, string short )
+{
+	file.keyNames[ code ] <- full
+	if ( short != full )
+		file.keyNamesShort[ code ] <- short
+}
+
+// -- per-frame ----------------------------------------------------------------
+
+bool function IO_IsDown( IOButton b )
+{
+	foreach ( code in b.codes )
+	{
+		if ( InputIsButtonDown( code ) )
+			return true
+	}
+	return false
+}
+
+// Returns true on a fresh press.
+bool function IO_Poll( IOButton b, float now )
+{
+	bool down = IO_IsDown( b )
+	bool pressed = down && !b.down
+	if ( pressed )
+	{
+		b.downAt = now
+		b.flashUntil = now + IO_FLASH_TIME
+		file.lastInputAt = now
+	}
+	if ( down != b.down )
+	{
+		b.down = down
+		file.lastInputAt = now
+	}
+	return pressed
+}
+
+void function IO_DrawButton( IOButton b, float now )
+{
+	bool lit = b.down || now < b.flashUntil
+	IO_SetCol( b.id + "Fill", b.pressCol, lit ? 1.0 : 0.0 )
+	if ( b.hasInk )
+		IO_SetCol( b.id + "Ink", lit ? b.pressInk : IO_INK, lit ? 1.0 : 0.92 )
+}
+
+void function IO_PushEdge( array<float> edges, float now )
+{
+	edges.append( now )
+	while ( edges.len() > 0 && now - edges[ 0 ] > IO_RATE_WINDOW )
+		edges.remove( 0 )
+}
+
+int function IO_Rate( array<float> edges, float now )
+{
+	while ( edges.len() > 0 && now - edges[ 0 ] > IO_RATE_WINDOW )
+		edges.remove( 0 )
+	return edges.len()
+}
+
+void function IO_UpdateKbm()
+{
+	IO_ResolveBinds( false )
+	float now = Time()
+	foreach ( b in file.kbm )
+	{
+		if ( IO_Poll( b, now ) )
+			IO_PushEdge( b.isMouse ? file.clickEdges : file.keyEdges, now )
+		IO_DrawButton( b, now )
+
+		if ( b.isMouse )
+			continue
+
+		float frac = b.down ? clamp( ( now - b.downAt - IO_HOLD_START ) / IO_HOLD_FULL, 0.0, 1.0 ) : 0.0
+		IO_SetPos( b.id + "Hold", IO_KbmX( b.x + b.w * frac ), IO_KbmY( b.y + b.h - 2.0 ) )
+	}
+
+	entity player = GetLocalViewPlayer()
+	float dt = now - file.lastAnglesAt
+	if ( IsValid( player ) && dt > 0.0 )
+	{
+		vector ang = player.EyeAngles()
+		float targetX = 0.0
+		float targetY = 0.0
+		if ( file.haveAngles )
+		{
+			// turn rate in deg/s, eased onto the ring radius so slow aim still reads
+			float rateX = -IO_AngleDelta( ang.y, file.lastAngles.y ) / dt
+			float rateY = IO_AngleDelta( ang.x, file.lastAngles.x ) / dt
+			float rate = sqrt( rateX * rateX + rateY * rateY )
+			if ( rate > 0.01 )
+			{
+				float reach = IO_MOUSE_RADIUS * rate / ( rate + IO_MOUSE_HALF_RATE )
+				targetX = rateX / rate * reach
+				targetY = rateY / rate * reach
+			}
+		}
+		file.lastAngles = ang
+		file.lastAnglesAt = now
+		file.haveAngles = true
+
+		float follow = clamp( dt * IO_MOUSE_FOLLOW, 0.0, 1.0 )
+		file.dotX += ( targetX - file.dotX ) * follow
+		file.dotY += ( targetY - file.dotY ) * follow
+
+		vector vel = player.GetVelocity()
+		IO_SetStr( "spdText", string( int( Length2D( vel ) ) ) )
+	}
+	IO_SetPos( "mouseDot", IO_KbmX( 283.0 + file.dotX ), IO_KbmY( 118.0 + file.dotY ) )
+
+	IO_SetStr( "kpsText", string( IO_Rate( file.keyEdges, now ) ) )
+	IO_SetStr( "cpsText", string( IO_Rate( file.clickEdges, now ) ) )
+	IO_SetCol( "pipColor", now - file.lastInputAt < 3.0 ? IO_ACCENT : IO_DIM, 1.0 )
+}
+
+void function IO_UpdatePad( array<IOButton> list, bool isXbox )
+{
+	float now = Time()
+	foreach ( b in list )
+	{
+		IO_Poll( b, now )
+		IO_DrawButton( b, now )
+	}
+
+	float travel = isXbox ? 4.5 : 4.0
+	vector ls = IO_Stick( ANALOG_LEFT_X, ANALOG_LEFT_Y )
+	vector rs = IO_Stick( ANALOG_RIGHT_X, ANALOG_RIGHT_Y )
+	vector lc = isXbox ? <74.01, 81.83, 0> : <102.15, 117.96, 0>
+	vector rc = isXbox ? <188.77, 127.94, 0> : <197.63, 117.85, 0>
+	IO_SetPos( "lsPos", IO_PadX( lc.x + ls.x * travel ), IO_PadY( lc.y + ls.y * travel ) )
+	IO_SetPos( "rsPos", IO_PadX( rc.x + rs.x * travel ), IO_PadY( rc.y + rs.y * travel ) )
+	if ( LengthSqr( ls ) > 0.04 || LengthSqr( rs ) > 0.04 )
+		file.lastInputAt = now
+
+	float lt = clamp( InputGetAxis( ANALOG_L_TRIGGER ), 0.0, 1.0 )
+	float rt = clamp( InputGetAxis( ANALOG_R_TRIGGER ), 0.0, 1.0 )
+	float ltX = isXbox ? 50.0 : 38.0
+	float rtX = isXbox ? 200.0 : 212.0
+	IO_SetPos( "ltEnd", IO_PadX( ltX + 50.0 * lt ), IO_PadY( 3.0 ) )
+	IO_SetPos( "rtEnd", IO_PadX( rtX + 50.0 * rt ), IO_PadY( 3.0 ) )
+	IO_SetCol( "ltInk", lt > 0.5 ? IO_INK_DARK : IO_INK, lt > 0.5 ? 1.0 : 0.92 )
+	IO_SetCol( "rtInk", rt > 0.5 ? IO_INK_DARK : IO_INK, rt > 0.5 ? 1.0 : 0.92 )
+	if ( lt > 0.05 || rt > 0.05 )
+		file.lastInputAt = now
+
+	IO_SetCol( "pipColor", now - file.lastInputAt < 3.0 ? IO_ACCENT : IO_DIM, 1.0 )
+}
+
+vector function IO_Stick( int axisX, int axisY )
+{
+	float x = clamp( InputGetAxis( axisX ), -1.0, 1.0 )
+	float y = clamp( InputGetAxis( axisY ), -1.0, 1.0 )
+	float len = sqrt( x * x + y * y )
+	if ( len > 1.0 )
+	{
+		x /= len
+		y /= len
+	}
+	return < x, y, 0 >
+}
+
+float function IO_AngleDelta( float a, float b )
+{
+	float d = a - b
+	while ( d > 180.0 )
+		d -= 360.0
+	while ( d < -180.0 )
+		d += 360.0
+	return d
+}
+
+float function IO_KbmX( float x ) { return IO_KBM_X + x * IO_KBM_K }
+float function IO_KbmY( float y ) { return IO_KBM_Y + ( y + IO_KBM_PANEL_Y ) * IO_KBM_K }
+float function IO_PadX( float x ) { return IO_PAD_X + x * IO_PAD_K }
+float function IO_PadY( float y ) { return IO_PAD_Y + y * IO_PAD_K }
+
+// -- rui setters (skip unchanged values) ---------------------------------------
+
+void function IO_SetCol( string name, vector rgb, float a )
+{
+	vector key = < rgb.x + a * 10.0, rgb.y, rgb.z >
+	if ( name in file.lastVec && file.lastVec[ name ] == key )
+		return
+	file.lastVec[ name ] <- key
+	try
+	{
+		RuiSetColorAlpha( file.rui, name, SrgbToLinear( rgb ), a )
+	}
+	catch ( eCol )
+	{
+	}
+}
+
+void function IO_SetPos( string name, float x, float y )
+{
+	vector v = < x / 1920.0, y / 1080.0, 0 >
+	if ( name in file.lastVec && file.lastVec[ name ] == v )
+		return
+	file.lastVec[ name ] <- v
+	try
+	{
+		RuiSetFloat2( file.rui, name, v )
+	}
+	catch ( ePos )
+	{
+	}
+}
+
+void function IO_SetStr( string name, string v )
+{
+	if ( name in file.lastStr && file.lastStr[ name ] == v )
+		return
+	file.lastStr[ name ] <- v
+	try
+	{
+		RuiSetString( file.rui, name, v )
+	}
+	catch ( eStr )
+	{
+	}
+}

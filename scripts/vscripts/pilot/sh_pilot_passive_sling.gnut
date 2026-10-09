@@ -281,7 +281,7 @@ void function ClientCallback_Sur_SlingToMainWeaponSlot( entity player, int slot 
 	if( IsValid( slotWeapon ) )
 		slotWeaponAmmo = slotWeapon.GetWeaponPrimaryClipCount()
 
-	//player.SwapPrimaryWeaponsInSlots( SLING_WEAPON_SLOT, slot )
+	player.SwapPrimaryWeaponsInSlots( SLING_WEAPON_SLOT, slot )
               
                                                                                                                     
       

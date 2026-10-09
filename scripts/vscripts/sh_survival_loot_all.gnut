@@ -436,6 +436,7 @@ void function SURVIVAL_Loot_All_InitShared()
 	file.disabledRefs.extend( split( disabledRefs, WHITESPACE_CHARACTERS ) )
 
 	SURVIVAL_Loot_RegFromDataTable( GetDataTable( LOOT_DATATABLE ) )
+	SURVIVAL_Loot_RegModWeapons()
 
 	// Parked: flowstate_mods currently only lists mp_weapon_raygun (models unpaked).
 	// var flowstateModsDt = GetDataTable( $"datatable/flowstate_mods.rpak" )
@@ -563,6 +564,100 @@ void function SURVIVAL_Loot_ResolveDormantHopups()
 		printt( "[LOOT] dormant hopups kept=" + keptCount )
 }
 
+string function SURVIVAL_Loot_WeaponAmmoPool( string baseWeapon, array<string> baseMods )
+{
+	if ( !IsWeaponKeyFieldDefined( baseWeapon, "ammo_pool_type" ) || GetWeaponInfoFileKeyField_Global( baseWeapon, "uses_ammo_pool" ) == false )
+		return ""
+
+	// Dual product: weapon txt authors "shotgun" etc.
+	// S21 client: constant_types -> eAmmoPoolType int (0..5).
+	// S3 dedi: no consttype resolve -> string pool name.
+	// Wrong type aborts SV_CL_Init -> Server_Init/GameState_Init never FlagInit("GamePlaying").
+	var rawPool = GetWeaponInfoFileKeyField_WithMods_Global( baseWeapon, baseMods, "ammo_pool_type" )
+	if ( type( rawPool ) == "string" )
+	{
+		string poolName = expect string( rawPool )
+		switch ( poolName )
+		{
+			case BULLET_AMMO:
+			case HIGHCAL_AMMO:
+			case SPECIAL_AMMO:
+			case SHOTGUN_AMMO:
+			case SNIPER_AMMO:
+			case ARROWS_AMMO:
+				return poolName
+		}
+	}
+	else if ( type( rawPool ) == "int" )
+	{
+		switch ( expect int( rawPool ) )
+		{
+			case 0:
+				return BULLET_AMMO
+			case 1:
+				return HIGHCAL_AMMO
+			case 2:
+				return SPECIAL_AMMO
+			case 3:
+				return SHOTGUN_AMMO
+			case 4:
+				return SNIPER_AMMO
+			case 5:
+				return ARROWS_AMMO
+		}
+	}
+	return ""
+}
+
+// Guns registered through ModWeapon_Register become real main-weapon loot, so inventory
+// ammo, the HUD ammo type and attachments behave like a stock gun. Fields the weapon file
+// does not carry come from the stock weapon the mod names. Never added to a loot pool.
+void function SURVIVAL_Loot_RegModWeapons()
+{
+	for ( int i = 0; i < ModWeapon_GetCount(); i++ )
+	{
+		string cls = ModWeapon_GetClass( i )
+		if ( cls in file.lootData )
+			continue
+
+		LootData data
+		data.ref = cls
+		data.baseWeapon = cls
+		data.lootType = eLootType.MAINWEAPON
+		data.countPerDrop = 1
+		data.tier = 1
+
+		string like = ModWeapon_GetLootLike( i )
+		if ( like != "" && like in file.lootData && file.lootData[ like ].lootType == eLootType.MAINWEAPON )
+		{
+			LootData src = file.lootData[ like ]
+			data.tier = src.tier
+			data.supportedAttachments = clone src.supportedAttachments
+			data.lootTags = clone src.lootTags
+			data.pickupSound_1p = src.pickupSound_1p
+			data.pickupSound_3p = src.pickupSound_3p
+			data.carrySound = src.carrySound
+			#if SERVER || CLIENT
+				data.pingCommsAction = src.pingCommsAction
+			#endif
+		}
+
+		data.pickupString = GetWeaponInfoFileKeyField_GlobalString( cls, "printName" )
+		data.desc = GetWeaponInfoFileKeyField_GlobalString( cls, "description" )
+		data.hudIcon = GetWeaponInfoFileKeyFieldAsset_Global( cls, "hud_icon" )
+		data.model = GetWeaponInfoFileKeyFieldAsset_Global( cls, "playermodel" )
+		data.ammoType = SURVIVAL_Loot_WeaponAmmoPool( cls, data.baseMods )
+
+		data.index = file.lootIndexToString.len()
+		file.lootIndexToString.append( data.ref )
+		file.lootData[ data.ref ] <- data
+		#if SERVER
+			SURVIVAL_AddSpawnPointGroup( data.ref )
+		#endif
+		printt( format( "[ModWeapon] loot '%s' ammo=%s like=%s index=%d", cls, data.ammoType, like, data.index ) )
+	}
+}
+
 void function SURVIVAL_Loot_RegFromDataTable( var dt )
 {
 	var attachmentTable = GetDataTable( $"datatable/survival_weapon_mods.rpak" )
@@ -669,59 +764,7 @@ void function SURVIVAL_Loot_RegFromDataTable( var dt )
 					}
 				#endif
 
-				if ( IsWeaponKeyFieldDefined( data.baseWeapon, "ammo_pool_type" ) && GetWeaponInfoFileKeyField_Global( data.baseWeapon, "uses_ammo_pool" ) != false )
-				{
-					// Dual product: weapon txt authors "shotgun" etc.
-					// S21 client: constant_types -> eAmmoPoolType int (0..5).
-					// S3 dedi: no consttype resolve -> string pool name.
-					// Dual ammo_pool_type: S21 client int consttype; dedi string pool name.
-					// Wrong type aborts SV_CL_Init -> Server_Init/GameState_Init never FlagInit("GamePlaying").
-					var rawPool = GetWeaponInfoFileKeyField_WithMods_Global( data.baseWeapon, data.baseMods, "ammo_pool_type" )
-					data.ammoType = ""
-					if ( type( rawPool ) == "string" )
-					{
-						string poolName = expect string( rawPool )
-						switch ( poolName )
-						{
-							case BULLET_AMMO:
-							case HIGHCAL_AMMO:
-							case SPECIAL_AMMO:
-							case SHOTGUN_AMMO:
-							case SNIPER_AMMO:
-							case ARROWS_AMMO:
-								data.ammoType = poolName
-								break
-						}
-					}
-					else if ( type( rawPool ) == "int" )
-					{
-						switch ( expect int( rawPool ) )
-						{
-							case 0:
-								data.ammoType = BULLET_AMMO
-								break
-							case 1:
-								data.ammoType = HIGHCAL_AMMO
-								break
-							case 2:
-								data.ammoType = SPECIAL_AMMO
-								break
-							case 3:
-								data.ammoType = SHOTGUN_AMMO
-								break
-							case 4:
-								data.ammoType = SNIPER_AMMO
-								break
-							case 5:
-								data.ammoType = ARROWS_AMMO
-								break
-						}
-					}
-				}
-				else
-				{
-					data.ammoType = ""
-				}
+				data.ammoType = SURVIVAL_Loot_WeaponAmmoPool( data.baseWeapon, data.baseMods )
 
 				if ( IsWeaponKeyFieldDefined( data.baseWeapon, "secondary_ammo_pool_type" ) )
 				{

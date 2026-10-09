@@ -13,6 +13,7 @@ global function FS_ArenaWalls_RaiseAll
 global function FS_ArenaWalls_DropAll
 global function FS_ArenaWalls_SetExclusiveRealm
 global function FS_ArenaWalls_ClearExclusiveRealm
+global function FS_ArenaWalls_SetAshHolosHidden
 
 const string FS_ARENA_WALLS_START_ZONE = "func_brush_arenas_start_zone"
 const string FS_ARENA_WALLS_EMITTER = "arena_hologram_emitter"
@@ -26,6 +27,7 @@ struct
 	bool inited = false
 	bool collected = false
 	int exclusiveRealm = -1
+	bool ashHolosHidden = false
 	array<entity> startZone
 	array<entity> emitters
 	array<entity> ashHolos
@@ -119,9 +121,32 @@ void function FS_ArenaWalls_SpawnAshHolos()
 	}
 }
 
+void function FS_ArenaWalls_SetAshHolosHidden( bool hidden )
+{
+	file.ashHolosHidden = hidden
+	foreach ( entity holo in file.ashHolos )
+	{
+		if ( !IsValid( holo ) )
+			continue
+		if ( hidden )
+		{
+			holo.Hide()
+			holo.MakeInvisible()
+		}
+		else
+		{
+			holo.Show()
+			holo.MakeVisible()
+		}
+	}
+	printt( "[FS-ARENA-WALLS] ash holos " + ( hidden ? "hidden" : "shown" ) + " count=" + string( file.ashHolos.len() ) )
+}
+
 void function FS_ArenaWalls_Raise( entity ent )
 {
 	if ( !IsValid( ent ) )
+		return
+	if ( file.ashHolosHidden && file.ashHolos.contains( ent ) )
 		return
 	ent.Show()
 	ent.MakeVisible()

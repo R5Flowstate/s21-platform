@@ -222,7 +222,9 @@ struct {
 		int lastRoundUpdated = -1
 		int startStreak
 		var arenasScoreRui
+		var playerCountTrackedRui
 		var roundStartRui
+		bool buyMenuOpen
 		PakHandle ornull uiPak = null
 		string musicAlias = ""
 		bool useCustomArenasWinnerScreen
@@ -514,6 +516,7 @@ void function ShGamemodeArenas_Init()
 		thread Arenas_AbilityHudThink()
 	} )
 	SURVIVAL_SetGameStateAssetOverrideCallback( ArenasOverrideGameState )
+	SURVIVAL_SetGameStateRuiValueCallback( Arenas_RuiGameState )
 
 	Survival_SetVictorySoundPackageFunction( GetVictorySoundPackage )
 	SetChampionScreenRuiAssetExtraFunc( Arenas_VictoryScreen )
@@ -581,10 +584,25 @@ void function Arenas_ServerInit()
 	Spawn_SetSpawnpointRatingFunc( RateSpawnpoints_Generic )
 	// Pickups, ordnance swaps, death boxes and ultimate charge state live in these.
 	SURVIVAL_Loot_InitServer()
+	// The client runs these through ClGamemodeSurvival_Init; the server halves register the
+	// matching remotes and signals (Wraith's portal ends a skydive in every mode, and the
+	// skydive path signals the plane-view ones).
+	SurvivalShip_Init()
+	SurvivalFreefall_Init()
+	ObjectiveResourceSystem_Init()
+	// Airdrops and care packages spawn the survival drop pod.
+	PrecacheParticleSystem( $"droppod_trail_smoke_linger" )
+	PrecacheParticleSystem( $"droppod_trail_survival" )
+	PrecacheParticleSystem( $"veh_blowout_wide_full_loop" )
+	PrecacheParticleSystem( $"droppod_airburst" )
+	PrecacheImpactEffectTable( "droppod_impact" )
+	PrecacheModel( SURVIVAL_LOOT_POD_MODEL )
+	PrecacheModel( SURVIVAL_LOOT_POD_DOOR_MODEL )
 	Ultimates_Init()
 	Bleedout_Init()
 	SetOutOfBoundsTimeLimit( 5.0 )
 	Sh_ArenaDeathField_Init()
+	Survival_RegisterPlayerDamageCallbacks()
 
 	// Signals and flags survival's server init would register; the ring, heals and
 	// loot threads wait on them.
@@ -2270,6 +2288,8 @@ void function Arenas_ShowBuyMenu( int leftTeam, int rightTeam, bool playIntroTra
 
 	var rui = CreateFullscreenRui( $"ui/arenas_intro.rpak", 500 )
 	file.roundStartRui = rui
+	// Defaults to true; while set, the panel leaves the countdown and score to the shop.
+	RuiSetBool( rui, "isStoreOpen", file.buyMenuOpen )
 
 	RunUIScript( "ClientToUI_Arenas_SetRoundNumber", GetRoundsPlayed() + 1 )
 	Arenas_PopulatePrematchInfoRui( rui, leftTeam, rightTeam )
@@ -2361,6 +2381,7 @@ void function Arenas_PopulatePrematchInfoRui( var rui, int leftTeam, int rightTe
 {
 	RuiSetInt( rui, "leftTeamScore", Arenas_GetTeamWins( leftTeam ) )
 	RuiSetInt( rui, "rightTeamScore", Arenas_GetTeamWins( rightTeam ) )
+	Arenas_SetScoreLimitRuiArgs( rui )
 	RuiSetInt( rui, "numTies", GetGlobalNetInt( "arenas_numties" ) )
 	RuiSetInt( rui, "maxTies", Arenas_GetWinBy2MaxTies( GameRules_GetGameMode() ) )
 	RuiSetInt( rui, "roundNum", GetRoundsPlayed() )
@@ -2618,6 +2639,7 @@ void function Arenas_OnResolutionChanged()
 	RuiDestroyIfAlive( file.roundStartRui )
 	var rui = CreateFullscreenRui( $"ui/arenas_intro.rpak", 500 )
 	file.roundStartRui = rui
+	RuiSetBool( rui, "isStoreOpen", file.buyMenuOpen )
 
 	int leftTeam = player.GetTeam()
 	int rightTeam = Arenas_GetOpposingTeam( player.GetTeam() )
@@ -2627,6 +2649,10 @@ void function Arenas_OnResolutionChanged()
 void function Arenas_OnBuyMenuOpen( )
 {
 	file.hasEnteredBuyPhase = true
+	file.buyMenuOpen = true
+	InputOverlay_SetSuppressed( "arenas_buy", true )
+	if ( file.roundStartRui != null )
+		RuiSetBool( file.roundStartRui, "isStoreOpen", true )
 
 	if( !file.inAshRoom )
 		SetupAshRoom()
@@ -2634,6 +2660,11 @@ void function Arenas_OnBuyMenuOpen( )
 
 void function Arenas_OnBuyMenuClose( )
 {
+	file.buyMenuOpen = false
+	InputOverlay_SetSuppressed( "arenas_buy", false )
+	if ( file.roundStartRui != null )
+		RuiSetBool( file.roundStartRui, "isStoreOpen", false )
+
 	WaitFrame()
 
 	if( file.inAshRoom )
@@ -2756,6 +2787,13 @@ void function Arenas_AbilityHudThink()
 	}
 }
 
+// The arenas gamestate RUIs number eGameState with PreGamePreview after WaitingForPlayers,
+// so every later state is one higher than ours.
+int function Arenas_RuiGameState( int state )
+{
+	return state > eGameState.WaitingForPlayers ? state + 1 : state
+}
+
 // gameState and roundsPlayed are non-rewind netvars, which RUI tracking cannot read.
 void function Arenas_ScoreRuiRoundStateThink( var rui )
 {
@@ -2767,7 +2805,7 @@ void function Arenas_ScoreRuiRoundStateThink( var rui )
 		int round = GetRoundsPlayed()
 		if ( state != lastState )
 		{
-			RuiSetInt( rui, "gamestate", state )
+			RuiSetInt( rui, "gamestate", Arenas_RuiGameState( state ) )
 			lastState = state
 		}
 		if ( round != lastRound )
@@ -2860,6 +2898,14 @@ void function GameModeScoreBarRules( var rui )
 	if ( GetLocalViewPlayer() == null )
 		return
 
+	// Waiting players are parked unspawned, so the spawn-time scorebar tracking never runs.
+	// The waiting text formats livingPlayerCount / maxPlayerCount.
+	if ( rui != null && rui != file.playerCountTrackedRui )
+	{
+		RuiTrackInt( rui, "livingPlayerCount", null, RUI_TRACK_SCRIPT_NETWORK_VAR_GLOBAL_INT, GetNetworkedVariableIndex( "livingPlayerCount" ) )
+		file.playerCountTrackedRui = rui
+	}
+
 	if ( file.lastRoundUpdated != GetRoundsPlayed() )
 	{
 		file.lastRoundUpdated = GetRoundsPlayed()
@@ -2867,8 +2913,17 @@ void function GameModeScoreBarRules( var rui )
 	}
 }
 
+// The score RUIs default to another round format (the intro panel to first-to-5).
+void function Arenas_SetScoreLimitRuiArgs( var rui )
+{
+	int minScore = Arenas_GetWinBy2MinScore( GameRules_GetGameMode() )
+	RuiSetInt( rui, "minScoreToWin", minScore )
+	RuiSetInt( rui, "maxRounds", minScore * 2 - 1 )
+}
+
 void function PopulateFightRui( var rui )
 {
+	Arenas_SetScoreLimitRuiArgs( rui )
 
 	int teamNum = 1
 	int currentTeam = GetLocalClientPlayer().GetTeam()

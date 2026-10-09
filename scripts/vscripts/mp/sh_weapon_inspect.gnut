@@ -197,12 +197,14 @@ void function WeaponInspectHideHudElements( bool hide )
 		RuiSetBool( gamestateRui, "weaponInspect", false )
 		PlayerHudSetWeaponInspect( false )
 		WeaponStatusSetWeaponInspect( false )
+		InputOverlay_SetSuppressed( "weapon_inspect", false )
 	}
 	else if ( hide )
 	{
 		RuiSetBool( gamestateRui, "weaponInspect", true )
 		PlayerHudSetWeaponInspect( true )
 		WeaponStatusSetWeaponInspect( true )
+		InputOverlay_SetSuppressed( "weapon_inspect", true )
 	}
 }
 #endif

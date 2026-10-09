@@ -516,6 +516,7 @@ void function SlideGate_BoostThink( entity player, entity gate, float duration, 
 			if ( !IsValid( player ) )
 				return
 
+			player.EndSlideGateLaunch()
 			TakePlayerSettingsMods( player, [ SLIDEGATE_BOOSTED_SLIDE_PASSIVE ] )
 			if ( gaveJump )
 				TakePlayerSettingsMods( player, [ OVERDRIVE_SLIDE_JUMP_PASSIVE ] )
